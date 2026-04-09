@@ -519,3 +519,8 @@ Started: 2026-04-09
   - Menu must be rebuilt via Menu.setApplicationMenu() when recent files change; pass recent files to buildAppMenu
   - Use setPanelSizes + setVisibility inside onChange to read current state and persist (avoid stale closure issues)
 ---
+
+## 2026-04-09 - Progress update
+- US-030 committed (005b5d1)
+- Remaining: US-031 (Cross-Platform Build and Packaging)
+---
