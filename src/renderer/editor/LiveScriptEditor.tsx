@@ -4,18 +4,20 @@ import type { editor as monacoEditor } from 'monaco-editor'
 import type Monaco from 'monaco-editor'
 import Markdown from 'react-markdown'
 import { registerMatlabLanguage, MATLAB_LANGUAGE_ID } from './matlabLanguage'
-import { Plus, Trash2, Code, FileText, GripVertical } from 'lucide-react'
+import { Plus, Trash2, Code, FileText, GripVertical, Play, PlayCircle, Loader } from 'lucide-react'
 import {
   parseLiveScript,
   serializeLiveScript,
   type LiveScriptCell,
   type LiveScriptDocument,
 } from './editorTypes'
+import type { OctaveEngineStatus } from '../App'
 
 interface LiveScriptEditorProps {
   content: string
   onContentChange: (content: string) => void
   editorTheme?: string
+  engineStatus?: OctaveEngineStatus
   editorSettings?: {
     fontFamily: string
     fontSize: number
@@ -31,6 +33,7 @@ function nextCellId(): string {
 
 interface CellWithId extends LiveScriptCell {
   _id: string
+  _isError?: boolean
 }
 
 function addIds(cells: LiveScriptCell[]): CellWithId[] {
@@ -38,13 +41,14 @@ function addIds(cells: LiveScriptCell[]): CellWithId[] {
 }
 
 function stripIds(cells: CellWithId[]): LiveScriptCell[] {
-  return cells.map(({ _id, ...rest }) => rest)
+  return cells.map(({ _id, _isError, ...rest }) => rest)
 }
 
 function LiveScriptEditor({
   content,
   onContentChange,
   editorTheme,
+  engineStatus,
   editorSettings,
 }: LiveScriptEditorProps): React.JSX.Element {
   const [cells, setCells] = useState<CellWithId[]>(() => {
@@ -53,6 +57,8 @@ function LiveScriptEditor({
   })
   const [focusedCellId, setFocusedCellId] = useState<string | null>(null)
   const [addMenuIndex, setAddMenuIndex] = useState<number | null>(null)
+  const [runningCellId, setRunningCellId] = useState<string | null>(null)
+  const [runningAll, setRunningAll] = useState(false)
   const contentRef = useRef(content)
   const monacoRefLocal = useRef<typeof Monaco | null>(null)
 
@@ -108,6 +114,72 @@ function LiveScriptEditor({
     setAddMenuIndex((prev) => (prev === index ? null : index))
   }, [])
 
+  const handleRunCell = useCallback(async (cellId: string) => {
+    const cell = cells.find((c) => c._id === cellId)
+    if (!cell || cell.type !== 'code' || !cell.content.trim()) return
+    if (engineStatus !== 'ready') return
+
+    setRunningCellId(cellId)
+    try {
+      const result = await window.matslop.octaveExecute(cell.content)
+      const output = result.error ? result.error : result.output
+      const isError = !!result.error
+      setCells((prev) =>
+        prev.map((c) =>
+          c._id === cellId
+            ? { ...c, output: output || '', _isError: isError }
+            : c
+        )
+      )
+    } catch (err) {
+      setCells((prev) =>
+        prev.map((c) =>
+          c._id === cellId
+            ? { ...c, output: String(err), _isError: true }
+            : c
+        )
+      )
+    } finally {
+      setRunningCellId(null)
+    }
+  }, [cells, engineStatus])
+
+  const handleRunAll = useCallback(async () => {
+    if (engineStatus !== 'ready') return
+    setRunningAll(true)
+    const codeCells = cells.filter((c) => c.type === 'code')
+    for (const cell of codeCells) {
+      if (!cell.content.trim()) continue
+      setRunningCellId(cell._id)
+      try {
+        const result = await window.matslop.octaveExecute(cell.content)
+        const output = result.error ? result.error : result.output
+        const isError = !!result.error
+        setCells((prev) =>
+          prev.map((c) =>
+            c._id === cell._id
+              ? { ...c, output: output || '', _isError: isError }
+              : c
+          )
+        )
+        // Stop running all if there was an error
+        if (isError) break
+      } catch (err) {
+        setCells((prev) =>
+          prev.map((c) =>
+            c._id === cell._id
+              ? { ...c, output: String(err), _isError: true }
+              : c
+          )
+        )
+        break
+      } finally {
+        setRunningCellId(null)
+      }
+    }
+    setRunningAll(false)
+  }, [cells, engineStatus])
+
   const handleEditorMount: OnMount = useCallback((_editor, monaco) => {
     if (!monacoRefLocal.current) {
       monacoRefLocal.current = monaco
@@ -148,8 +220,24 @@ function LiveScriptEditor({
     </div>
   )
 
+  const canRun = engineStatus === 'ready' && !runningAll
+
   return (
     <div className="ls-editor" onClick={() => setFocusedCellId(null)}>
+      <div className="ls-toolbar">
+        <button
+          className="ls-run-all-btn"
+          onClick={(e) => {
+            e.stopPropagation()
+            handleRunAll()
+          }}
+          disabled={!canRun}
+          title="Run All Cells"
+        >
+          <PlayCircle size={16} />
+          Run All
+        </button>
+      </div>
       <div className="ls-cells">
         {renderAddCellButton(0)}
         {cells.map((cell, idx) => (
@@ -163,19 +251,44 @@ function LiveScriptEditor({
             >
               <div className="ls-cell-gutter">
                 <GripVertical size={14} className="ls-cell-drag-handle" />
-                <span className="ls-cell-type-badge">
-                  {cell.type === 'code' ? <Code size={12} /> : <FileText size={12} />}
-                </span>
+                {cell.type === 'code' ? (
+                  runningCellId === cell._id ? (
+                    <Loader size={14} className="ls-cell-running-icon" />
+                  ) : (
+                    <button
+                      className="ls-cell-run-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleRunCell(cell._id)
+                      }}
+                      disabled={!canRun}
+                      title="Run Cell"
+                    >
+                      <Play size={14} />
+                    </button>
+                  )
+                ) : (
+                  <span className="ls-cell-type-badge">
+                    <FileText size={12} />
+                  </span>
+                )}
               </div>
               <div className="ls-cell-content">
                 {cell.type === 'code' ? (
-                  <CodeCell
-                    cell={cell}
-                    onChange={handleCellContentChange}
-                    onMount={handleEditorMount}
-                    editorTheme={editorTheme}
-                    editorSettings={editorSettings}
-                  />
+                  <>
+                    <CodeCell
+                      cell={cell}
+                      onChange={handleCellContentChange}
+                      onMount={handleEditorMount}
+                      editorTheme={editorTheme}
+                      editorSettings={editorSettings}
+                    />
+                    {cell.output && (
+                      <div className={`ls-cell-output ${cell._isError ? 'ls-cell-output-error' : ''}`}>
+                        <pre>{cell.output}</pre>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <MarkdownCell
                     cell={cell}

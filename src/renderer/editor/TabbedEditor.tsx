@@ -6,6 +6,7 @@ import { registerMatlabLanguage, MATLAB_LANGUAGE_ID } from './matlabLanguage'
 import { analyzeMatlabCode, diagnosticsToMarkers } from './matlabDiagnostics'
 import type { EditorTab } from './editorTypes'
 import LiveScriptEditor from './LiveScriptEditor'
+import type { OctaveEngineStatus } from '../App'
 
 interface TabbedEditorProps {
   tabs: EditorTab[]
@@ -19,6 +20,7 @@ interface TabbedEditorProps {
   onNewFile?: () => void
   onOpenFile?: () => void
   editorTheme?: string
+  engineStatus?: OctaveEngineStatus
   editorSettings?: {
     fontFamily: string
     fontSize: number
@@ -39,6 +41,7 @@ function TabbedEditor({
   onNewFile,
   onOpenFile,
   editorTheme,
+  engineStatus,
   editorSettings,
 }: TabbedEditorProps): React.JSX.Element {
   const editorRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null)
@@ -203,6 +206,7 @@ function TabbedEditor({
             content={activeTab.content}
             onContentChange={(value) => handleContentChange(value)}
             editorTheme={editorTheme}
+            engineStatus={engineStatus}
             editorSettings={editorSettings}
           />
         ) : activeTab ? (

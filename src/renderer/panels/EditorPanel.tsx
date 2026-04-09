@@ -474,6 +474,7 @@ function EditorPanel({
           onNewFile={handleNewFile}
           onOpenFile={handleOpenFile}
           editorTheme={editorTheme}
+          engineStatus={engineStatus}
           editorSettings={editorSettings}
         />
       </div>
