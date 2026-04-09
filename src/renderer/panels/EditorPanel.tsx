@@ -3,7 +3,7 @@ import type { editor as monacoEditor } from 'monaco-editor'
 import PanelHeader from './PanelHeader'
 import TabbedEditor from '../editor/TabbedEditor'
 import EditorToolbar from '../editor/EditorToolbar'
-import { createTab, type EditorTab } from '../editor/editorTypes'
+import { createTab, createEmptyLiveScript, type EditorTab } from '../editor/editorTypes'
 import type { OctaveEngineStatus } from '../App'
 import { shortcutManager, type ShortcutAction } from '../shortcuts/shortcutManager'
 
@@ -87,6 +87,13 @@ function EditorPanel({
     setActiveTabId(tab.id)
   }, [])
 
+  const handleNewLiveScript = useCallback(() => {
+    const content = createEmptyLiveScript()
+    const tab = createTab('untitled.mls', content, null, 'livescript')
+    setTabs((prev) => [...prev, tab])
+    setActiveTabId(tab.id)
+  }, [])
+
   const handleOpenFile = useCallback(async () => {
     const result = await window.matslop.openFile()
     if (!result) return
@@ -96,7 +103,8 @@ function EditorPanel({
       setActiveTabId(existing.id)
       return
     }
-    const tab = createTab(result.filename, result.content, result.filePath)
+    const mode = result.filename.endsWith('.mls') ? 'livescript' as const : 'script' as const
+    const tab = createTab(result.filename, result.content, result.filePath, mode)
     setTabs((prev) => [...prev, tab])
     setActiveTabId(tab.id)
   }, [tabs])
@@ -346,6 +354,10 @@ function EditorPanel({
         handleNewFile()
         onMenuActionConsumed?.()
         break
+      case 'newLiveScript':
+        handleNewLiveScript()
+        onMenuActionConsumed?.()
+        break
       case 'openFile':
         handleOpenFile().then(() => onMenuActionConsumed?.())
         break
@@ -405,7 +417,7 @@ function EditorPanel({
         // Not handled by EditorPanel — leave for other consumers
         break
     }
-  }, [menuAction, activeTabId, handleNewFile, handleOpenFile, handleSave, handleSaveAs, handleTabClose, handleRun, handleRunSection, onMenuActionConsumed])
+  }, [menuAction, activeTabId, handleNewFile, handleNewLiveScript, handleOpenFile, handleSave, handleSaveAs, handleTabClose, handleRun, handleRunSection, onMenuActionConsumed])
 
   // Open file from File Browser
   useEffect(() => {
@@ -419,7 +431,8 @@ function EditorPanel({
     }
     window.matslop.readFile(openFilePath).then((result) => {
       if (result) {
-        const tab = createTab(result.filename, result.content, result.filePath)
+        const mode = result.filename.endsWith('.mls') ? 'livescript' as const : 'script' as const
+        const tab = createTab(result.filename, result.content, result.filePath, mode)
         setTabs((prev) => [...prev, tab])
         setActiveTabId(tab.id)
       }

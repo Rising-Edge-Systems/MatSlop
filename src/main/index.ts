@@ -68,6 +68,7 @@ ipcMain.handle('file:open', async () => {
   const result = await dialog.showOpenDialog({
     filters: [
       { name: 'MATLAB Files', extensions: ['m'] },
+      { name: 'MatSlop Live Scripts', extensions: ['mls'] },
       { name: 'All Files', extensions: ['*'] }
     ],
     properties: ['openFile']
@@ -90,12 +91,18 @@ ipcMain.handle('file:save', async (_event, filePath: string, content: string) =>
 })
 
 ipcMain.handle('file:saveAs', async (_event, content: string, defaultName?: string) => {
+  const isLiveScript = defaultName?.endsWith('.mls')
   const result = await dialog.showSaveDialog({
     defaultPath: defaultName ?? 'untitled.m',
-    filters: [
-      { name: 'MATLAB Files', extensions: ['m'] },
-      { name: 'All Files', extensions: ['*'] }
-    ]
+    filters: isLiveScript
+      ? [
+          { name: 'MatSlop Live Scripts', extensions: ['mls'] },
+          { name: 'All Files', extensions: ['*'] },
+        ]
+      : [
+          { name: 'MATLAB Files', extensions: ['m'] },
+          { name: 'All Files', extensions: ['*'] },
+        ]
   })
   if (result.canceled || !result.filePath) {
     return null

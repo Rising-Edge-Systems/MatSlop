@@ -5,6 +5,7 @@ import type Monaco from 'monaco-editor'
 import { registerMatlabLanguage, MATLAB_LANGUAGE_ID } from './matlabLanguage'
 import { analyzeMatlabCode, diagnosticsToMarkers } from './matlabDiagnostics'
 import type { EditorTab } from './editorTypes'
+import LiveScriptEditor from './LiveScriptEditor'
 
 interface TabbedEditorProps {
   tabs: EditorTab[]
@@ -196,7 +197,15 @@ function TabbedEditor({
         </div>
       </div>
       <div className="editor-content">
-        {activeTab && (
+        {activeTab && activeTab.mode === 'livescript' ? (
+          <LiveScriptEditor
+            key={activeTab.id}
+            content={activeTab.content}
+            onContentChange={(value) => handleContentChange(value)}
+            editorTheme={editorTheme}
+            editorSettings={editorSettings}
+          />
+        ) : activeTab ? (
           <Editor
             key={activeTab.id}
             theme={editorTheme ?? 'vs-dark'}
@@ -219,7 +228,7 @@ function TabbedEditor({
               wordWrap: 'off',
             }}
           />
-        )}
+        ) : null}
       </div>
     </div>
   )

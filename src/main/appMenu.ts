@@ -46,7 +46,6 @@ export function buildAppMenu(mainWindow: BrowserWindow): Menu {
         {
           label: 'New Live Script',
           click: () => send('newLiveScript'),
-          enabled: false, // Placeholder for future US-023
         },
         { type: 'separator' },
         {
