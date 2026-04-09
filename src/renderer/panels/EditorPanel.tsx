@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, type DragEvent } from 'react'
 import type { editor as monacoEditor } from 'monaco-editor'
 import PanelHeader from './PanelHeader'
 import TabbedEditor from '../editor/TabbedEditor'
@@ -68,6 +68,8 @@ function EditorPanel({
     () => tabs[0]?.id ?? null
   )
   const editorInstanceRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
+  const dragCounterRef = useRef(0)
 
   const handleEditorRef = useCallback((editor: monacoEditor.IStandaloneCodeEditor | null) => {
     editorInstanceRef.current = editor
@@ -440,6 +442,60 @@ function EditorPanel({
     })
   }, [openFilePath, onFileOpened, tabs])
 
+  // Drag-and-drop file opening
+  const handleDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounterRef.current++
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDragOver(true)
+    }
+  }, [])
+
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounterRef.current--
+    if (dragCounterRef.current === 0) {
+      setIsDragOver(false)
+    }
+  }, [])
+
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }, [])
+
+  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+    dragCounterRef.current = 0
+
+    const files = Array.from(e.dataTransfer.files)
+    for (const file of files) {
+      const filePath = (file as File & { path: string }).path
+      if (!filePath) continue
+      if (!filePath.endsWith('.m') && !filePath.endsWith('.mls')) continue
+
+      // Check if already open
+      const existing = tabs.find((t) => t.filePath === filePath)
+      if (existing) {
+        setActiveTabId(existing.id)
+        continue
+      }
+
+      window.matslop.readFile(filePath).then((result) => {
+        if (result) {
+          const mode = result.filename.endsWith('.mls') ? 'livescript' as const : 'script' as const
+          const tab = createTab(result.filename, result.content, result.filePath, mode)
+          setTabs((prev) => [...prev, tab])
+          setActiveTabId(tab.id)
+        }
+      })
+    }
+  }, [tabs])
+
   const allPanels: { key: keyof PanelVisibility; label: string }[] = [
     { key: 'fileBrowser', label: 'File Browser' },
     { key: 'workspace', label: 'Workspace' },
@@ -449,7 +505,13 @@ function EditorPanel({
   const hiddenPanels = allPanels.filter((p) => !panelVisibility[p.key])
 
   return (
-    <div className="panel editor-panel">
+    <div
+      className="panel editor-panel"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       <PanelHeader title="Editor" />
       <EditorToolbar
         hasActiveFile={activeTabId !== null}
@@ -462,6 +524,13 @@ function EditorPanel({
         onRunSection={handleRunSection}
       />
       <div className="panel-content editor-panel-content">
+        {isDragOver && (
+          <div className="drop-overlay">
+            <div className="drop-overlay-content">
+              Drop .m or .mls files to open
+            </div>
+          </div>
+        )}
         <TabbedEditor
           tabs={tabs}
           activeTabId={activeTabId}

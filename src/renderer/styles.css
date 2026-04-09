@@ -330,6 +330,31 @@ body {
   position: relative;
 }
 
+.drop-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 120, 215, 0.15);
+  border: 2px dashed var(--accent-color, #0078d7);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.drop-overlay-content {
+  padding: 16px 32px;
+  background: var(--bg-main);
+  border: 1px solid var(--accent-color, #0078d7);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
 .collapsed-panels-bar {
   display: flex;
   gap: 4px;
