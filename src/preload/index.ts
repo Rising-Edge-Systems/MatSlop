@@ -81,4 +81,9 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.on('menu:action', handler)
     return () => ipcRenderer.removeListener('menu:action', handler)
   },
+  // Theme/config
+  configGetTheme: (): Promise<'light' | 'dark' | 'system'> =>
+    ipcRenderer.invoke('config:getTheme'),
+  configSetTheme: (theme: 'light' | 'dark' | 'system'): Promise<void> =>
+    ipcRenderer.invoke('config:setTheme', theme),
 })

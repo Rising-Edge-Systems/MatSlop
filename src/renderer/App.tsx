@@ -12,6 +12,7 @@ import type { CursorPosition } from './panels/StatusBar'
 import OctaveSetupDialog from './dialogs/OctaveSetupDialog'
 import VariableInspectorDialog, { type InspectedVariable } from './dialogs/VariableInspectorDialog'
 
+export type ThemeMode = 'light' | 'dark' | 'system'
 export type OctaveEngineStatus = 'ready' | 'busy' | 'disconnected'
 
 export interface OctaveStatus {
@@ -50,6 +51,8 @@ function App(): React.JSX.Element {
   const [menuAction, setMenuAction] = useState<{ action: string; id: number } | null>(null)
   const menuActionIdRef = useRef(0)
   const [showAbout, setShowAbout] = useState(false)
+  const [themeMode, setThemeMode] = useState<ThemeMode>('system')
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('dark')
 
   // Start Octave process when path becomes configured
   const startOctaveProcess = useCallback(async (binaryPath: string) => {
@@ -98,6 +101,43 @@ function App(): React.JSX.Element {
     setShowOctaveSetup(false)
     startOctaveProcess(path)
   }, [startOctaveProcess])
+
+  // Load theme preference on startup
+  useEffect(() => {
+    window.matslop.configGetTheme().then((stored) => {
+      setThemeMode(stored)
+    })
+  }, [])
+
+  // Resolve theme mode to actual light/dark and apply to document
+  useEffect(() => {
+    const resolve = (mode: ThemeMode, prefersDark: boolean): 'light' | 'dark' => {
+      if (mode === 'system') return prefersDark ? 'dark' : 'light'
+      return mode
+    }
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    const updateTheme = (): void => {
+      const resolved = resolve(themeMode, mediaQuery.matches)
+      setResolvedTheme(resolved)
+      if (resolved === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light')
+      } else {
+        document.documentElement.removeAttribute('data-theme')
+      }
+    }
+
+    updateTheme()
+
+    // Listen for system preference changes when in 'system' mode
+    mediaQuery.addEventListener('change', updateTheme)
+    return () => mediaQuery.removeEventListener('change', updateTheme)
+  }, [themeMode])
+
+  const handleSetTheme = useCallback((mode: ThemeMode) => {
+    setThemeMode(mode)
+    window.matslop.configSetTheme(mode)
+  }, [])
 
   const togglePanel = (panel: keyof PanelVisibility) => {
     setVisibility((prev) => ({ ...prev, [panel]: !prev[panel] }))
@@ -165,6 +205,15 @@ function App(): React.JSX.Element {
         case 'resetLayout':
           setVisibility({ fileBrowser: true, workspace: true, commandWindow: true, commandHistory: false })
           break
+        case 'setThemeLight':
+          handleSetTheme('light')
+          break
+        case 'setThemeDark':
+          handleSetTheme('dark')
+          break
+        case 'setThemeSystem':
+          handleSetTheme('system')
+          break
         case 'stopExecution':
           handleStop()
           break
@@ -180,7 +229,7 @@ function App(): React.JSX.Element {
       }
     })
     return unsub
-  }, [handleStop])
+  }, [handleStop, handleSetTheme])
 
   const handleMenuActionConsumed = useCallback(() => {
     setMenuAction(null)
@@ -327,6 +376,7 @@ function App(): React.JSX.Element {
                     onRunSection={handleRunSection}
                     menuAction={menuAction}
                     onMenuActionConsumed={handleMenuActionConsumed}
+                    editorTheme={resolvedTheme === 'light' ? 'vs-light' : 'vs-dark'}
                   />
                 </Allotment.Pane>
                 <Allotment.Pane

@@ -15,6 +15,9 @@ export type MenuAction =
   | 'toggleCommandHistory'
   | 'toggleStatusBar'
   | 'resetLayout'
+  | 'setThemeLight'
+  | 'setThemeDark'
+  | 'setThemeSystem'
   | 'runScript'
   | 'runSection'
   | 'stopExecution'
@@ -122,6 +125,24 @@ export function buildAppMenu(mainWindow: BrowserWindow): Menu {
         {
           label: 'Reset Layout',
           click: () => send('resetLayout'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Theme',
+          submenu: [
+            {
+              label: 'Light',
+              click: () => send('setThemeLight'),
+            },
+            {
+              label: 'Dark',
+              click: () => send('setThemeDark'),
+            },
+            {
+              label: 'System',
+              click: () => send('setThemeSystem'),
+            },
+          ],
         },
         { type: 'separator' },
         { role: 'toggleDevTools' },

@@ -14,6 +14,7 @@ interface TabbedEditorProps {
   onEditorRef?: (editor: monacoEditor.IStandaloneCodeEditor | null) => void
   onNewFile?: () => void
   onOpenFile?: () => void
+  editorTheme?: string
 }
 
 function TabbedEditor({
@@ -26,6 +27,7 @@ function TabbedEditor({
   onEditorRef,
   onNewFile,
   onOpenFile,
+  editorTheme,
 }: TabbedEditorProps): React.JSX.Element {
   const editorRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null)
 
@@ -147,7 +149,7 @@ function TabbedEditor({
         {activeTab && (
           <Editor
             key={activeTab.id}
-            theme="vs-dark"
+            theme={editorTheme ?? 'vs-dark'}
             defaultLanguage={MATLAB_LANGUAGE_ID}
             value={activeTab.content}
             onChange={handleContentChange}

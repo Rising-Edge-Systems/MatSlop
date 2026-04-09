@@ -41,5 +41,8 @@ interface Window {
     figuresCopyFile: (sourcePath: string, destPath: string) => Promise<{ success: boolean; error?: string }>
     // Menu action events from main process
     onMenuAction: (callback: (action: string) => void) => () => void
+    // Theme/config
+    configGetTheme: () => Promise<'light' | 'dark' | 'system'>
+    configSetTheme: (theme: 'light' | 'dark' | 'system') => Promise<void>
   }
 }

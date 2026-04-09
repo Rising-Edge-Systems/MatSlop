@@ -5,6 +5,7 @@ import os from 'os'
 import { autoDetectOctavePath, validateOctavePath, getStoredOctavePath, setOctavePath } from './octaveConfig'
 import { OctaveProcessManager } from './octaveProcess'
 import { buildAppMenu } from './appMenu'
+import { getStoredTheme, setStoredTheme, type ThemeMode } from './appConfig'
 
 // Command history file path
 function getHistoryFilePath(): string {
@@ -376,6 +377,15 @@ ipcMain.handle('history:deleteEntry', (_event, index: number) => {
     writeCommandHistory(history)
   }
   return history
+})
+
+// IPC handlers for theme/config
+ipcMain.handle('config:getTheme', () => {
+  return getStoredTheme()
+})
+
+ipcMain.handle('config:setTheme', (_event, theme: ThemeMode) => {
+  setStoredTheme(theme)
 })
 
 app.whenReady().then(() => {
