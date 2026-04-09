@@ -1,0 +1,532 @@
+{
+  "project": "MatSlop",
+  "branchName": "ralph/matslop-ide",
+  "description": "MatSlop - Open-source MATLAB alternative IDE built with Electron, React, TypeScript, and GNU Octave",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Electron App Scaffold and Build System",
+      "description": "As a developer, I need the base Electron + React + TypeScript project scaffolded with a working build system so that all subsequent features have a foundation.",
+      "acceptanceCriteria": [
+        "Electron app launches with a blank React-rendered window",
+        "TypeScript compilation works with strict mode enabled",
+        "Hot-reload works in development mode (npm run dev)",
+        "ESLint and Prettier configured with reasonable defaults",
+        "Package.json includes scripts: dev, build, lint, typecheck",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Main Window Layout with Resizable Panel System",
+      "description": "As a user, I want a MATLAB-like IDE layout with resizable panels so I can arrange my workspace comfortably.",
+      "acceptanceCriteria": [
+        "Main window has four panel areas: Editor (center), Command Window (bottom), Workspace (top-right), File Browser (left sidebar)",
+        "Panels are resizable by dragging dividers between them",
+        "Panels can be collapsed and expanded",
+        "Minimum panel sizes prevent panels from being dragged to zero width/height",
+        "Layout uses a split-pane library (e.g., allotment or react-resizable-panels)",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Monaco Editor with MATLAB Syntax Highlighting",
+      "description": "As a user, I want a code editor with MATLAB syntax highlighting so I can write .m files comfortably.",
+      "acceptanceCriteria": [
+        "Monaco Editor embedded in the Editor panel area",
+        "Custom MATLAB/Octave language definition registered with keywords (if, else, elseif, for, while, function, end, switch, case, try, catch, classdef, return, break, continue), comment syntax (% line, %{ block %}), string literals ('...' and \"...\"), number literals, operators, matrix brackets",
+        "Line numbers displayed",
+        "Code folding for function/end, if/end, for/end, while/end blocks",
+        "Multiple editor tabs supported - clicking a tab switches the active file",
+        "Tab shows filename with dot indicator for unsaved changes",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "File Open, Save, Save As, and New File",
+      "description": "As a user, I want to create, open, and save .m files so I can manage my scripts.",
+      "acceptanceCriteria": [
+        "New File action creates a new untitled tab in the editor",
+        "Open File shows native file dialog filtered to .m files and opens the selected file in a new tab",
+        "Save writes current tab contents to disk (prompts for path if untitled)",
+        "Save As prompts for new path and saves",
+        "Ctrl+S triggers save, Ctrl+Shift+S triggers Save As",
+        "Closing a tab with unsaved changes prompts a Save/Discard/Cancel dialog",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "File Browser Panel",
+      "description": "As a user, I want a file browser panel showing the current working directory so I can navigate and open files.",
+      "acceptanceCriteria": [
+        "File Browser panel on the left shows a directory tree of the current working directory",
+        "Directories are expandable/collapsible with arrow icons",
+        "Files show appropriate icons (special icon for .m files)",
+        "Double-clicking a .m file opens it in the editor",
+        "Right-click context menu with: Open, Rename, Delete, New File, New Folder",
+        "Current directory path shown at top with a Change Directory button that opens a folder picker",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Octave Path Auto-Detection and Configuration",
+      "description": "As a developer, I need the app to find the GNU Octave installation automatically or let the user configure it.",
+      "acceptanceCriteria": [
+        "On startup, searches for octave-cli or octave binary in: /usr/bin/octave, /usr/local/bin/octave, /opt/homebrew/bin/octave, common Windows paths (C:\\Program Files\\GNU Octave\\*\\bin\\octave-cli.exe), and PATH",
+        "If found, stores path in electron-store config",
+        "If NOT found, shows dialog: 'GNU Octave not found' with instructions and a Browse button for manual selection",
+        "Settings allow changing the Octave path at any time",
+        "Validates path points to a working Octave binary before accepting (runs octave --version)",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "GNU Octave Backend Process Manager",
+      "description": "As a developer, I need a backend service that manages a GNU Octave child process so the app can execute MATLAB-compatible commands.",
+      "acceptanceCriteria": [
+        "On app startup (after Octave path is configured), spawns GNU Octave with --no-gui --interactive --no-history flags",
+        "Can send commands to Octave via stdin and capture stdout/stderr output",
+        "Uses a unique delimiter/prompt marker to detect when command output is complete",
+        "Handles Octave process crashes gracefully with error notification and restart option",
+        "Can interrupt running commands by sending SIGINT to the Octave process",
+        "Properly terminates Octave process on app quit",
+        "Exposes IPC API from main process to renderer: executeCommand(cmd) returns {output, error, isComplete}",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Command Window (Terminal Panel)",
+      "description": "As a user, I want a command window where I can type MATLAB commands interactively, just like MATLAB's Command Window.",
+      "acceptanceCriteria": [
+        "Command Window panel displayed at the bottom of the IDE",
+        "Shows >> prompt for input",
+        "User can type commands and press Enter to execute via Octave backend",
+        "Command output displayed below the input preserving formatting",
+        "Error messages displayed in red text",
+        "Command history accessible with Up/Down arrow keys",
+        "Supports multi-line input with ... continuation",
+        "Can interrupt running command with Ctrl+C",
+        "Scrollable output with auto-scroll to bottom on new output",
+        "clc command clears the command window",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Status Bar",
+      "description": "As a user, I want a status bar showing engine status, cursor position, and current directory.",
+      "acceptanceCriteria": [
+        "Status bar at the bottom of the window below all panels",
+        "Shows current working directory on the left side",
+        "Shows Octave engine status: Ready (green), Busy (yellow), or Disconnected (red) with colored dot indicator",
+        "Shows cursor position (line:column) for the active editor tab",
+        "Shows file encoding (UTF-8)",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Editor Toolbar with Run Controls",
+      "description": "As a user, I want a toolbar above the editor with buttons for common actions like run and stop.",
+      "acceptanceCriteria": [
+        "Toolbar row above the editor with icon buttons: New File, Open File, Save, Run (green play), Stop (red square), Run Section",
+        "Buttons have tooltips showing name and keyboard shortcut",
+        "Run button is disabled when no file is open",
+        "Stop button is disabled when Octave is not busy, enabled when busy",
+        "Uses Lucide React icons for consistent style",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Run .m Script from Editor",
+      "description": "As a user, I want to run the current .m script and see output in the command window.",
+      "acceptanceCriteria": [
+        "Clicking Run button or pressing F5 runs the current file",
+        "Running a script auto-saves the file first",
+        "Script executes via Octave backend with output appearing in Command Window",
+        "Current working directory is set to the script's directory before execution",
+        "Run Section (Ctrl+Enter) runs only the code in the current cell delimited by %% markers",
+        "Errors show file:line references in the Command Window output",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "MATLAB-Compatible Current Directory Management",
+      "description": "As a user, I want cd, pwd, ls, dir commands to work and keep the file browser in sync.",
+      "acceptanceCriteria": [
+        "cd command in Command Window changes Octave's working directory AND updates File Browser panel and status bar",
+        "pwd returns the current directory",
+        "ls and dir list directory contents in the Command Window",
+        "Changing directory via File Browser's Change Directory button also updates Octave's cd and the status bar",
+        "addpath and rmpath work for managing the Octave search path",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Workspace / Variable Viewer Panel",
+      "description": "As a user, I want to see all variables in my workspace with names, sizes, types, and value previews.",
+      "acceptanceCriteria": [
+        "Workspace panel shows a table with columns: Name, Value (preview), Size, Class",
+        "After each command execution, workspace refreshes by querying Octave (whos command)",
+        "Scalar values show their value directly in the Value column",
+        "Vectors/matrices show dimensions (e.g., '3x3 double')",
+        "Strings show a truncated preview",
+        "Structs show field count, cell arrays show dimensions",
+        "Variables are sorted alphabetically by default",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Variable Inspector Dialog",
+      "description": "As a user, I want to double-click a variable to view and edit its full contents in a spreadsheet-like view.",
+      "acceptanceCriteria": [
+        "Double-clicking a numeric matrix/vector in workspace opens a modal with a spreadsheet-style grid showing values",
+        "Grid cells are editable; editing a cell sends an assignment command to Octave to update the variable",
+        "Struct variables show fields in a key-value list view",
+        "String variables show full text in a text area",
+        "Dialog title shows variable name, size, and class",
+        "Close button returns to main view",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Command History Panel",
+      "description": "As a user, I want a searchable command history so I can recall and re-run previous commands.",
+      "acceptanceCriteria": [
+        "Command History panel toggleable from View menu",
+        "Shows all commands executed in current and previous sessions",
+        "Double-clicking a history entry pastes it into the Command Window input",
+        "Search/filter box at top of history panel filters the list",
+        "History persists across app restarts via a local file",
+        "Right-click context menu: Copy, Execute, Delete from History",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Plot/Figure Window Support",
+      "description": "As a user, I want plotting commands to display figures, just like MATLAB.",
+      "acceptanceCriteria": [
+        "plot(), scatter(), bar(), histogram() commands produce visible figures in the app",
+        "Octave renders plots to temporary PNG files using print('-dpng', tmpfile) and the app displays them",
+        "Each figure opens in its own tab within a Figures panel or as a floating window",
+        "Figures can be resized",
+        "Figure toolbar with: Save as Image (PNG/SVG/PDF) button",
+        "title(), xlabel(), ylabel(), legend() annotations render correctly",
+        "subplot() layouts work correctly",
+        "hold on / hold off for overlaying plots works",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Application Menu Bar",
+      "description": "As a user, I want a standard application menu bar with all expected IDE menu options.",
+      "acceptanceCriteria": [
+        "File menu: New Script, New Live Script, Open, Save, Save As, Close Tab, Exit",
+        "Edit menu: Undo, Redo, Cut, Copy, Paste, Find & Replace, Go to Line, Select All",
+        "View menu: Toggle Command Window, Toggle Workspace, Toggle File Browser, Toggle Command History, Toggle Status Bar, Reset Layout",
+        "Run menu: Run Script (F5), Run Section (Ctrl+Enter), Stop Execution, Clear Command Window",
+        "Help menu: About MatSlop, Octave Documentation (opens web link)",
+        "All menu items show keyboard shortcuts",
+        "Menu items are disabled when not applicable",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Theme Support (Light and Dark Mode)",
+      "description": "As a user, I want to switch between light and dark themes.",
+      "acceptanceCriteria": [
+        "App ships with a light theme (MATLAB-inspired white/blue) and a dark theme",
+        "Theme toggle in View menu: Light / Dark / System",
+        "All panels, editor, menus, and dialogs styled consistently per theme via CSS variables",
+        "Monaco editor theme switches between vs-light and vs-dark accordingly",
+        "Theme preference persists across restarts in config",
+        "Default follows system preference",
+        "Typecheck passes"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Keyboard Shortcuts",
+      "description": "As a user, I want standard keyboard shortcuts matching MATLAB conventions.",
+      "acceptanceCriteria": [
+        "F5: Run script",
+        "Ctrl+C in Command Window: Interrupt execution",
+        "Ctrl+Enter: Run current section/cell",
+        "Ctrl+N: New file, Ctrl+O: Open, Ctrl+S: Save, Ctrl+W: Close tab",
+        "Ctrl+F: Find, Ctrl+H: Find and Replace, Ctrl+G: Go to line",
+        "Ctrl+/: Toggle comment on selected lines (add/remove % prefix)",
+        "Tab/Shift+Tab: Indent/unindent selected lines",
+        "All shortcuts handled via a centralized shortcut manager to avoid conflicts",
+        "Typecheck passes"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Auto-Complete for MATLAB/Octave Functions",
+      "description": "As a user, I want auto-complete suggestions for built-in and user-defined functions.",
+      "acceptanceCriteria": [
+        "Typing in editor triggers auto-complete popup after 2+ characters",
+        "Suggestions include a comprehensive list of Octave built-in functions (sin, cos, plot, zeros, ones, eye, linspace, etc.)",
+        "Suggestions include variable names from the current workspace (fetched from Octave)",
+        "Suggestions include function names from .m files in the current directory",
+        "Selecting a suggestion inserts it at cursor",
+        "Function signatures shown in detail panel (e.g., plot(X, Y, LineSpec))",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Basic Syntax Error Highlighting in Editor",
+      "description": "As a user, I want basic syntax errors highlighted before I run my code.",
+      "acceptanceCriteria": [
+        "Unclosed brackets/parentheses underlined in red",
+        "Mismatched function/end blocks highlighted",
+        "Error messages shown on hover over underlined code via Monaco markers",
+        "Diagnostics update as user types with ~500ms debounce",
+        "Error count shown in status bar",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Preferences/Settings Dialog",
+      "description": "As a user, I want a preferences dialog to customize editor behavior and settings.",
+      "acceptanceCriteria": [
+        "Preferences dialog accessible from Edit > Preferences menu",
+        "Settings: Font family and font size for editor",
+        "Settings: Tab size (2/4/8 spaces) and spaces vs tabs toggle",
+        "Settings: Theme selection (Light/Dark/System)",
+        "Settings: Octave executable path with Browse button",
+        "Settings: Default working directory",
+        "All settings persisted to electron-store config",
+        "Changes apply immediately without restart",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Live Script - Basic Cell Structure and File Format",
+      "description": "As a user, I want to create live scripts with code and text cells, saved in a JSON-based .mls format.",
+      "acceptanceCriteria": [
+        "File > New Live Script creates a .mls file opened in notebook mode (distinct from the Monaco editor view)",
+        "Notebook view shows an ordered list of cells, each either Code or Markdown type",
+        "Code cells use Monaco editor instances with MATLAB syntax highlighting",
+        "Text/Markdown cells show rendered markdown when not focused, and a markdown editor when focused",
+        "Add Cell button (+) between cells to insert new Code or Markdown cell",
+        "Delete button on each cell to remove it",
+        "File saved as JSON .mls format: {cells: [{type, content, output}]}",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Live Script - Code Cell Execution and Inline Output",
+      "description": "As a user, I want to run code cells in a live script and see output inline below the cell.",
+      "acceptanceCriteria": [
+        "Each code cell has a Run Cell button (play icon)",
+        "Clicking Run Cell executes the code via Octave and displays text output inline below the cell",
+        "Error output shown in red below the cell",
+        "Run All button at the top executes all code cells sequentially top-to-bottom",
+        "Cell execution order matters - variables persist between cells in the same Octave session",
+        "Output is cached in the .mls file so it persists when reopening",
+        "Typecheck passes"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "Live Script - Inline Plot Rendering",
+      "description": "As a user, I want plots in live script code cells to render inline below the cell.",
+      "acceptanceCriteria": [
+        "When a code cell contains a plot command, the figure renders as an inline image below the cell",
+        "Uses Octave's print command to export figure to temp PNG, then displays as an <img> element",
+        "Multiple plots in one cell all render below",
+        "Inline plots are displayed at a reasonable default size",
+        "Right-click on inline plot: Save As Image, Open in Figure Window",
+        "Typecheck passes"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "Live Script - Cell Reordering via Drag and Drop",
+      "description": "As a user, I want to reorder cells in a live script by dragging them.",
+      "acceptanceCriteria": [
+        "Each cell has a drag handle on the left side",
+        "Cells can be reordered via drag-and-drop",
+        "Drop indicator shows where the cell will be placed",
+        "Reordering updates the .mls file structure",
+        "Typecheck passes"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Find and Replace in Editor",
+      "description": "As a user, I want find and replace functionality with regex support.",
+      "acceptanceCriteria": [
+        "Ctrl+F opens find bar in current editor tab (using Monaco's built-in find widget)",
+        "Ctrl+H opens find-and-replace mode",
+        "Options: Case sensitive, Whole word, Regex toggles",
+        "Replace one and Replace all buttons",
+        "Match count displayed (e.g., 3 of 12)",
+        "Esc closes find bar",
+        "Typecheck passes"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Drag-and-Drop File Opening",
+      "description": "As a user, I want to drag .m files from my file manager into the editor to open them.",
+      "acceptanceCriteria": [
+        "Dragging a .m file onto the editor area opens it in a new tab",
+        "Dragging a .mls file opens it in live script mode",
+        "Visual drop indicator (overlay/highlight) shown when dragging over the editor area",
+        "Typecheck passes"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-029",
+      "title": "Welcome Tab on First Launch",
+      "description": "As a user, I want to see a welcome tab with getting-started information on first launch.",
+      "acceptanceCriteria": [
+        "On first launch (no previous config detected), a Welcome to MatSlop tab opens in the editor area",
+        "Welcome tab shows: app name/logo, version, quick-start tips, link to Octave documentation",
+        "Don't show again checkbox that persists the preference",
+        "Typecheck passes"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-030",
+      "title": "Layout State Persistence",
+      "description": "As a user, I want my panel sizes and visibility to persist across app restarts.",
+      "acceptanceCriteria": [
+        "Panel sizes (divider positions) saved to electron-store config on change",
+        "Panel visibility (collapsed/expanded) saved to config",
+        "On app launch, layout restored from saved config",
+        "View > Reset Layout menu item restores default layout",
+        "Recently opened files list persisted and shown in File menu under Recent Files",
+        "Typecheck passes"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-031",
+      "title": "Cross-Platform Build and Packaging",
+      "description": "As a developer, I need the app to produce distributable packages for Linux, macOS, and Windows.",
+      "acceptanceCriteria": [
+        "electron-builder configured in package.json for all three platforms",
+        "npm run build:linux produces AppImage and/or .deb",
+        "npm run build:mac produces .dmg",
+        "npm run build:win produces .exe installer (NSIS)",
+        "App icon configured for all platforms (can be a placeholder icon initially)",
+        "App name MatSlop and version from package.json used in build output",
+        "Typecheck passes"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

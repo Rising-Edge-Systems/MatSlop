@@ -1,0 +1,26 @@
+# Ralph Progress Log
+Started: 2026-04-09
+---
+
+## Codebase Patterns
+- Uses electron-vite for dev/build (not plain webpack or vite)
+- Single tsconfig.json with noEmit for typecheck; electron-vite handles actual compilation
+- ESLint flat config (eslint.config.js) with typescript-eslint
+- Package type is "module" (ESM)
+- Source structure: src/main/ (Electron main process), src/preload/ (context bridge), src/renderer/ (React UI)
+- Run `npx tsc --noEmit` for typecheck, `npx eslint src/` for lint
+- Build with `npx electron-vite build`
+
+---
+
+## 2026-04-09 - US-001: Electron App Scaffold and Build System
+- Scaffolded Electron + React + TypeScript project with electron-vite
+- Created main process (src/main/index.ts), preload (src/preload/index.ts), renderer (src/renderer/)
+- Configured ESLint (flat config) and Prettier
+- Package.json has scripts: dev, build, typecheck, lint, format, build:linux/mac/win
+- electron-builder configured for AppImage/deb (Linux), dmg (Mac), NSIS (Windows)
+- **Learnings for future iterations:**
+  - electron-vite 2.x requires vite ^5.x, NOT vite 6
+  - Don't use tsconfig project references with electron-vite — single tsconfig with noEmit works better
+  - electron-vite build output goes to dist/main, dist/preload, dist/renderer
+---
