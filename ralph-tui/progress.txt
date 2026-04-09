@@ -524,3 +524,16 @@ Started: 2026-04-09
 - US-030 committed (005b5d1)
 - Remaining: US-031 (Cross-Platform Build and Packaging)
 ---
+
+## 2026-04-09 - US-031: Cross-Platform Build and Packaging
+- Added placeholder 512x512 PNG app icon at build/icon.png (purple/blue gradient with "MS" letters)
+- Updated package.json build config with icon paths for all platforms (linux, mac, win)
+- Added files field to build config to include dist/**/*
+- Added NSIS options for Windows installer (oneClick: false, allowToChangeInstallationDirectory: true)
+- Build scripts already existed from US-001: build:linux, build:mac, build:win
+- Files changed: package.json, build/icon.png (new)
+- **Learnings for future iterations:**
+  - electron-builder convention: place icon in build/ directory, reference as build/icon.png
+  - electron-builder auto-converts PNG to platform-specific formats (icns for mac, ico for win)
+  - The `files` field in build config controls what gets packaged into the asar
+---
