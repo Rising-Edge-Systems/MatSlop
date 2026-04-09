@@ -5,6 +5,8 @@ import FileBrowser from './panels/FileBrowser'
 import EditorPanel from './panels/EditorPanel'
 import WorkspacePanel from './panels/WorkspacePanel'
 import CommandWindow from './panels/CommandWindow'
+import StatusBar from './panels/StatusBar'
+import type { CursorPosition } from './panels/StatusBar'
 import OctaveSetupDialog from './dialogs/OctaveSetupDialog'
 
 export type OctaveEngineStatus = 'ready' | 'busy' | 'disconnected'
@@ -31,6 +33,8 @@ function App(): React.JSX.Element {
   const [pendingOpenPath, setPendingOpenPath] = useState<string | null>(null)
   const [octaveStatus, setOctaveStatus] = useState<OctaveStatus>({ path: null, version: null, configured: false, engineStatus: 'disconnected' })
   const [showOctaveSetup, setShowOctaveSetup] = useState(false)
+  const [cwd, setCwd] = useState('')
+  const [cursorPosition, setCursorPosition] = useState<CursorPosition | null>(null)
 
   // Start Octave process when path becomes configured
   const startOctaveProcess = useCallback(async (binaryPath: string) => {
@@ -92,9 +96,18 @@ function App(): React.JSX.Element {
     setPendingOpenPath(null)
   }, [])
 
+  const handleCwdChange = useCallback((newCwd: string) => {
+    setCwd(newCwd)
+  }, [])
+
+  const handleCursorPositionChange = useCallback((line: number, column: number) => {
+    setCursorPosition({ line, column })
+  }, [])
+
   return (
     <div className="app">
       {showOctaveSetup && <OctaveSetupDialog onConfigured={handleOctaveConfigured} />}
+      <div className="app-main">
       {/* Outer horizontal split: File Browser | Main Area */}
       <Allotment>
         <Allotment.Pane
@@ -103,7 +116,7 @@ function App(): React.JSX.Element {
           snap
           visible={visibility.fileBrowser}
         >
-          <FileBrowser onCollapse={() => togglePanel('fileBrowser')} onOpenFile={handleFileBrowserOpen} />
+          <FileBrowser onCollapse={() => togglePanel('fileBrowser')} onOpenFile={handleFileBrowserOpen} onCwdChange={handleCwdChange} />
         </Allotment.Pane>
 
         {/* Main area: vertical split of top and bottom */}
@@ -118,6 +131,7 @@ function App(): React.JSX.Element {
                     onTogglePanel={togglePanel}
                     openFilePath={pendingOpenPath}
                     onFileOpened={handleFileOpened}
+                    onCursorPositionChange={handleCursorPositionChange}
                   />
                 </Allotment.Pane>
                 <Allotment.Pane
@@ -146,6 +160,12 @@ function App(): React.JSX.Element {
           </Allotment>
         </Allotment.Pane>
       </Allotment>
+      </div>
+      <StatusBar
+        cwd={cwd}
+        engineStatus={octaveStatus.engineStatus}
+        cursorPosition={cursorPosition}
+      />
     </div>
   )
 }

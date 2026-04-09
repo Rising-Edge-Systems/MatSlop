@@ -22,9 +22,10 @@ interface ContextMenuState {
 interface FileBrowserProps {
   onCollapse: () => void
   onOpenFile: (filePath: string) => void
+  onCwdChange?: (cwd: string) => void
 }
 
-function FileBrowser({ onCollapse, onOpenFile }: FileBrowserProps): React.JSX.Element {
+function FileBrowser({ onCollapse, onOpenFile, onCwdChange }: FileBrowserProps): React.JSX.Element {
   const [cwd, setCwd] = useState<string>('')
   const [entries, setEntries] = useState<DirEntry[]>([])
   const [treeState, setTreeState] = useState<Record<string, TreeNodeState>>({})
@@ -45,7 +46,8 @@ function FileBrowser({ onCollapse, onOpenFile }: FileBrowserProps): React.JSX.El
     const results = await loadDir(dirPath)
     setEntries(results)
     setCwd(dirPath)
-  }, [loadDir])
+    onCwdChange?.(dirPath)
+  }, [loadDir, onCwdChange])
 
   // Initialize with home directory
   useEffect(() => {

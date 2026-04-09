@@ -10,6 +10,7 @@ interface TabbedEditorProps {
   onTabSelect: (tabId: string) => void
   onTabClose: (tabId: string) => void
   onContentChange: (tabId: string, content: string) => void
+  onCursorPositionChange?: (line: number, column: number) => void
   onNewFile?: () => void
   onOpenFile?: () => void
 }
@@ -20,6 +21,7 @@ function TabbedEditor({
   onTabSelect,
   onTabClose,
   onContentChange,
+  onCursorPositionChange,
   onNewFile,
   onOpenFile,
 }: TabbedEditorProps): React.JSX.Element {
@@ -41,9 +43,20 @@ function TabbedEditor({
         }
         editor.setModel(model)
       }
+
+      // Track cursor position
+      if (onCursorPositionChange) {
+        const pos = editor.getPosition()
+        if (pos) {
+          onCursorPositionChange(pos.lineNumber, pos.column)
+        }
+        editor.onDidChangeCursorPosition((e) => {
+          onCursorPositionChange(e.position.lineNumber, e.position.column)
+        })
+      }
     },
     // Only depends on activeTab at mount time
-    [activeTab]
+    [activeTab, onCursorPositionChange]
   )
 
   const handleContentChange = useCallback(

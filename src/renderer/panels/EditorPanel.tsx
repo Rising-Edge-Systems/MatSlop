@@ -14,6 +14,7 @@ interface EditorPanelProps {
   onTogglePanel: (panel: keyof PanelVisibility) => void
   openFilePath?: string | null
   onFileOpened?: () => void
+  onCursorPositionChange?: (line: number, column: number) => void
 }
 
 function EditorPanel({
@@ -21,6 +22,7 @@ function EditorPanel({
   onTogglePanel,
   openFilePath,
   onFileOpened,
+  onCursorPositionChange,
 }: EditorPanelProps): React.JSX.Element {
   const [tabs, setTabs] = useState<EditorTab[]>(() => {
     const initial = createTab(
@@ -202,6 +204,7 @@ function EditorPanel({
           onTabSelect={handleTabSelect}
           onTabClose={handleTabClose}
           onContentChange={handleContentChange}
+          onCursorPositionChange={onCursorPositionChange}
           onNewFile={handleNewFile}
           onOpenFile={handleOpenFile}
         />
