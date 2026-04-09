@@ -41,6 +41,9 @@ Started: 2026-04-09
 - Auto-complete: matlabCompletionProvider.ts has module-level state updated via updateWorkspaceVariables() and updateMFileNames() — call these to refresh completions
 - Diagnostics: matlabDiagnostics.ts analyzeMatlabCode() returns diagnostics; use diagnosticsToMarkers() to convert to Monaco markers; set via monaco.editor.setModelMarkers(model, 'matlab-diagnostics', markers)
 - Preferences: appConfig.ts stores all prefs via electron-store; add new fields to AppPreferences + IPC + preload + env.d.ts; thread to components via App.tsx state
+- EditorTab has `mode` field ('script' | 'livescript'); TabbedEditor renders LiveScriptEditor for livescript mode, Monaco for script mode
+- LiveScript .mls files: JSON format {cells: [{type, content, output}]}; LiveScriptEditor in src/renderer/editor/LiveScriptEditor.tsx
+- react-markdown installed for markdown cell rendering in live scripts
 
 ---
 
@@ -390,4 +393,28 @@ Started: 2026-04-09
   - Monaco Editor options are reactive — changing fontSize/tabSize/insertSpaces via props triggers re-render with new settings
   - Dialog overlay pattern reused: click-outside-to-close (e.target === e.currentTarget), Escape key listener
   - For new preference fields, update 4 files: appConfig.ts (store), index.ts (IPC), preload/index.ts (bridge), env.d.ts (types)
+---
+
+## 2026-04-09 - US-023: Live Script - Basic Cell Structure and File Format
+- Created LiveScriptEditor component (src/renderer/editor/LiveScriptEditor.tsx) with notebook-style cell view
+- Added EditorTabMode type ('script' | 'livescript') to EditorTab; added LiveScriptCell, LiveScriptDocument types and helper functions to editorTypes.ts
+- Code cells use individual Monaco editor instances with MATLAB syntax highlighting and auto-resize
+- Markdown cells use react-markdown for rendered preview (unfocused) and textarea for editing (focused)
+- Add Cell (+) button between every cell with dropdown menu for Code or Markdown type
+- Delete button on each cell (disabled when only one cell remains)
+- File saved as JSON .mls format: {cells: [{type, content, output}]}
+- Updated TabbedEditor to conditionally render LiveScriptEditor for livescript tabs
+- Enabled "New Live Script" menu item in appMenu.ts; added newLiveScript action handling in EditorPanel
+- Updated file:open and file:saveAs dialogs to include .mls file filter
+- Updated handleOpenFile and openFilePath effect in EditorPanel to detect .mls files and set livescript mode
+- Installed react-markdown for markdown cell rendering
+- Files changed: src/renderer/editor/LiveScriptEditor.tsx (new), src/renderer/editor/editorTypes.ts, src/renderer/editor/TabbedEditor.tsx, src/renderer/panels/EditorPanel.tsx, src/main/appMenu.ts, src/main/index.ts, src/renderer/styles.css, package.json, package-lock.json
+- **Learnings for future iterations:**
+  - EditorTab.mode field determines whether TabbedEditor renders Monaco Editor or LiveScriptEditor
+  - LiveScriptEditor manages cells internally with CellWithId (adds _id for React keys), strips _id when serializing
+  - Monaco code cells in notebook: use scrollbar vertical: 'hidden' and auto-resize via onDidChangeModelContent to fit content
+  - react-markdown renders markdown preview; textarea used for edit mode (focus-based toggle)
+  - .mls files are just JSON — reuse existing saveFile/readFile IPC, just update dialog filters
+  - File dialog: detect .mls by checking defaultName suffix to show correct file type filters in Save As
+  - Cell add menu uses click-outside dismissal via window addEventListener('click')
 ---
