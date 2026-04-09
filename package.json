@@ -18,25 +18,36 @@
   "build": {
     "appId": "com.matslop.ide",
     "productName": "MatSlop",
+    "icon": "build/icon.png",
     "directories": {
       "output": "release"
     },
+    "files": [
+      "dist/**/*"
+    ],
     "linux": {
       "target": [
         "AppImage",
         "deb"
       ],
-      "category": "Development"
+      "category": "Development",
+      "icon": "build/icon.png"
     },
     "mac": {
       "target": [
         "dmg"
-      ]
+      ],
+      "icon": "build/icon.png"
     },
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   },
   "dependencies": {
