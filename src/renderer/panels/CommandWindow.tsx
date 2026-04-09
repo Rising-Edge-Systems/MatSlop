@@ -7,12 +7,20 @@ interface OutputEntry {
   text: string
 }
 
+export interface PendingCommand {
+  command: string
+  display: string
+  id: number
+}
+
 interface CommandWindowProps {
   onCollapse: () => void
   engineStatus: OctaveEngineStatus
+  pendingCommand?: PendingCommand | null
+  onCommandExecuted?: () => void
 }
 
-function CommandWindow({ onCollapse, engineStatus }: CommandWindowProps): React.JSX.Element {
+function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExecuted }: CommandWindowProps): React.JSX.Element {
   const [outputEntries, setOutputEntries] = useState<OutputEntry[]>([])
   const [inputValue, setInputValue] = useState('')
   const [commandHistory, setCommandHistory] = useState<string[]>([])
@@ -27,6 +35,40 @@ function CommandWindow({ onCollapse, engineStatus }: CommandWindowProps): React.
       outputRef.current.scrollTop = outputRef.current.scrollHeight
     }
   }, [outputEntries])
+
+  // Handle pending commands from external sources (e.g., Run button)
+  const lastPendingIdRef = useRef<number>(-1)
+  useEffect(() => {
+    if (!pendingCommand || pendingCommand.id === lastPendingIdRef.current) return
+    lastPendingIdRef.current = pendingCommand.id
+
+    // Show the command in output
+    setOutputEntries((prev) => [
+      ...prev,
+      { type: 'command', text: '>> ' + pendingCommand.display },
+    ])
+
+    // Execute it
+    window.matslop.octaveExecute(pendingCommand.command).then((result) => {
+      const newEntries: OutputEntry[] = []
+      if (result.output) {
+        newEntries.push({ type: 'output', text: result.output })
+      }
+      if (result.error) {
+        newEntries.push({ type: 'error', text: result.error })
+      }
+      if (newEntries.length > 0) {
+        setOutputEntries((prev) => [...prev, ...newEntries])
+      }
+      onCommandExecuted?.()
+    }).catch((err) => {
+      setOutputEntries((prev) => [
+        ...prev,
+        { type: 'error', text: `Error: ${err instanceof Error ? err.message : String(err)}` },
+      ])
+      onCommandExecuted?.()
+    })
+  }, [pendingCommand, onCommandExecuted])
 
   // Focus input on click anywhere in the panel content
   const handlePanelClick = useCallback(() => {

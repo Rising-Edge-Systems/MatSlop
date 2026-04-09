@@ -1,10 +1,10 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Allotment } from 'allotment'
 import 'allotment/dist/style.css'
 import FileBrowser from './panels/FileBrowser'
 import EditorPanel from './panels/EditorPanel'
 import WorkspacePanel from './panels/WorkspacePanel'
-import CommandWindow from './panels/CommandWindow'
+import CommandWindow, { type PendingCommand } from './panels/CommandWindow'
 import StatusBar from './panels/StatusBar'
 import type { CursorPosition } from './panels/StatusBar'
 import OctaveSetupDialog from './dialogs/OctaveSetupDialog'
@@ -35,6 +35,8 @@ function App(): React.JSX.Element {
   const [showOctaveSetup, setShowOctaveSetup] = useState(false)
   const [cwd, setCwd] = useState('')
   const [cursorPosition, setCursorPosition] = useState<CursorPosition | null>(null)
+  const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null)
+  const pendingCommandIdRef = useRef(0)
 
   // Start Octave process when path becomes configured
   const startOctaveProcess = useCallback(async (binaryPath: string) => {
@@ -104,6 +106,30 @@ function App(): React.JSX.Element {
     setCursorPosition({ line, column })
   }, [])
 
+  const handleRunScript = useCallback((filePath: string, dirPath: string) => {
+    const fileName = filePath.substring(Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\')) + 1)
+    const escapedDir = dirPath.replace(/'/g, "''")
+    const escapedFile = fileName.replace(/'/g, "''")
+    const command = `cd('${escapedDir}'); run('${escapedFile}')`
+    const display = `run('${escapedFile}')`
+    const id = ++pendingCommandIdRef.current
+    setPendingCommand({ command, display, id })
+  }, [])
+
+  const handleRunSection = useCallback((code: string) => {
+    const display = code.length > 80 ? code.substring(0, 77) + '...' : code
+    const id = ++pendingCommandIdRef.current
+    setPendingCommand({ command: code, display, id })
+  }, [])
+
+  const handleStop = useCallback(() => {
+    window.matslop.octaveInterrupt()
+  }, [])
+
+  const handleCommandExecuted = useCallback(() => {
+    // No-op — command done, could trigger workspace refresh in future
+  }, [])
+
   return (
     <div className="app">
       {showOctaveSetup && <OctaveSetupDialog onConfigured={handleOctaveConfigured} />}
@@ -133,6 +159,9 @@ function App(): React.JSX.Element {
                     onFileOpened={handleFileOpened}
                     onCursorPositionChange={handleCursorPositionChange}
                     engineStatus={octaveStatus.engineStatus}
+                    onRun={handleRunScript}
+                    onStop={handleStop}
+                    onRunSection={handleRunSection}
                   />
                 </Allotment.Pane>
                 <Allotment.Pane
@@ -156,6 +185,8 @@ function App(): React.JSX.Element {
               <CommandWindow
                 onCollapse={() => togglePanel('commandWindow')}
                 engineStatus={octaveStatus.engineStatus}
+                pendingCommand={pendingCommand}
+                onCommandExecuted={handleCommandExecuted}
               />
             </Allotment.Pane>
           </Allotment>

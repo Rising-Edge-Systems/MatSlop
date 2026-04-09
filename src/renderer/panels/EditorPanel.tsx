@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import type { editor as monacoEditor } from 'monaco-editor'
 import PanelHeader from './PanelHeader'
 import TabbedEditor from '../editor/TabbedEditor'
 import EditorToolbar from '../editor/EditorToolbar'
@@ -18,9 +19,9 @@ interface EditorPanelProps {
   onFileOpened?: () => void
   onCursorPositionChange?: (line: number, column: number) => void
   engineStatus: OctaveEngineStatus
-  onRun?: () => void
+  onRun?: (filePath: string, dirPath: string) => void
   onStop?: () => void
-  onRunSection?: () => void
+  onRunSection?: (code: string) => void
 }
 
 function EditorPanel({
@@ -44,6 +45,11 @@ function EditorPanel({
   const [activeTabId, setActiveTabId] = useState<string | null>(
     () => tabs[0]?.id ?? null
   )
+  const editorInstanceRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null)
+
+  const handleEditorRef = useCallback((editor: monacoEditor.IStandaloneCodeEditor | null) => {
+    editorInstanceRef.current = editor
+  }, [])
 
   const handleTabSelect = useCallback((tabId: string) => {
     setActiveTabId(tabId)
@@ -111,6 +117,90 @@ function EditorPanel({
     }
   }, [getActiveTab])
 
+  const handleRun = useCallback(async () => {
+    const tab = getActiveTab()
+    if (!tab) return
+
+    // Auto-save first
+    if (tab.filePath) {
+      const result = await window.matslop.saveFile(tab.filePath, tab.content)
+      if (result.success) {
+        setTabs((prev) =>
+          prev.map((t) =>
+            t.id === tab.id ? { ...t, savedContent: t.content } : t
+          )
+        )
+      }
+    } else {
+      // Untitled — need Save As first
+      const result = await window.matslop.saveFileAs(tab.content, tab.filename)
+      if (!result) return // User cancelled
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.id === tab.id
+            ? { ...t, filePath: result.filePath, filename: result.filename, savedContent: t.content }
+            : t
+        )
+      )
+      // Use the newly saved path
+      const lastSep = Math.max(result.filePath.lastIndexOf('/'), result.filePath.lastIndexOf('\\'))
+      const dirPath = result.filePath.substring(0, lastSep)
+      onRun?.(result.filePath, dirPath)
+      return
+    }
+
+    const lastSep = Math.max(tab.filePath.lastIndexOf('/'), tab.filePath.lastIndexOf('\\'))
+    const dirPath = tab.filePath.substring(0, lastSep)
+    onRun?.(tab.filePath, dirPath)
+  }, [getActiveTab, onRun])
+
+  const handleRunSection = useCallback(() => {
+    const tab = getActiveTab()
+    if (!tab) return
+    const editor = editorInstanceRef.current
+    if (!editor) return
+
+    const model = editor.getModel()
+    if (!model) return
+    const pos = editor.getPosition()
+    if (!pos) return
+
+    const lineCount = model.getLineCount()
+    let startLine = 1
+    let endLine = lineCount
+
+    // Find cell boundaries: lines starting with %%
+    for (let i = pos.lineNumber; i >= 1; i--) {
+      const lineContent = model.getLineContent(i)
+      if (lineContent.trimStart().startsWith('%%')) {
+        startLine = i
+        break
+      }
+    }
+    for (let i = pos.lineNumber + 1; i <= lineCount; i++) {
+      const lineContent = model.getLineContent(i)
+      if (lineContent.trimStart().startsWith('%%')) {
+        endLine = i - 1
+        break
+      }
+    }
+
+    // Extract the cell content (skip the %% header line itself)
+    const cellStartLine = model.getLineContent(startLine).trimStart().startsWith('%%') ? startLine + 1 : startLine
+    const lines: string[] = []
+    for (let i = cellStartLine; i <= endLine; i++) {
+      lines.push(model.getLineContent(i))
+    }
+    const code = lines.join('\n').trim()
+    if (code) {
+      onRunSection?.(code)
+    }
+  }, [getActiveTab, onRunSection])
+
+  const handleStop = useCallback(() => {
+    onStop?.()
+  }, [onStop])
+
   const handleTabClose = useCallback(
     async (tabId: string) => {
       const tab = tabs.find((t) => t.id === tabId)
@@ -165,7 +255,13 @@ function EditorPanel({
     const handler = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey
 
-      if (ctrl && e.shiftKey && e.key === 'S') {
+      if (e.key === 'F5') {
+        e.preventDefault()
+        handleRun()
+      } else if (ctrl && e.key === 'Enter') {
+        e.preventDefault()
+        handleRunSection()
+      } else if (ctrl && e.shiftKey && e.key === 'S') {
         e.preventDefault()
         handleSaveAs()
       } else if (ctrl && e.key === 's') {
@@ -175,7 +271,7 @@ function EditorPanel({
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [handleSave, handleSaveAs])
+  }, [handleSave, handleSaveAs, handleRun, handleRunSection])
 
   // Open file from File Browser
   useEffect(() => {
@@ -213,9 +309,9 @@ function EditorPanel({
         onNewFile={handleNewFile}
         onOpenFile={handleOpenFile}
         onSave={handleSave}
-        onRun={onRun ?? (() => {})}
-        onStop={onStop ?? (() => {})}
-        onRunSection={onRunSection ?? (() => {})}
+        onRun={handleRun}
+        onStop={handleStop}
+        onRunSection={handleRunSection}
       />
       <div className="panel-content editor-panel-content">
         <TabbedEditor
@@ -225,6 +321,7 @@ function EditorPanel({
           onTabClose={handleTabClose}
           onContentChange={handleContentChange}
           onCursorPositionChange={onCursorPositionChange}
+          onEditorRef={handleEditorRef}
           onNewFile={handleNewFile}
           onOpenFile={handleOpenFile}
         />

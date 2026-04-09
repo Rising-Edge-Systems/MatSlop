@@ -11,6 +11,7 @@ interface TabbedEditorProps {
   onTabClose: (tabId: string) => void
   onContentChange: (tabId: string, content: string) => void
   onCursorPositionChange?: (line: number, column: number) => void
+  onEditorRef?: (editor: monacoEditor.IStandaloneCodeEditor | null) => void
   onNewFile?: () => void
   onOpenFile?: () => void
 }
@@ -22,6 +23,7 @@ function TabbedEditor({
   onTabClose,
   onContentChange,
   onCursorPositionChange,
+  onEditorRef,
   onNewFile,
   onOpenFile,
 }: TabbedEditorProps): React.JSX.Element {
@@ -32,6 +34,7 @@ function TabbedEditor({
   const handleEditorMount: OnMount = useCallback(
     (editor, monaco) => {
       editorRef.current = editor
+      onEditorRef?.(editor)
       registerMatlabLanguage(monaco)
 
       // If we have an active tab, set the model
@@ -56,7 +59,7 @@ function TabbedEditor({
       }
     },
     // Only depends on activeTab at mount time
-    [activeTab, onCursorPositionChange]
+    [activeTab, onCursorPositionChange, onEditorRef]
   )
 
   const handleContentChange = useCallback(
