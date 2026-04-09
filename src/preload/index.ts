@@ -29,4 +29,15 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.invoke('fs:createFolder', dirPath, name),
   confirmDelete: (name: string, isDirectory: boolean): Promise<boolean> =>
     ipcRenderer.invoke('fs:confirmDelete', name, isDirectory),
+  // Octave configuration
+  octaveAutoDetect: (): Promise<string | null> =>
+    ipcRenderer.invoke('octave:autoDetect'),
+  octaveValidate: (binaryPath: string): Promise<{ valid: boolean; version?: string; error?: string }> =>
+    ipcRenderer.invoke('octave:validate', binaryPath),
+  octaveGetPath: (): Promise<string | null> =>
+    ipcRenderer.invoke('octave:getPath'),
+  octaveSetPath: (binaryPath: string): Promise<void> =>
+    ipcRenderer.invoke('octave:setPath', binaryPath),
+  octaveBrowse: (): Promise<string | null> =>
+    ipcRenderer.invoke('octave:browse'),
 })

@@ -17,5 +17,11 @@ interface Window {
     fsCreateFile: (dirPath: string, name: string) => Promise<{ success: boolean; path?: string; error?: string }>
     fsCreateFolder: (dirPath: string, name: string) => Promise<{ success: boolean; path?: string; error?: string }>
     confirmDelete: (name: string, isDirectory: boolean) => Promise<boolean>
+    // Octave configuration
+    octaveAutoDetect: () => Promise<string | null>
+    octaveValidate: (binaryPath: string) => Promise<{ valid: boolean; version?: string; error?: string }>
+    octaveGetPath: () => Promise<string | null>
+    octaveSetPath: (binaryPath: string) => Promise<void>
+    octaveBrowse: () => Promise<string | null>
   }
 }

@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+import { autoDetectOctavePath, validateOctavePath, getStoredOctavePath, setOctavePath } from './octaveConfig'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -179,6 +180,36 @@ ipcMain.handle('fs:confirmDelete', async (_event, name: string, isDirectory: boo
     detail: isDirectory ? 'This will delete the folder and all its contents.' : 'This action cannot be undone.'
   })
   return result.response === 0
+})
+
+// IPC handlers for Octave configuration
+ipcMain.handle('octave:autoDetect', () => {
+  return autoDetectOctavePath()
+})
+
+ipcMain.handle('octave:validate', async (_event, binaryPath: string) => {
+  return validateOctavePath(binaryPath)
+})
+
+ipcMain.handle('octave:getPath', () => {
+  return getStoredOctavePath()
+})
+
+ipcMain.handle('octave:setPath', (_event, binaryPath: string) => {
+  setOctavePath(binaryPath)
+})
+
+ipcMain.handle('octave:browse', async () => {
+  const result = await dialog.showOpenDialog({
+    title: 'Select GNU Octave Binary',
+    filters:
+      process.platform === 'win32'
+        ? [{ name: 'Executables', extensions: ['exe'] }, { name: 'All Files', extensions: ['*'] }]
+        : [],
+    properties: ['openFile']
+  })
+  if (result.canceled || result.filePaths.length === 0) return null
+  return result.filePaths[0]
 })
 
 app.whenReady().then(() => {

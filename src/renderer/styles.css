@@ -398,3 +398,150 @@ body {
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: 13px;
 }
+
+/* Octave Setup Dialog */
+.octave-setup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.octave-setup-dialog {
+  background: #2d2d2d;
+  border: 1px solid #555;
+  border-radius: 8px;
+  padding: 28px 32px;
+  max-width: 520px;
+  width: 90%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.octave-setup-dialog h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  color: #eee;
+}
+
+.octave-setup-subtitle {
+  color: #999;
+  font-size: 13px;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+.octave-setup-instructions {
+  background: #1e1e1e;
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  color: #bbb;
+}
+
+.octave-setup-instructions strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #ddd;
+}
+
+.octave-setup-instructions ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.octave-setup-instructions li {
+  margin-bottom: 4px;
+}
+
+.octave-setup-instructions code {
+  background: #333;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: #e0e0e0;
+}
+
+.octave-setup-path-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.octave-setup-input {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid #555;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border-radius: 4px;
+  outline: none;
+  font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.octave-setup-input:focus {
+  border-color: #007acc;
+}
+
+.octave-setup-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  border: 1px solid #555;
+  background: #333;
+  color: #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.octave-setup-btn:hover {
+  background: #444;
+  color: #fff;
+}
+
+.octave-setup-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.octave-setup-btn-primary {
+  background: #0e639c;
+  border-color: #0e639c;
+  color: #fff;
+}
+
+.octave-setup-btn-primary:hover {
+  background: #1177bb;
+}
+
+.octave-setup-error {
+  color: #f48771;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.octave-setup-validating {
+  color: #dcdcaa;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.octave-setup-version {
+  color: #4ec9b0;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.octave-setup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
