@@ -1719,6 +1719,31 @@ body {
   opacity: 1;
 }
 
+.ls-cell-drag-handle:active {
+  cursor: grabbing;
+}
+
+.ls-cell-dragging {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.ls-drop-zone {
+  height: 4px;
+  margin: 0 8px;
+  border-radius: 2px;
+  transition: height 0.15s, background-color 0.15s;
+}
+
+.ls-drop-zone-active {
+  height: 4px;
+  background-color: var(--color-accent);
+}
+
+.ls-drop-zone-last {
+  height: 24px;
+}
+
 .ls-cell-type-badge {
   display: flex;
   align-items: center;
