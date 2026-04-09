@@ -130,12 +130,14 @@ function EditorPanel({
     const existing = tabs.find((t) => t.filePath === result.filePath)
     if (existing) {
       setActiveTabId(existing.id)
+      window.matslop.recentFilesAdd(result.filePath)
       return
     }
     const mode = result.filename.endsWith('.mls') ? 'livescript' as const : 'script' as const
     const tab = createTab(result.filename, result.content, result.filePath, mode)
     setTabs((prev) => [...prev, tab])
     setActiveTabId(tab.id)
+    window.matslop.recentFilesAdd(result.filePath)
   }, [tabs])
 
   const handleSave = useCallback(async () => {
@@ -464,6 +466,7 @@ function EditorPanel({
         const tab = createTab(result.filename, result.content, result.filePath, mode)
         setTabs((prev) => [...prev, tab])
         setActiveTabId(tab.id)
+        window.matslop.recentFilesAdd(result.filePath)
       }
       onFileOpened?.()
     })
@@ -518,6 +521,7 @@ function EditorPanel({
           const tab = createTab(result.filename, result.content, result.filePath, mode)
           setTabs((prev) => [...prev, tab])
           setActiveTabId(tab.id)
+          window.matslop.recentFilesAdd(result.filePath)
         }
       })
     }

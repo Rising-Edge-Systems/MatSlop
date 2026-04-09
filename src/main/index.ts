@@ -5,7 +5,7 @@ import os from 'os'
 import { autoDetectOctavePath, validateOctavePath, getStoredOctavePath, setOctavePath } from './octaveConfig'
 import { OctaveProcessManager } from './octaveProcess'
 import { buildAppMenu } from './appMenu'
-import { getStoredTheme, setStoredTheme, getPreferences, setPreferences, type ThemeMode, type AppPreferences } from './appConfig'
+import { getStoredTheme, setStoredTheme, getPreferences, setPreferences, getLayoutConfig, setLayoutConfig, getDefaultLayout, getRecentFiles, addRecentFile, clearRecentFiles, type ThemeMode, type AppPreferences, type LayoutConfig } from './appConfig'
 
 // Command history file path
 function getHistoryFilePath(): string {
@@ -53,7 +53,8 @@ function createWindow(): void {
   })
 
   // Build and set the application menu
-  const appMenu = buildAppMenu(mainWindow)
+  const recentFiles = getRecentFiles()
+  const appMenu = buildAppMenu(mainWindow, recentFiles)
   Menu.setApplicationMenu(appMenu)
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -410,6 +411,43 @@ ipcMain.handle('config:getShowWelcome', () => {
 ipcMain.handle('config:setShowWelcome', (_event, show: boolean) => {
   setPreferences({ showWelcome: show })
 })
+
+// IPC handlers for layout persistence
+ipcMain.handle('layout:get', () => {
+  return getLayoutConfig()
+})
+
+ipcMain.handle('layout:set', (_event, layout: LayoutConfig) => {
+  setLayoutConfig(layout)
+})
+
+ipcMain.handle('layout:getDefault', () => {
+  return getDefaultLayout()
+})
+
+// IPC handlers for recent files
+ipcMain.handle('recentFiles:get', () => {
+  return getRecentFiles()
+})
+
+ipcMain.handle('recentFiles:add', (_event, filePath: string) => {
+  const updated = addRecentFile(filePath)
+  rebuildMenu()
+  return updated
+})
+
+ipcMain.handle('recentFiles:clear', () => {
+  const updated = clearRecentFiles()
+  rebuildMenu()
+  return updated
+})
+
+function rebuildMenu(): void {
+  if (!mainWindow) return
+  const recentFiles = getRecentFiles()
+  const appMenu = buildAppMenu(mainWindow, recentFiles)
+  Menu.setApplicationMenu(appMenu)
+}
 
 app.whenReady().then(() => {
   createWindow()

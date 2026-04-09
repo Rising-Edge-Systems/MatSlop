@@ -500,3 +500,22 @@ Started: 2026-04-09
   - Adding a new config field requires: appConfig.ts (interface + defaults + getter), main/index.ts (IPC handler), preload/index.ts (bridge), env.d.ts (type)
   - New EditorTabMode values need handling in TabbedEditor's render switch and may need special close handling
 ---
+
+## 2026-04-09 - US-030: Layout State Persistence
+- Implemented panel size and visibility persistence via electron-store
+- Added LayoutConfig and recent files to appConfig.ts with getter/setter functions
+- Added IPC handlers: layout:get, layout:set, layout:getDefault, recentFiles:get, recentFiles:add, recentFiles:clear
+- Added preload bridge methods and env.d.ts types for layout and recent files
+- App.tsx loads layout config on startup and saves on every visibility toggle or Allotment size change
+- Allotment onChange callbacks capture divider positions for all 4 split areas
+- Reset Layout menu action restores both default visibility and default panel sizes
+- Recent Files submenu in File menu shows last 10 opened files with Clear option
+- Menu rebuilds dynamically when recent files change
+- EditorPanel tracks recently opened files from all open sources (File dialog, File Browser, drag-and-drop, recent file menu)
+- Files changed: src/main/appConfig.ts, src/main/index.ts, src/main/appMenu.ts, src/preload/index.ts, src/renderer/env.d.ts, src/renderer/App.tsx, src/renderer/panels/EditorPanel.tsx
+- **Learnings for future iterations:**
+  - Allotment's onChange callback receives array of pixel sizes for each pane — use this to persist divider positions
+  - Use layoutLoaded flag + conditional rendering to avoid rendering Allotment with default sizes before config loads
+  - Menu must be rebuilt via Menu.setApplicationMenu() when recent files change; pass recent files to buildAppMenu
+  - Use setPanelSizes + setVisibility inside onChange to read current state and persist (avoid stale closure issues)
+---

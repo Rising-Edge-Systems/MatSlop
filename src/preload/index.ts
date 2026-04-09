@@ -100,4 +100,24 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.invoke('config:getShowWelcome'),
   configSetShowWelcome: (show: boolean): Promise<void> =>
     ipcRenderer.invoke('config:setShowWelcome', show),
+  // Layout persistence
+  layoutGet: (): Promise<{
+    panelVisibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
+    panelSizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+  }> => ipcRenderer.invoke('layout:get'),
+  layoutSet: (layout: {
+    panelVisibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
+    panelSizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+  }): Promise<void> => ipcRenderer.invoke('layout:set', layout),
+  layoutGetDefault: (): Promise<{
+    panelVisibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
+    panelSizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+  }> => ipcRenderer.invoke('layout:getDefault'),
+  // Recent files
+  recentFilesGet: (): Promise<string[]> =>
+    ipcRenderer.invoke('recentFiles:get'),
+  recentFilesAdd: (filePath: string): Promise<string[]> =>
+    ipcRenderer.invoke('recentFiles:add', filePath),
+  recentFilesClear: (): Promise<string[]> =>
+    ipcRenderer.invoke('recentFiles:clear'),
 })

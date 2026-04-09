@@ -31,13 +31,31 @@ interface PanelVisibility {
   commandHistory: boolean
 }
 
+interface PanelSizes {
+  fileBrowserWidth: number
+  workspaceWidth: number
+  bottomHeight: number
+  commandHistoryWidth: number
+}
+
+const defaultVisibility: PanelVisibility = {
+  fileBrowser: true,
+  workspace: true,
+  commandWindow: true,
+  commandHistory: false,
+}
+
+const defaultSizes: PanelSizes = {
+  fileBrowserWidth: 220,
+  workspaceWidth: 280,
+  bottomHeight: 200,
+  commandHistoryWidth: 250,
+}
+
 function App(): React.JSX.Element {
-  const [visibility, setVisibility] = useState<PanelVisibility>({
-    fileBrowser: true,
-    workspace: true,
-    commandWindow: true,
-    commandHistory: false,
-  })
+  const [visibility, setVisibility] = useState<PanelVisibility>(defaultVisibility)
+  const [panelSizes, setPanelSizes] = useState<PanelSizes>(defaultSizes)
+  const [layoutLoaded, setLayoutLoaded] = useState(false)
   const [pendingOpenPath, setPendingOpenPath] = useState<string | null>(null)
   const [octaveStatus, setOctaveStatus] = useState<OctaveStatus>({ path: null, version: null, configured: false, engineStatus: 'disconnected' })
   const [showOctaveSetup, setShowOctaveSetup] = useState(false)
@@ -131,6 +149,15 @@ function App(): React.JSX.Element {
     })
   }, [])
 
+  // Load layout config on startup
+  useEffect(() => {
+    window.matslop.layoutGet().then((layout) => {
+      setVisibility(layout.panelVisibility)
+      setPanelSizes(layout.panelSizes)
+      setLayoutLoaded(true)
+    })
+  }, [])
+
   // Resolve theme mode to actual light/dark and apply to document
   useEffect(() => {
     const resolve = (mode: ThemeMode, prefersDark: boolean): 'light' | 'dark' => {
@@ -171,9 +198,61 @@ function App(): React.JSX.Element {
     })
   }, [])
 
-  const togglePanel = (panel: keyof PanelVisibility) => {
-    setVisibility((prev) => ({ ...prev, [panel]: !prev[panel] }))
-  }
+  const saveLayout = useCallback((vis: PanelVisibility, sizes: PanelSizes) => {
+    window.matslop.layoutSet({ panelVisibility: vis, panelSizes: sizes })
+  }, [])
+
+  const togglePanel = useCallback((panel: keyof PanelVisibility) => {
+    setVisibility((prev) => {
+      const next = { ...prev, [panel]: !prev[panel] }
+      setPanelSizes((sizes) => {
+        saveLayout(next, sizes)
+        return sizes
+      })
+      return next
+    })
+  }, [saveLayout])
+
+  // Allotment size change handlers
+  const handleOuterHorizontalChange = useCallback((sizes: number[]) => {
+    if (sizes.length >= 2 && sizes[0] > 0) {
+      setPanelSizes((prev) => {
+        const next = { ...prev, fileBrowserWidth: Math.round(sizes[0]) }
+        setVisibility((vis) => { saveLayout(vis, next); return vis })
+        return next
+      })
+    }
+  }, [saveLayout])
+
+  const handleTopHorizontalChange = useCallback((sizes: number[]) => {
+    if (sizes.length >= 2 && sizes[sizes.length - 1] > 0) {
+      setPanelSizes((prev) => {
+        const next = { ...prev, workspaceWidth: Math.round(sizes[sizes.length - 1]) }
+        setVisibility((vis) => { saveLayout(vis, next); return vis })
+        return next
+      })
+    }
+  }, [saveLayout])
+
+  const handleVerticalChange = useCallback((sizes: number[]) => {
+    if (sizes.length >= 2 && sizes[1] > 0) {
+      setPanelSizes((prev) => {
+        const next = { ...prev, bottomHeight: Math.round(sizes[1]) }
+        setVisibility((vis) => { saveLayout(vis, next); return vis })
+        return next
+      })
+    }
+  }, [saveLayout])
+
+  const handleBottomHorizontalChange = useCallback((sizes: number[]) => {
+    if (sizes.length >= 2 && sizes[sizes.length - 1] > 0) {
+      setPanelSizes((prev) => {
+        const next = { ...prev, commandHistoryWidth: Math.round(sizes[sizes.length - 1]) }
+        setVisibility((vis) => { saveLayout(vis, next); return vis })
+        return next
+      })
+    }
+  }, [saveLayout])
 
   const handleFileBrowserOpen = useCallback((filePath: string) => {
     setPendingOpenPath(filePath)
@@ -227,19 +306,21 @@ function App(): React.JSX.Element {
     const unsub = window.matslop.onMenuAction((action) => {
       switch (action) {
         case 'toggleCommandWindow':
-          setVisibility((prev) => ({ ...prev, commandWindow: !prev.commandWindow }))
+          togglePanel('commandWindow')
           break
         case 'toggleWorkspace':
-          setVisibility((prev) => ({ ...prev, workspace: !prev.workspace }))
+          togglePanel('workspace')
           break
         case 'toggleFileBrowser':
-          setVisibility((prev) => ({ ...prev, fileBrowser: !prev.fileBrowser }))
+          togglePanel('fileBrowser')
           break
         case 'toggleCommandHistory':
-          setVisibility((prev) => ({ ...prev, commandHistory: !prev.commandHistory }))
+          togglePanel('commandHistory')
           break
         case 'resetLayout':
-          setVisibility({ fileBrowser: true, workspace: true, commandWindow: true, commandHistory: false })
+          setVisibility(defaultVisibility)
+          setPanelSizes(defaultSizes)
+          saveLayout(defaultVisibility, defaultSizes)
           break
         case 'setThemeLight':
           handleSetTheme('light')
@@ -259,7 +340,16 @@ function App(): React.JSX.Element {
         case 'about':
           setShowAbout(true)
           break
+        case 'clearRecentFiles':
+          window.matslop.recentFilesClear()
+          break
         default: {
+          // Handle recent file open actions
+          if (action.startsWith('recentFile:')) {
+            const filePath = action.substring('recentFile:'.length)
+            setPendingOpenPath(filePath)
+            break
+          }
           // Forward to EditorPanel/CommandWindow via menuAction state
           const id = ++menuActionIdRef.current
           setMenuAction({ action, id })
@@ -268,7 +358,7 @@ function App(): React.JSX.Element {
       }
     })
     return unsub
-  }, [handleStop, handleSetTheme])
+  }, [handleStop, handleSetTheme, togglePanel, saveLayout])
 
   const handleMenuActionConsumed = useCallback(() => {
     setMenuAction(null)
@@ -415,10 +505,10 @@ function App(): React.JSX.Element {
       )}
       <div className="app-main">
       {/* Outer horizontal split: File Browser | Main Area */}
-      <Allotment>
+      {layoutLoaded && <Allotment onChange={handleOuterHorizontalChange}>
         <Allotment.Pane
           minSize={150}
-          preferredSize={220}
+          preferredSize={panelSizes.fileBrowserWidth}
           snap
           visible={visibility.fileBrowser}
         >
@@ -427,10 +517,10 @@ function App(): React.JSX.Element {
 
         {/* Main area: vertical split of top and bottom */}
         <Allotment.Pane minSize={200}>
-          <Allotment vertical>
+          <Allotment vertical onChange={handleVerticalChange}>
             {/* Top area: horizontal split of Editor | Workspace */}
             <Allotment.Pane minSize={200}>
-              <Allotment>
+              <Allotment onChange={handleTopHorizontalChange}>
                 <Allotment.Pane minSize={300}>
                   <EditorPanel
                     panelVisibility={visibility}
@@ -451,7 +541,7 @@ function App(): React.JSX.Element {
                 </Allotment.Pane>
                 <Allotment.Pane
                   minSize={150}
-                  preferredSize={280}
+                  preferredSize={panelSizes.workspaceWidth}
                   snap
                   visible={visibility.workspace || figures.length > 0}
                 >
@@ -470,11 +560,11 @@ function App(): React.JSX.Element {
             {/* Bottom: Command Window + Command History */}
             <Allotment.Pane
               minSize={100}
-              preferredSize={200}
+              preferredSize={panelSizes.bottomHeight}
               snap
               visible={visibility.commandWindow || visibility.commandHistory}
             >
-              <Allotment>
+              <Allotment onChange={handleBottomHorizontalChange}>
                 <Allotment.Pane minSize={200} visible={visibility.commandWindow}>
                   <CommandWindow
                     onCollapse={() => togglePanel('commandWindow')}
@@ -488,7 +578,7 @@ function App(): React.JSX.Element {
                     onMenuActionConsumed={handleMenuActionConsumed}
                   />
                 </Allotment.Pane>
-                <Allotment.Pane minSize={150} preferredSize={250} snap visible={visibility.commandHistory}>
+                <Allotment.Pane minSize={150} preferredSize={panelSizes.commandHistoryWidth} snap visible={visibility.commandHistory}>
                   <CommandHistoryPanel
                     onCollapse={() => togglePanel('commandHistory')}
                     onExecuteCommand={handleHistoryExecute}
@@ -499,7 +589,7 @@ function App(): React.JSX.Element {
             </Allotment.Pane>
           </Allotment>
         </Allotment.Pane>
-      </Allotment>
+      </Allotment>}
       </div>
       <StatusBar
         cwd={cwd}

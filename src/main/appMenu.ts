@@ -1,4 +1,5 @@
 import { Menu, shell, type BrowserWindow, type MenuItemConstructorOptions } from 'electron'
+import path from 'path'
 
 export type MenuAction =
   | 'newFile'
@@ -27,8 +28,8 @@ export type MenuAction =
   | 'preferences'
   | 'about'
 
-export function buildAppMenu(mainWindow: BrowserWindow): Menu {
-  const send = (action: MenuAction): void => {
+export function buildAppMenu(mainWindow: BrowserWindow, recentFiles: string[] = []): Menu {
+  const send = (action: MenuAction | string): void => {
     mainWindow.webContents.send('menu:action', action)
   }
 
@@ -52,6 +53,23 @@ export function buildAppMenu(mainWindow: BrowserWindow): Menu {
           label: 'Open...',
           accelerator: 'CmdOrCtrl+O',
           click: () => send('openFile'),
+        },
+        {
+          label: 'Recent Files',
+          submenu: recentFiles.length > 0
+            ? [
+                ...recentFiles.map((filePath) => ({
+                  label: path.basename(filePath),
+                  toolTip: filePath,
+                  click: () => send(`recentFile:${filePath}`),
+                })),
+                { type: 'separator' as const },
+                {
+                  label: 'Clear Recent Files',
+                  click: () => send('clearRecentFiles'),
+                },
+              ]
+            : [{ label: 'No Recent Files', enabled: false }],
         },
         { type: 'separator' },
         {

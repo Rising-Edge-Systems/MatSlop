@@ -55,5 +55,22 @@ interface Window {
     configSetPreferences: (prefs: Record<string, unknown>) => Promise<void>
     configGetShowWelcome: () => Promise<boolean>
     configSetShowWelcome: (show: boolean) => Promise<void>
+    // Layout persistence
+    layoutGet: () => Promise<{
+      panelVisibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
+      panelSizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+    }>
+    layoutSet: (layout: {
+      panelVisibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
+      panelSizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+    }) => Promise<void>
+    layoutGetDefault: () => Promise<{
+      panelVisibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
+      panelSizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+    }>
+    // Recent files
+    recentFilesGet: () => Promise<string[]>
+    recentFilesAdd: (filePath: string) => Promise<string[]>
+    recentFilesClear: () => Promise<string[]>
   }
 }
