@@ -13,6 +13,11 @@ export interface PendingCommand {
   id: number
 }
 
+interface MenuAction {
+  action: string
+  id: number
+}
+
 interface CommandWindowProps {
   onCollapse: () => void
   engineStatus: OctaveEngineStatus
@@ -21,9 +26,11 @@ interface CommandWindowProps {
   onHistoryChanged?: () => void
   pasteCommand?: string | null
   onPasteConsumed?: () => void
+  menuAction?: MenuAction | null
+  onMenuActionConsumed?: () => void
 }
 
-function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExecuted, onHistoryChanged, pasteCommand, onPasteConsumed }: CommandWindowProps): React.JSX.Element {
+function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExecuted, onHistoryChanged, pasteCommand, onPasteConsumed, menuAction, onMenuActionConsumed }: CommandWindowProps): React.JSX.Element {
   const [outputEntries, setOutputEntries] = useState<OutputEntry[]>([])
   const [inputValue, setInputValue] = useState('')
   const [commandHistory, setCommandHistory] = useState<string[]>([])
@@ -80,6 +87,17 @@ function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExec
     onPasteConsumed?.()
     inputRef.current?.focus()
   }, [pasteCommand, onPasteConsumed])
+
+  // Handle menu actions (e.g., Clear Command Window)
+  const lastMenuActionIdRef = useRef(0)
+  useEffect(() => {
+    if (!menuAction || menuAction.id <= lastMenuActionIdRef.current) return
+    lastMenuActionIdRef.current = menuAction.id
+    if (menuAction.action === 'clearCommandWindow') {
+      setOutputEntries([])
+      onMenuActionConsumed?.()
+    }
+  }, [menuAction, onMenuActionConsumed])
 
   // Focus input on click anywhere in the panel content
   const handlePanelClick = useCallback(() => {

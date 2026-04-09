@@ -75,4 +75,10 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.invoke('figures:saveDialog', defaultName),
   figuresCopyFile: (sourcePath: string, destPath: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('figures:copyFile', sourcePath, destPath),
+  // Menu action events from main process
+  onMenuAction: (callback: (action: string) => void): (() => void) => {
+    const handler = (_event: IpcRendererEvent, action: string): void => callback(action)
+    ipcRenderer.on('menu:action', handler)
+    return () => ipcRenderer.removeListener('menu:action', handler)
+  },
 })

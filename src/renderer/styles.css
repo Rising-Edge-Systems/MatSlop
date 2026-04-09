@@ -1247,3 +1247,59 @@ body {
   color: #666;
   font-size: 12px;
 }
+
+/* About Dialog */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.about-dialog {
+  background: #252526;
+  border: 1px solid #454545;
+  border-radius: 8px;
+  padding: 32px;
+  text-align: center;
+  min-width: 320px;
+}
+
+.about-dialog h2 {
+  font-size: 24px;
+  color: #e0e0e0;
+  margin-bottom: 8px;
+}
+
+.about-dialog p {
+  color: #aaa;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.about-dialog .about-version {
+  color: #666;
+  font-size: 12px;
+  margin-top: 12px;
+  margin-bottom: 16px;
+}
+
+.about-dialog .about-close-btn {
+  background: #0e639c;
+  color: #fff;
+  border: none;
+  padding: 6px 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.about-dialog .about-close-btn:hover {
+  background: #1177bb;
+}

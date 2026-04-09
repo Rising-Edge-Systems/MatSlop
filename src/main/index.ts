@@ -1,9 +1,10 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
 import { autoDetectOctavePath, validateOctavePath, getStoredOctavePath, setOctavePath } from './octaveConfig'
 import { OctaveProcessManager } from './octaveProcess'
+import { buildAppMenu } from './appMenu'
 
 // Command history file path
 function getHistoryFilePath(): string {
@@ -49,6 +50,10 @@ function createWindow(): void {
       nodeIntegration: false
     }
   })
+
+  // Build and set the application menu
+  const appMenu = buildAppMenu(mainWindow)
+  Menu.setApplicationMenu(appMenu)
 
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)

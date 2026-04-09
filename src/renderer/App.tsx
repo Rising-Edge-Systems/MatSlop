@@ -47,6 +47,9 @@ function App(): React.JSX.Element {
   const [historyVersion, setHistoryVersion] = useState(0)
   const [pasteCommand, setPasteCommand] = useState<string | null>(null)
   const [figures, setFigures] = useState<FigureData[]>([])
+  const [menuAction, setMenuAction] = useState<{ action: string; id: number } | null>(null)
+  const menuActionIdRef = useRef(0)
+  const [showAbout, setShowAbout] = useState(false)
 
   // Start Octave process when path becomes configured
   const startOctaveProcess = useCallback(async (binaryPath: string) => {
@@ -143,6 +146,46 @@ function App(): React.JSX.Element {
     window.matslop.octaveInterrupt()
   }, [])
 
+  // Listen for menu actions from main process
+  useEffect(() => {
+    const unsub = window.matslop.onMenuAction((action) => {
+      switch (action) {
+        case 'toggleCommandWindow':
+          setVisibility((prev) => ({ ...prev, commandWindow: !prev.commandWindow }))
+          break
+        case 'toggleWorkspace':
+          setVisibility((prev) => ({ ...prev, workspace: !prev.workspace }))
+          break
+        case 'toggleFileBrowser':
+          setVisibility((prev) => ({ ...prev, fileBrowser: !prev.fileBrowser }))
+          break
+        case 'toggleCommandHistory':
+          setVisibility((prev) => ({ ...prev, commandHistory: !prev.commandHistory }))
+          break
+        case 'resetLayout':
+          setVisibility({ fileBrowser: true, workspace: true, commandWindow: true, commandHistory: false })
+          break
+        case 'stopExecution':
+          handleStop()
+          break
+        case 'about':
+          setShowAbout(true)
+          break
+        default: {
+          // Forward to EditorPanel/CommandWindow via menuAction state
+          const id = ++menuActionIdRef.current
+          setMenuAction({ action, id })
+          break
+        }
+      }
+    })
+    return unsub
+  }, [handleStop])
+
+  const handleMenuActionConsumed = useCallback(() => {
+    setMenuAction(null)
+  }, [])
+
   const handleCommandExecuted = useCallback(async () => {
     // After each command, query pwd and capture figures in a single Octave command
     if (octaveStatus.engineStatus === 'disconnected') return
@@ -236,6 +279,17 @@ function App(): React.JSX.Element {
   return (
     <div className="app">
       {showOctaveSetup && <OctaveSetupDialog onConfigured={handleOctaveConfigured} />}
+      {showAbout && (
+        <div className="dialog-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowAbout(false) }}>
+          <div className="about-dialog">
+            <h2>MatSlop</h2>
+            <p>Open-source MATLAB alternative IDE</p>
+            <p>Built with Electron, React, TypeScript, and GNU Octave</p>
+            <p className="about-version">Version 1.0.0</p>
+            <button className="about-close-btn" onClick={() => setShowAbout(false)}>Close</button>
+          </div>
+        </div>
+      )}
       {inspectedVariable && (
         <VariableInspectorDialog
           variable={inspectedVariable}
@@ -271,6 +325,8 @@ function App(): React.JSX.Element {
                     onRun={handleRunScript}
                     onStop={handleStop}
                     onRunSection={handleRunSection}
+                    menuAction={menuAction}
+                    onMenuActionConsumed={handleMenuActionConsumed}
                   />
                 </Allotment.Pane>
                 <Allotment.Pane
@@ -308,6 +364,8 @@ function App(): React.JSX.Element {
                     onHistoryChanged={handleHistoryChanged}
                     pasteCommand={pasteCommand}
                     onPasteConsumed={handlePasteConsumed}
+                    menuAction={menuAction}
+                    onMenuActionConsumed={handleMenuActionConsumed}
                   />
                 </Allotment.Pane>
                 <Allotment.Pane minSize={150} preferredSize={250} snap visible={visibility.commandHistory}>

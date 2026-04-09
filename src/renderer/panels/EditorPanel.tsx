@@ -13,6 +13,11 @@ interface PanelVisibility {
   commandHistory: boolean
 }
 
+interface MenuAction {
+  action: string
+  id: number
+}
+
 interface EditorPanelProps {
   panelVisibility: PanelVisibility
   onTogglePanel: (panel: keyof PanelVisibility) => void
@@ -23,6 +28,8 @@ interface EditorPanelProps {
   onRun?: (filePath: string, dirPath: string) => void
   onStop?: () => void
   onRunSection?: (code: string) => void
+  menuAction?: MenuAction | null
+  onMenuActionConsumed?: () => void
 }
 
 function EditorPanel({
@@ -35,6 +42,8 @@ function EditorPanel({
   onRun,
   onStop,
   onRunSection,
+  menuAction,
+  onMenuActionConsumed,
 }: EditorPanelProps): React.JSX.Element {
   const [tabs, setTabs] = useState<EditorTab[]>(() => {
     const initial = createTab(
@@ -273,6 +282,62 @@ function EditorPanel({
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [handleSave, handleSaveAs, handleRun, handleRunSection])
+
+  // Handle menu actions from main process
+  const lastMenuActionIdRef = useRef(0)
+  useEffect(() => {
+    if (!menuAction || menuAction.id <= lastMenuActionIdRef.current) return
+    lastMenuActionIdRef.current = menuAction.id
+
+    switch (menuAction.action) {
+      case 'newFile':
+        handleNewFile()
+        onMenuActionConsumed?.()
+        break
+      case 'openFile':
+        handleOpenFile().then(() => onMenuActionConsumed?.())
+        break
+      case 'save':
+        handleSave().then(() => onMenuActionConsumed?.())
+        break
+      case 'saveAs':
+        handleSaveAs().then(() => onMenuActionConsumed?.())
+        break
+      case 'closeTab':
+        if (activeTabId) {
+          handleTabClose(activeTabId).then(() => onMenuActionConsumed?.())
+        } else {
+          onMenuActionConsumed?.()
+        }
+        break
+      case 'runScript':
+        handleRun().then(() => onMenuActionConsumed?.())
+        break
+      case 'runSection':
+        handleRunSection()
+        onMenuActionConsumed?.()
+        break
+      case 'findReplace': {
+        const editor = editorInstanceRef.current
+        if (editor) {
+          editor.getAction('editor.action.startFindReplaceAction')?.run()
+        }
+        onMenuActionConsumed?.()
+        break
+      }
+      case 'goToLine': {
+        const editor = editorInstanceRef.current
+        if (editor) {
+          editor.getAction('editor.action.gotoLine')?.run()
+        }
+        onMenuActionConsumed?.()
+        break
+      }
+      default:
+        // Not handled by EditorPanel — leave for other consumers
+        break
+    }
+  }, [menuAction, activeTabId, handleNewFile, handleOpenFile, handleSave, handleSaveAs, handleTabClose, handleRun, handleRunSection, onMenuActionConsumed])
 
   // Open file from File Browser
   useEffect(() => {

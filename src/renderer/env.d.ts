@@ -39,5 +39,7 @@ interface Window {
     figuresReadImage: (filePath: string) => Promise<string | null>
     figuresSaveDialog: (defaultName: string) => Promise<{ filePath: string; format: string } | null>
     figuresCopyFile: (sourcePath: string, destPath: string) => Promise<{ success: boolean; error?: string }>
+    // Menu action events from main process
+    onMenuAction: (callback: (action: string) => void) => () => void
   }
 }
