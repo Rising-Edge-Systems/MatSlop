@@ -7,8 +7,10 @@ export type MenuAction =
   | 'save'
   | 'saveAs'
   | 'closeTab'
+  | 'find'
   | 'findReplace'
   | 'goToLine'
+  | 'toggleComment'
   | 'toggleCommandWindow'
   | 'toggleWorkspace'
   | 'toggleFileBrowser'
@@ -89,6 +91,11 @@ export function buildAppMenu(mainWindow: BrowserWindow): Menu {
         { role: 'paste', accelerator: 'CmdOrCtrl+V' },
         { type: 'separator' },
         {
+          label: 'Find',
+          accelerator: 'CmdOrCtrl+F',
+          click: () => send('find'),
+        },
+        {
           label: 'Find & Replace',
           accelerator: 'CmdOrCtrl+H',
           click: () => send('findReplace'),
@@ -97,6 +104,12 @@ export function buildAppMenu(mainWindow: BrowserWindow): Menu {
           label: 'Go to Line...',
           accelerator: 'CmdOrCtrl+G',
           click: () => send('goToLine'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Toggle Comment',
+          accelerator: 'CmdOrCtrl+/',
+          click: () => send('toggleComment'),
         },
         { type: 'separator' },
         { role: 'selectAll', accelerator: 'CmdOrCtrl+A' },

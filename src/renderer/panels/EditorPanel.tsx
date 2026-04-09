@@ -5,6 +5,7 @@ import TabbedEditor from '../editor/TabbedEditor'
 import EditorToolbar from '../editor/EditorToolbar'
 import { createTab, type EditorTab } from '../editor/editorTypes'
 import type { OctaveEngineStatus } from '../App'
+import { shortcutManager, type ShortcutAction } from '../shortcuts/shortcutManager'
 
 interface PanelVisibility {
   fileBrowser: boolean
@@ -262,28 +263,68 @@ function EditorPanel({
     )
   }, [])
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const ctrl = e.ctrlKey || e.metaKey
-
-      if (e.key === 'F5') {
-        e.preventDefault()
+  // Centralized keyboard shortcut handler
+  const handleShortcut = useCallback((action: ShortcutAction) => {
+    switch (action) {
+      case 'run':
         handleRun()
-      } else if (ctrl && e.key === 'Enter') {
-        e.preventDefault()
+        break
+      case 'runSection':
         handleRunSection()
-      } else if (ctrl && e.shiftKey && e.key === 'S') {
-        e.preventDefault()
-        handleSaveAs()
-      } else if (ctrl && e.key === 's') {
-        e.preventDefault()
+        break
+      case 'save':
         handleSave()
+        break
+      case 'saveAs':
+        handleSaveAs()
+        break
+      case 'newFile':
+        handleNewFile()
+        break
+      case 'openFile':
+        handleOpenFile()
+        break
+      case 'closeTab':
+        if (activeTabId) handleTabClose(activeTabId)
+        break
+      case 'stop':
+        handleStop()
+        break
+      case 'find': {
+        const editor = editorInstanceRef.current
+        if (editor) {
+          editor.getAction('actions.find')?.run()
+        }
+        break
+      }
+      case 'findReplace': {
+        const editor = editorInstanceRef.current
+        if (editor) {
+          editor.getAction('editor.action.startFindReplaceAction')?.run()
+        }
+        break
+      }
+      case 'goToLine': {
+        const editor = editorInstanceRef.current
+        if (editor) {
+          editor.getAction('editor.action.gotoLine')?.run()
+        }
+        break
+      }
+      case 'toggleComment': {
+        const editor = editorInstanceRef.current
+        if (editor) {
+          editor.getAction('editor.action.commentLine')?.run()
+        }
+        break
       }
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [handleSave, handleSaveAs, handleRun, handleRunSection])
+  }, [handleRun, handleRunSection, handleSave, handleSaveAs, handleNewFile, handleOpenFile, activeTabId, handleTabClose, handleStop])
+
+  useEffect(() => {
+    shortcutManager.start(handleShortcut)
+    return () => shortcutManager.stop()
+  }, [handleShortcut])
 
   // Handle menu actions from main process
   const lastMenuActionIdRef = useRef(0)
@@ -319,6 +360,14 @@ function EditorPanel({
         handleRunSection()
         onMenuActionConsumed?.()
         break
+      case 'find': {
+        const editor = editorInstanceRef.current
+        if (editor) {
+          editor.getAction('actions.find')?.run()
+        }
+        onMenuActionConsumed?.()
+        break
+      }
       case 'findReplace': {
         const editor = editorInstanceRef.current
         if (editor) {
@@ -331,6 +380,14 @@ function EditorPanel({
         const editor = editorInstanceRef.current
         if (editor) {
           editor.getAction('editor.action.gotoLine')?.run()
+        }
+        onMenuActionConsumed?.()
+        break
+      }
+      case 'toggleComment': {
+        const editor = editorInstanceRef.current
+        if (editor) {
+          editor.getAction('editor.action.commentLine')?.run()
         }
         onMenuActionConsumed?.()
         break
