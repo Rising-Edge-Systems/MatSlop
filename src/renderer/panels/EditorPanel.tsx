@@ -12,11 +12,15 @@ interface PanelVisibility {
 interface EditorPanelProps {
   panelVisibility: PanelVisibility
   onTogglePanel: (panel: keyof PanelVisibility) => void
+  openFilePath?: string | null
+  onFileOpened?: () => void
 }
 
 function EditorPanel({
   panelVisibility,
   onTogglePanel,
+  openFilePath,
+  onFileOpened,
 }: EditorPanelProps): React.JSX.Element {
   const [tabs, setTabs] = useState<EditorTab[]>(() => {
     const initial = createTab(
@@ -160,6 +164,26 @@ function EditorPanel({
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [handleSave, handleSaveAs])
+
+  // Open file from File Browser
+  useEffect(() => {
+    if (!openFilePath) return
+    // Check if already open
+    const existing = tabs.find((t) => t.filePath === openFilePath)
+    if (existing) {
+      setActiveTabId(existing.id)
+      onFileOpened?.()
+      return
+    }
+    window.matslop.readFile(openFilePath).then((result) => {
+      if (result) {
+        const tab = createTab(result.filename, result.content, result.filePath)
+        setTabs((prev) => [...prev, tab])
+        setActiveTabId(tab.id)
+      }
+      onFileOpened?.()
+    })
+  }, [openFilePath, onFileOpened, tabs])
 
   const allPanels: { key: keyof PanelVisibility; label: string }[] = [
     { key: 'fileBrowser', label: 'File Browser' },

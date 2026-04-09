@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Allotment } from 'allotment'
 import 'allotment/dist/style.css'
 import FileBrowser from './panels/FileBrowser'
@@ -18,10 +18,19 @@ function App(): React.JSX.Element {
     workspace: true,
     commandWindow: true,
   })
+  const [pendingOpenPath, setPendingOpenPath] = useState<string | null>(null)
 
   const togglePanel = (panel: keyof PanelVisibility) => {
     setVisibility((prev) => ({ ...prev, [panel]: !prev[panel] }))
   }
+
+  const handleFileBrowserOpen = useCallback((filePath: string) => {
+    setPendingOpenPath(filePath)
+  }, [])
+
+  const handleFileOpened = useCallback(() => {
+    setPendingOpenPath(null)
+  }, [])
 
   return (
     <div className="app">
@@ -33,7 +42,7 @@ function App(): React.JSX.Element {
           snap
           visible={visibility.fileBrowser}
         >
-          <FileBrowser onCollapse={() => togglePanel('fileBrowser')} />
+          <FileBrowser onCollapse={() => togglePanel('fileBrowser')} onOpenFile={handleFileBrowserOpen} />
         </Allotment.Pane>
 
         {/* Main area: vertical split of top and bottom */}
@@ -46,6 +55,8 @@ function App(): React.JSX.Element {
                   <EditorPanel
                     panelVisibility={visibility}
                     onTogglePanel={togglePanel}
+                    openFilePath={pendingOpenPath}
+                    onFileOpened={handleFileOpened}
                   />
                 </Allotment.Pane>
                 <Allotment.Pane

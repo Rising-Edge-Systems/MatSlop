@@ -264,6 +264,135 @@ body {
   color: #fff;
 }
 
+/* File Browser */
+.fb-path-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: #2d2d2d;
+  border-bottom: 1px solid #3c3c3c;
+  min-height: 28px;
+}
+
+.fb-path {
+  flex: 1;
+  font-size: 11px;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+.fb-change-dir-btn {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 11px;
+  border: 1px solid #555;
+  background: #333;
+  color: #bbb;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.fb-change-dir-btn:hover {
+  background: #444;
+  color: #ddd;
+}
+
+.fb-content {
+  padding: 4px 0 !important;
+}
+
+.fb-entry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.fb-entry:hover {
+  background: #2a2d2e;
+}
+
+.fb-arrow {
+  display: inline-flex;
+  width: 14px;
+  font-size: 10px;
+  color: #999;
+  flex-shrink: 0;
+  justify-content: center;
+}
+
+.fb-arrow-placeholder {
+  display: inline-block;
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.fb-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.fb-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fb-rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 4px;
+  font-size: 12px;
+  border: 1px solid #007acc;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  outline: none;
+  border-radius: 2px;
+}
+
+/* Context menu */
+.fb-context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: #2d2d2d;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 4px 0;
+  min-width: 140px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.fb-ctx-item {
+  padding: 5px 16px;
+  font-size: 12px;
+  color: #ccc;
+  cursor: pointer;
+}
+
+.fb-ctx-item:hover {
+  background: #094771;
+  color: #fff;
+}
+
+.fb-ctx-danger:hover {
+  background: #6e1616;
+}
+
+.fb-ctx-separator {
+  height: 1px;
+  background: #444;
+  margin: 4px 0;
+}
+
 /* Command Window specifics */
 .command-window .panel-content {
   font-family: 'Consolas', 'Courier New', monospace;
