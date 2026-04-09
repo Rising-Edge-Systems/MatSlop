@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect } from 'react'
 import PanelHeader from './PanelHeader'
 import TabbedEditor from '../editor/TabbedEditor'
+import EditorToolbar from '../editor/EditorToolbar'
 import { createTab, type EditorTab } from '../editor/editorTypes'
+import type { OctaveEngineStatus } from '../App'
 
 interface PanelVisibility {
   fileBrowser: boolean
@@ -15,6 +17,10 @@ interface EditorPanelProps {
   openFilePath?: string | null
   onFileOpened?: () => void
   onCursorPositionChange?: (line: number, column: number) => void
+  engineStatus: OctaveEngineStatus
+  onRun?: () => void
+  onStop?: () => void
+  onRunSection?: () => void
 }
 
 function EditorPanel({
@@ -23,6 +29,10 @@ function EditorPanel({
   openFilePath,
   onFileOpened,
   onCursorPositionChange,
+  engineStatus,
+  onRun,
+  onStop,
+  onRunSection,
 }: EditorPanelProps): React.JSX.Element {
   const [tabs, setTabs] = useState<EditorTab[]>(() => {
     const initial = createTab(
@@ -197,6 +207,16 @@ function EditorPanel({
   return (
     <div className="panel editor-panel">
       <PanelHeader title="Editor" />
+      <EditorToolbar
+        hasActiveFile={activeTabId !== null}
+        engineStatus={engineStatus}
+        onNewFile={handleNewFile}
+        onOpenFile={handleOpenFile}
+        onSave={handleSave}
+        onRun={onRun ?? (() => {})}
+        onStop={onStop ?? (() => {})}
+        onRunSection={onRunSection ?? (() => {})}
+      />
       <div className="panel-content editor-panel-content">
         <TabbedEditor
           tabs={tabs}

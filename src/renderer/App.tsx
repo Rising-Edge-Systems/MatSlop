@@ -132,6 +132,7 @@ function App(): React.JSX.Element {
                     openFilePath={pendingOpenPath}
                     onFileOpened={handleFileOpened}
                     onCursorPositionChange={handleCursorPositionChange}
+                    engineStatus={octaveStatus.engineStatus}
                   />
                 </Allotment.Pane>
                 <Allotment.Pane
