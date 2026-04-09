@@ -435,3 +435,19 @@ Started: 2026-04-09
   - engineStatus prop chain: App.tsx → EditorPanel → TabbedEditor → LiveScriptEditor
   - Octave execute returns {output, error, isComplete} — check error field for red output styling
 ---
+
+## 2026-04-09 - US-025: Live Script - Inline Plot Rendering
+- Added `LiveScriptCellFigure` type to editorTypes.ts with `imageDataUrl` and `tempPath` fields
+- Added `figures` optional field to `LiveScriptCell` for persisting plot images in .mls files
+- After each code cell execution, close all figures, run cell, capture any new figures via Octave `print()` command
+- Figures displayed as `<img>` elements in `InlinePlots` component below cell output
+- Right-click context menu on inline plots: "Save As Image" (uses figuresSaveDialog + figuresCopyFile IPC) and "Open in Figure Window" (opens new browser window)
+- Multiple plots per cell supported (flex-wrap layout)
+- Figures cached in .mls JSON file so they persist when reopening
+- Files changed: src/renderer/editor/editorTypes.ts, src/renderer/editor/LiveScriptEditor.tsx, src/renderer/styles.css
+- **Learnings for future iterations:**
+  - Figure capture pattern: close all figures before cell, run cell, then capture - ensures figures are cell-specific
+  - Use `__MATSLOP_LS_FIG__` marker (different from `__MATSLOP_FIG__`) to avoid conflicts with App.tsx figure capture
+  - InlinePlots uses fixed-position context menu (z-index 3000) following same pattern as other context menus
+  - `_figures` is runtime state on CellWithId; `figures` is the persisted field on LiveScriptCell
+---
