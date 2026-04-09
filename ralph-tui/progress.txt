@@ -474,3 +474,16 @@ Started: 2026-04-09
 - **Learnings for future iterations:**
   - Monaco built-in actions handle many editor features (find, replace, go to line, comment toggle) — check if Monaco already provides functionality before building custom UI
 ---
+
+## 2026-04-09 - US-028: Drag-and-Drop File Opening
+- Added drag-and-drop support to EditorPanel for opening .m and .mls files
+- Visual drop overlay with dashed border appears when dragging files over editor area
+- Dragged .m files open in script mode, .mls files open in livescript mode
+- Duplicate file detection prevents opening the same file twice
+- Files changed: src/renderer/panels/EditorPanel.tsx, src/renderer/styles.css
+- **Learnings for future iterations:**
+  - Electron's DataTransfer files have a `.path` property for getting the filesystem path
+  - Use dragEnter/dragLeave counter pattern to handle nested element events (dragCounterRef)
+  - Drop overlay uses pointer-events: none to avoid interfering with drag events
+  - CSS uses --accent-color variable for theming the drop indicator
+---
