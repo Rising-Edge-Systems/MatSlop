@@ -508,6 +508,75 @@ body {
   margin: 4px 0;
 }
 
+/* Workspace Panel */
+.ws-content {
+  padding: 0 !important;
+  overflow: auto;
+}
+
+.ws-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  table-layout: fixed;
+}
+
+.ws-th {
+  position: sticky;
+  top: 0;
+  padding: 4px 8px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+  color: #bbb;
+  background: #2d2d2d;
+  border-bottom: 1px solid #3c3c3c;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.ws-th-sortable {
+  cursor: pointer;
+}
+
+.ws-th-sortable:hover {
+  color: #eee;
+}
+
+.ws-td {
+  padding: 3px 8px;
+  border-bottom: 1px solid #2a2a2a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-row:hover {
+  background: #2a2d2e;
+}
+
+.ws-name {
+  color: #4ec9b0;
+  font-weight: 500;
+  width: 30%;
+}
+
+.ws-value {
+  color: #ce9178;
+  width: 35%;
+  font-family: 'Consolas', 'Courier New', monospace;
+}
+
+.ws-size {
+  color: #999;
+  width: 15%;
+}
+
+.ws-class {
+  color: #569cd6;
+  width: 20%;
+}
+
 /* Command Window specifics */
 .command-window {
   cursor: text;

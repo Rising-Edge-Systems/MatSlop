@@ -37,6 +37,7 @@ function App(): React.JSX.Element {
   const [cursorPosition, setCursorPosition] = useState<CursorPosition | null>(null)
   const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null)
   const pendingCommandIdRef = useRef(0)
+  const [workspaceRefreshTrigger, setWorkspaceRefreshTrigger] = useState(0)
 
   // Start Octave process when path becomes configured
   const startOctaveProcess = useCallback(async (binaryPath: string) => {
@@ -151,6 +152,8 @@ function App(): React.JSX.Element {
     } catch {
       // ignore pwd query errors
     }
+    // Trigger workspace refresh after command execution
+    setWorkspaceRefreshTrigger((prev) => prev + 1)
   }, [octaveStatus.engineStatus, cwd])
 
   return (
@@ -193,7 +196,7 @@ function App(): React.JSX.Element {
                   snap
                   visible={visibility.workspace}
                 >
-                  <WorkspacePanel onCollapse={() => togglePanel('workspace')} />
+                  <WorkspacePanel onCollapse={() => togglePanel('workspace')} engineStatus={octaveStatus.engineStatus} refreshTrigger={workspaceRefreshTrigger} />
                 </Allotment.Pane>
               </Allotment>
             </Allotment.Pane>
