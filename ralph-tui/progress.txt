@@ -487,3 +487,16 @@ Started: 2026-04-09
   - Drop overlay uses pointer-events: none to avoid interfering with drag events
   - CSS uses --accent-color variable for theming the drop indicator
 ---
+
+## 2026-04-09 - US-029: Welcome Tab on First Launch
+- Created WelcomeTab component (src/renderer/editor/WelcomeTab.tsx) with app name, version, quick-start tips, Octave docs link, and "Don't show again" checkbox
+- Added 'welcome' mode to EditorTabMode in editorTypes.ts
+- Added showWelcome config field in appConfig.ts with IPC handlers (config:getShowWelcome, config:setShowWelcome)
+- Updated preload/index.ts and env.d.ts with new IPC bridge methods
+- EditorPanel checks showWelcome on mount and opens a Welcome tab as the first tab
+- TabbedEditor renders WelcomeTab for welcome mode tabs
+- Added welcome tab CSS styles using existing CSS variables
+- **Learnings for future iterations:**
+  - Adding a new config field requires: appConfig.ts (interface + defaults + getter), main/index.ts (IPC handler), preload/index.ts (bridge), env.d.ts (type)
+  - New EditorTabMode values need handling in TabbedEditor's render switch and may need special close handling
+---
