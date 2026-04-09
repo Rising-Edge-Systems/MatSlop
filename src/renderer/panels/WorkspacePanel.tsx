@@ -10,10 +10,11 @@ interface WorkspaceVariable {
   value: string
 }
 
-interface WorkspacePanelProps {
+export interface WorkspacePanelProps {
   onCollapse: () => void
   engineStatus: OctaveEngineStatus
   refreshTrigger: number
+  onInspectVariable?: (variable: { name: string; size: string; class: string }) => void
 }
 
 function parseWhosOutput(output: string): WorkspaceVariable[] {
@@ -102,7 +103,7 @@ function formatValuePreview(variable: WorkspaceVariable, valueOutput: string): s
   return `[${size} ${cls}]`
 }
 
-function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger }: WorkspacePanelProps): React.JSX.Element {
+function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVariable }: WorkspacePanelProps): React.JSX.Element {
   const [variables, setVariables] = useState<WorkspaceVariable[]>([])
   const [sortColumn, setSortColumn] = useState<'name' | 'size' | 'class'>('name')
   const [sortAsc, setSortAsc] = useState(true)
@@ -215,7 +216,13 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger }: WorkspaceP
             </thead>
             <tbody>
               {sortedVariables.map((v) => (
-                <tr key={v.name} className="ws-row">
+                <tr
+                  key={v.name}
+                  className="ws-row"
+                  onDoubleClick={() =>
+                    onInspectVariable?.({ name: v.name, size: v.size, class: v.class })
+                  }
+                >
                   <td className="ws-td ws-name">{v.name}</td>
                   <td className="ws-td ws-value">{v.value}</td>
                   <td className="ws-td ws-size">{v.size}</td>

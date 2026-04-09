@@ -8,6 +8,7 @@ import CommandWindow, { type PendingCommand } from './panels/CommandWindow'
 import StatusBar from './panels/StatusBar'
 import type { CursorPosition } from './panels/StatusBar'
 import OctaveSetupDialog from './dialogs/OctaveSetupDialog'
+import VariableInspectorDialog, { type InspectedVariable } from './dialogs/VariableInspectorDialog'
 
 export type OctaveEngineStatus = 'ready' | 'busy' | 'disconnected'
 
@@ -38,6 +39,7 @@ function App(): React.JSX.Element {
   const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null)
   const pendingCommandIdRef = useRef(0)
   const [workspaceRefreshTrigger, setWorkspaceRefreshTrigger] = useState(0)
+  const [inspectedVariable, setInspectedVariable] = useState<InspectedVariable | null>(null)
 
   // Start Octave process when path becomes configured
   const startOctaveProcess = useCallback(async (binaryPath: string) => {
@@ -156,9 +158,19 @@ function App(): React.JSX.Element {
     setWorkspaceRefreshTrigger((prev) => prev + 1)
   }, [octaveStatus.engineStatus, cwd])
 
+  const handleInspectVariable = useCallback((variable: InspectedVariable) => {
+    setInspectedVariable(variable)
+  }, [])
+
   return (
     <div className="app">
       {showOctaveSetup && <OctaveSetupDialog onConfigured={handleOctaveConfigured} />}
+      {inspectedVariable && (
+        <VariableInspectorDialog
+          variable={inspectedVariable}
+          onClose={() => setInspectedVariable(null)}
+        />
+      )}
       <div className="app-main">
       {/* Outer horizontal split: File Browser | Main Area */}
       <Allotment>
@@ -196,7 +208,7 @@ function App(): React.JSX.Element {
                   snap
                   visible={visibility.workspace}
                 >
-                  <WorkspacePanel onCollapse={() => togglePanel('workspace')} engineStatus={octaveStatus.engineStatus} refreshTrigger={workspaceRefreshTrigger} />
+                  <WorkspacePanel onCollapse={() => togglePanel('workspace')} engineStatus={octaveStatus.engineStatus} refreshTrigger={workspaceRefreshTrigger} onInspectVariable={handleInspectVariable} />
                 </Allotment.Pane>
               </Allotment>
             </Allotment.Pane>
