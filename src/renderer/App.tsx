@@ -140,6 +140,7 @@ function App(): React.JSX.Element {
             >
               <CommandWindow
                 onCollapse={() => togglePanel('commandWindow')}
+                engineStatus={octaveStatus.engineStatus}
               />
             </Allotment.Pane>
           </Allotment>
