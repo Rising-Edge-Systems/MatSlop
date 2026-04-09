@@ -198,6 +198,10 @@ body {
   flex-shrink: 0;
 }
 
+.status-bar-errors {
+  color: #f48771;
+}
+
 /* Panel common styles */
 .panel {
   display: flex;

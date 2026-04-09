@@ -54,6 +54,7 @@ function App(): React.JSX.Element {
   const [showAbout, setShowAbout] = useState(false)
   const [themeMode, setThemeMode] = useState<ThemeMode>('system')
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('dark')
+  const [errorCount, setErrorCount] = useState(0)
 
   // Start Octave process when path becomes configured
   const startOctaveProcess = useCallback(async (binaryPath: string) => {
@@ -165,6 +166,10 @@ function App(): React.JSX.Element {
 
   const handleCursorPositionChange = useCallback((line: number, column: number) => {
     setCursorPosition({ line, column })
+  }, [])
+
+  const handleErrorCountChange = useCallback((count: number) => {
+    setErrorCount(count)
   }, [])
 
   const handleRunScript = useCallback((filePath: string, dirPath: string) => {
@@ -394,6 +399,7 @@ function App(): React.JSX.Element {
                     openFilePath={pendingOpenPath}
                     onFileOpened={handleFileOpened}
                     onCursorPositionChange={handleCursorPositionChange}
+                    onErrorCountChange={handleErrorCountChange}
                     engineStatus={octaveStatus.engineStatus}
                     onRun={handleRunScript}
                     onStop={handleStop}
@@ -459,6 +465,7 @@ function App(): React.JSX.Element {
         cwd={cwd}
         engineStatus={octaveStatus.engineStatus}
         cursorPosition={cursorPosition}
+        errorCount={errorCount}
       />
     </div>
   )

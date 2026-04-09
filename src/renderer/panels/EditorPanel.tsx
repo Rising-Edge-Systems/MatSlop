@@ -25,6 +25,7 @@ interface EditorPanelProps {
   openFilePath?: string | null
   onFileOpened?: () => void
   onCursorPositionChange?: (line: number, column: number) => void
+  onErrorCountChange?: (count: number) => void
   engineStatus: OctaveEngineStatus
   onRun?: (filePath: string, dirPath: string) => void
   onStop?: () => void
@@ -40,6 +41,7 @@ function EditorPanel({
   openFilePath,
   onFileOpened,
   onCursorPositionChange,
+  onErrorCountChange,
   engineStatus,
   onRun,
   onStop,
@@ -448,6 +450,7 @@ function EditorPanel({
           onContentChange={handleContentChange}
           onCursorPositionChange={onCursorPositionChange}
           onEditorRef={handleEditorRef}
+          onErrorCountChange={onErrorCountChange}
           onNewFile={handleNewFile}
           onOpenFile={handleOpenFile}
           editorTheme={editorTheme}

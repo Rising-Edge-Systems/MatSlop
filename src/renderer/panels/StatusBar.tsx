@@ -9,6 +9,7 @@ interface StatusBarProps {
   cwd: string
   engineStatus: OctaveEngineStatus
   cursorPosition: CursorPosition | null
+  errorCount?: number
 }
 
 const statusLabels: Record<OctaveEngineStatus, string> = {
@@ -23,7 +24,7 @@ const statusColors: Record<OctaveEngineStatus, string> = {
   disconnected: '#f48771',
 }
 
-function StatusBar({ cwd, engineStatus, cursorPosition }: StatusBarProps): React.JSX.Element {
+function StatusBar({ cwd, engineStatus, cursorPosition, errorCount = 0 }: StatusBarProps): React.JSX.Element {
   return (
     <div className="status-bar">
       <div className="status-bar-left">
@@ -32,6 +33,11 @@ function StatusBar({ cwd, engineStatus, cursorPosition }: StatusBarProps): React
         </span>
       </div>
       <div className="status-bar-right">
+        {errorCount > 0 && (
+          <span className="status-bar-item status-bar-errors">
+            {errorCount} {errorCount === 1 ? 'error' : 'errors'}
+          </span>
+        )}
         <span className="status-bar-item">
           <span
             className="status-dot"

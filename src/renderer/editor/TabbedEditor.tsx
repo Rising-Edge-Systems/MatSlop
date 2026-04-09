@@ -1,7 +1,9 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import type { editor as monacoEditor } from 'monaco-editor'
+import type Monaco from 'monaco-editor'
 import { registerMatlabLanguage, MATLAB_LANGUAGE_ID } from './matlabLanguage'
+import { analyzeMatlabCode, diagnosticsToMarkers } from './matlabDiagnostics'
 import type { EditorTab } from './editorTypes'
 
 interface TabbedEditorProps {
@@ -12,6 +14,7 @@ interface TabbedEditorProps {
   onContentChange: (tabId: string, content: string) => void
   onCursorPositionChange?: (line: number, column: number) => void
   onEditorRef?: (editor: monacoEditor.IStandaloneCodeEditor | null) => void
+  onErrorCountChange?: (count: number) => void
   onNewFile?: () => void
   onOpenFile?: () => void
   editorTheme?: string
@@ -25,17 +28,51 @@ function TabbedEditor({
   onContentChange,
   onCursorPositionChange,
   onEditorRef,
+  onErrorCountChange,
   onNewFile,
   onOpenFile,
   editorTheme,
 }: TabbedEditorProps): React.JSX.Element {
   const editorRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null)
+  const monacoRef = useRef<typeof Monaco | null>(null)
+  const diagnosticTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
+
+  const runDiagnostics = useCallback((code: string) => {
+    if (diagnosticTimerRef.current) {
+      clearTimeout(diagnosticTimerRef.current)
+    }
+    diagnosticTimerRef.current = setTimeout(() => {
+      const monaco = monacoRef.current
+      const editor = editorRef.current
+      if (!monaco || !editor) return
+      const model = editor.getModel()
+      if (!model) return
+
+      const diagnostics = analyzeMatlabCode(code)
+      const markers = diagnosticsToMarkers(diagnostics, {
+        Error: monaco.MarkerSeverity.Error,
+        Warning: monaco.MarkerSeverity.Warning,
+      })
+      monaco.editor.setModelMarkers(model, 'matlab-diagnostics', markers)
+      onErrorCountChange?.(markers.filter((m) => m.severity === monaco.MarkerSeverity.Error).length)
+    }, 500)
+  }, [onErrorCountChange])
+
+  // Run diagnostics when active tab changes
+  useEffect(() => {
+    if (activeTab) {
+      runDiagnostics(activeTab.content)
+    } else {
+      onErrorCountChange?.(0)
+    }
+  }, [activeTabId]) // Only on tab switch, not every content change
 
   const handleEditorMount: OnMount = useCallback(
     (editor, monaco) => {
       editorRef.current = editor
+      monacoRef.current = monaco
       onEditorRef?.(editor)
       registerMatlabLanguage(monaco)
 
@@ -47,6 +84,11 @@ function TabbedEditor({
           model = monaco.editor.createModel(activeTab.content, MATLAB_LANGUAGE_ID, uri)
         }
         editor.setModel(model)
+      }
+
+      // Run initial diagnostics
+      if (activeTab) {
+        runDiagnostics(activeTab.content)
       }
 
       // Track cursor position
@@ -61,16 +103,17 @@ function TabbedEditor({
       }
     },
     // Only depends on activeTab at mount time
-    [activeTab, onCursorPositionChange, onEditorRef]
+    [activeTab, onCursorPositionChange, onEditorRef, runDiagnostics]
   )
 
   const handleContentChange = useCallback(
     (value: string | undefined) => {
       if (activeTabId && value !== undefined) {
         onContentChange(activeTabId, value)
+        runDiagnostics(value)
       }
     },
-    [activeTabId, onContentChange]
+    [activeTabId, onContentChange, runDiagnostics]
   )
 
   const isModified = (tab: EditorTab): boolean => {
