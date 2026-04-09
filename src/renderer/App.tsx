@@ -6,6 +6,7 @@ import EditorPanel from './panels/EditorPanel'
 import WorkspacePanel from './panels/WorkspacePanel'
 import CommandWindow, { type PendingCommand } from './panels/CommandWindow'
 import CommandHistoryPanel from './panels/CommandHistoryPanel'
+import FigurePanel, { type FigureData } from './panels/FigurePanel'
 import StatusBar from './panels/StatusBar'
 import type { CursorPosition } from './panels/StatusBar'
 import OctaveSetupDialog from './dialogs/OctaveSetupDialog'
@@ -45,6 +46,7 @@ function App(): React.JSX.Element {
   const [inspectedVariable, setInspectedVariable] = useState<InspectedVariable | null>(null)
   const [historyVersion, setHistoryVersion] = useState(0)
   const [pasteCommand, setPasteCommand] = useState<string | null>(null)
+  const [figures, setFigures] = useState<FigureData[]>([])
 
   // Start Octave process when path becomes configured
   const startOctaveProcess = useCallback(async (binaryPath: string) => {
@@ -142,29 +144,81 @@ function App(): React.JSX.Element {
   }, [])
 
   const handleCommandExecuted = useCallback(async () => {
-    // After each command, check if Octave's cwd changed and sync UI
+    // After each command, query pwd and capture figures in a single Octave command
     if (octaveStatus.engineStatus === 'disconnected') return
+
+    // Combined query: get pwd + detect and capture figures
+    const captureScript = [
+      "__mslp_r__=pwd();disp(['__MATSLOP_PWD__:' __mslp_r__]);",
+      "__mslp_fh__=get(0,'children');",
+      "for __mslp_k__=1:length(__mslp_fh__);",
+      "__mslp_fp__=[tempdir() 'matslop_fig_' num2str(__mslp_fh__(__mslp_k__)) '.png'];",
+      "try;print(__mslp_fh__(__mslp_k__),__mslp_fp__,'-dpng','-r150');",
+      "disp(['__MATSLOP_FIG__:' num2str(__mslp_fh__(__mslp_k__)) ':' __mslp_fp__]);",
+      "catch;end;end;",
+      "clear __mslp_r__ __mslp_fh__ __mslp_k__ __mslp_fp__;"
+    ].join('')
+
     try {
-      const result = await window.matslop.octaveExecute('pwd')
-      if (result.output) {
-        // pwd output is like "ans = /some/path" or just "/some/path"
-        const match = result.output.match(/ans = (.+)/) ?? result.output.match(/^\s*(.+)\s*$/m)
-        if (match) {
-          const octaveCwd = match[1].trim()
-          if (octaveCwd && octaveCwd !== cwd) {
-            setCwd(octaveCwd)
-          }
+      const result = await window.matslop.octaveExecute(captureScript)
+      const output = result.output || ''
+
+      // Parse pwd
+      const pwdMatch = output.match(/__MATSLOP_PWD__:(.+)/)
+      if (pwdMatch) {
+        const octaveCwd = pwdMatch[1].trim()
+        if (octaveCwd && octaveCwd !== cwd) {
+          setCwd(octaveCwd)
         }
       }
+
+      // Parse figures
+      const figMatches = [...output.matchAll(/__MATSLOP_FIG__:(\d+):(.+)/g)]
+      if (figMatches.length > 0) {
+        const newFigures: FigureData[] = []
+        for (const m of figMatches) {
+          const handle = parseInt(m[1])
+          const tempPath = m[2].trim()
+          const base64 = await window.matslop.figuresReadImage(tempPath)
+          if (base64) {
+            newFigures.push({
+              handle,
+              imageDataUrl: `data:image/png;base64,${base64}`,
+              tempPath,
+            })
+          }
+        }
+        setFigures(newFigures)
+      } else {
+        setFigures([])
+      }
     } catch {
-      // ignore pwd query errors
+      // ignore query errors
     }
+
     // Trigger workspace refresh after command execution
     setWorkspaceRefreshTrigger((prev) => prev + 1)
   }, [octaveStatus.engineStatus, cwd])
 
   const handleInspectVariable = useCallback((variable: InspectedVariable) => {
     setInspectedVariable(variable)
+  }, [])
+
+  const handleSaveFigure = useCallback(async (figure: FigureData) => {
+    const result = await window.matslop.figuresSaveDialog(`figure_${figure.handle}.png`)
+    if (!result) return
+
+    if (result.format === 'png') {
+      // Copy the existing PNG
+      await window.matslop.figuresCopyFile(figure.tempPath, result.filePath)
+    } else {
+      // Re-render in the requested format via Octave
+      const escapedPath = result.filePath.replace(/'/g, "''")
+      const formatFlag = result.format === 'svg' ? '-dsvg' : '-dpdf'
+      await window.matslop.octaveExecute(
+        `print(${figure.handle},'${escapedPath}','${formatFlag}')`
+      )
+    }
   }, [])
 
   const handleHistoryChanged = useCallback(() => {
@@ -223,9 +277,16 @@ function App(): React.JSX.Element {
                   minSize={150}
                   preferredSize={280}
                   snap
-                  visible={visibility.workspace}
+                  visible={visibility.workspace || figures.length > 0}
                 >
-                  <WorkspacePanel onCollapse={() => togglePanel('workspace')} engineStatus={octaveStatus.engineStatus} refreshTrigger={workspaceRefreshTrigger} onInspectVariable={handleInspectVariable} />
+                  <Allotment vertical>
+                    <Allotment.Pane minSize={100} visible={visibility.workspace}>
+                      <WorkspacePanel onCollapse={() => togglePanel('workspace')} engineStatus={octaveStatus.engineStatus} refreshTrigger={workspaceRefreshTrigger} onInspectVariable={handleInspectVariable} />
+                    </Allotment.Pane>
+                    <Allotment.Pane minSize={100} visible={figures.length > 0}>
+                      <FigurePanel figures={figures} onSaveFigure={handleSaveFigure} />
+                    </Allotment.Pane>
+                  </Allotment>
                 </Allotment.Pane>
               </Allotment>
             </Allotment.Pane>

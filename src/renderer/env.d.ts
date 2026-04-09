@@ -35,5 +35,9 @@ interface Window {
     historyLoad: () => Promise<string[]>
     historyAppend: (command: string) => Promise<void>
     historyDeleteEntry: (index: number) => Promise<string[]>
+    // Figure/plot support
+    figuresReadImage: (filePath: string) => Promise<string | null>
+    figuresSaveDialog: (defaultName: string) => Promise<{ filePath: string; format: string } | null>
+    figuresCopyFile: (sourcePath: string, destPath: string) => Promise<{ success: boolean; error?: string }>
   }
 }

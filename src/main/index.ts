@@ -312,6 +312,39 @@ ipcMain.handle('octave:browse', async () => {
   return result.filePaths[0]
 })
 
+// IPC handlers for figure/plot support
+ipcMain.handle('figures:readImage', async (_event, filePath: string) => {
+  try {
+    const data = fs.readFileSync(filePath)
+    return data.toString('base64')
+  } catch {
+    return null
+  }
+})
+
+ipcMain.handle('figures:saveDialog', async (_event, defaultName: string) => {
+  const result = await dialog.showSaveDialog({
+    defaultPath: defaultName,
+    filters: [
+      { name: 'PNG Image', extensions: ['png'] },
+      { name: 'SVG Image', extensions: ['svg'] },
+      { name: 'PDF Document', extensions: ['pdf'] }
+    ]
+  })
+  if (result.canceled || !result.filePath) return null
+  const ext = path.extname(result.filePath).slice(1).toLowerCase()
+  return { filePath: result.filePath, format: ext || 'png' }
+})
+
+ipcMain.handle('figures:copyFile', async (_event, sourcePath: string, destPath: string) => {
+  try {
+    fs.copyFileSync(sourcePath, destPath)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
 // IPC handlers for command history persistence
 ipcMain.handle('history:load', () => {
   return readCommandHistory()

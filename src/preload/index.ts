@@ -68,4 +68,11 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.invoke('history:append', command),
   historyDeleteEntry: (index: number): Promise<string[]> =>
     ipcRenderer.invoke('history:deleteEntry', index),
+  // Figure/plot support
+  figuresReadImage: (filePath: string): Promise<string | null> =>
+    ipcRenderer.invoke('figures:readImage', filePath),
+  figuresSaveDialog: (defaultName: string): Promise<{ filePath: string; format: string } | null> =>
+    ipcRenderer.invoke('figures:saveDialog', defaultName),
+  figuresCopyFile: (sourcePath: string, destPath: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('figures:copyFile', sourcePath, destPath),
 })

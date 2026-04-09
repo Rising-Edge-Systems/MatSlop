@@ -1150,3 +1150,100 @@ body {
   font-size: 12px;
   text-align: center;
 }
+
+/* Figure Panel */
+.figure-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.figure-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px;
+  background: #252526;
+  border-bottom: 1px solid #333;
+  min-height: 28px;
+}
+
+.figure-tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  flex: 1;
+}
+
+.figure-tab {
+  background: transparent;
+  border: none;
+  color: #999;
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.figure-tab:hover {
+  background: #2a2d2e;
+  color: #d4d4d4;
+}
+
+.figure-tab.active {
+  background: #37373d;
+  color: #fff;
+}
+
+.figure-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.figure-save-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid #555;
+  color: #ccc;
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.figure-save-btn:hover {
+  background: #2a2d2e;
+  color: #fff;
+}
+
+.figure-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  background: #1e1e1e;
+  padding: 8px;
+}
+
+.figure-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.figure-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.figure-empty .empty-text {
+  color: #666;
+  font-size: 12px;
+}
