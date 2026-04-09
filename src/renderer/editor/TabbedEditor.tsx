@@ -10,6 +10,8 @@ interface TabbedEditorProps {
   onTabSelect: (tabId: string) => void
   onTabClose: (tabId: string) => void
   onContentChange: (tabId: string, content: string) => void
+  onNewFile?: () => void
+  onOpenFile?: () => void
 }
 
 function TabbedEditor({
@@ -18,6 +20,8 @@ function TabbedEditor({
   onTabSelect,
   onTabClose,
   onContentChange,
+  onNewFile,
+  onOpenFile,
 }: TabbedEditorProps): React.JSX.Element {
   const editorRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null)
 
@@ -60,6 +64,18 @@ function TabbedEditor({
       <div className="tabbed-editor">
         <div className="editor-empty">
           <p>No files open</p>
+          <div className="editor-empty-actions">
+            {onNewFile && (
+              <button className="editor-action-btn" onClick={onNewFile}>
+                New File
+              </button>
+            )}
+            {onOpenFile && (
+              <button className="editor-action-btn" onClick={onOpenFile}>
+                Open File
+              </button>
+            )}
+          </div>
         </div>
       </div>
     )
@@ -90,6 +106,26 @@ function TabbedEditor({
             </button>
           </div>
         ))}
+        <div className="editor-tab-actions">
+          {onNewFile && (
+            <button
+              className="editor-tab-action-btn"
+              onClick={onNewFile}
+              title="New File"
+            >
+              +
+            </button>
+          )}
+          {onOpenFile && (
+            <button
+              className="editor-tab-action-btn"
+              onClick={onOpenFile}
+              title="Open File (Ctrl+O)"
+            >
+              &#8599;
+            </button>
+          )}
+        </div>
       </div>
       <div className="editor-content">
         {activeTab && (

@@ -210,11 +210,58 @@ body {
 
 .editor-empty {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 12px;
   height: 100%;
   color: #666;
   font-size: 14px;
+}
+
+.editor-empty-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.editor-action-btn {
+  padding: 6px 16px;
+  font-size: 12px;
+  border: 1px solid #555;
+  background: #333;
+  color: #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.editor-action-btn:hover {
+  background: #444;
+  color: #fff;
+}
+
+.editor-tab-actions {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.editor-tab-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.editor-tab-action-btn:hover {
+  background: #444;
+  color: #fff;
 }
 
 /* Command Window specifics */

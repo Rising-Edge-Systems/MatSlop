@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import PanelHeader from './PanelHeader'
 import TabbedEditor from '../editor/TabbedEditor'
 import { createTab, type EditorTab } from '../editor/editorTypes'
@@ -33,8 +33,96 @@ function EditorPanel({
     setActiveTabId(tabId)
   }, [])
 
+  const getActiveTab = useCallback((): EditorTab | null => {
+    return tabs.find((t) => t.id === activeTabId) ?? null
+  }, [tabs, activeTabId])
+
+  const handleNewFile = useCallback(() => {
+    const tab = createTab()
+    setTabs((prev) => [...prev, tab])
+    setActiveTabId(tab.id)
+  }, [])
+
+  const handleOpenFile = useCallback(async () => {
+    const result = await window.matslop.openFile()
+    if (!result) return
+    // Check if the file is already open
+    const existing = tabs.find((t) => t.filePath === result.filePath)
+    if (existing) {
+      setActiveTabId(existing.id)
+      return
+    }
+    const tab = createTab(result.filename, result.content, result.filePath)
+    setTabs((prev) => [...prev, tab])
+    setActiveTabId(tab.id)
+  }, [tabs])
+
+  const handleSave = useCallback(async () => {
+    const tab = getActiveTab()
+    if (!tab) return
+    if (tab.filePath) {
+      const result = await window.matslop.saveFile(tab.filePath, tab.content)
+      if (result.success) {
+        setTabs((prev) =>
+          prev.map((t) =>
+            t.id === tab.id ? { ...t, savedContent: t.content } : t
+          )
+        )
+      }
+    } else {
+      // Untitled file — use Save As
+      await handleSaveAs()
+    }
+  }, [getActiveTab])
+
+  const handleSaveAs = useCallback(async () => {
+    const tab = getActiveTab()
+    if (!tab) return
+    const result = await window.matslop.saveFileAs(tab.content, tab.filename)
+    if (result) {
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.id === tab.id
+            ? {
+                ...t,
+                filePath: result.filePath,
+                filename: result.filename,
+                savedContent: t.content,
+              }
+            : t
+        )
+      )
+    }
+  }, [getActiveTab])
+
   const handleTabClose = useCallback(
-    (tabId: string) => {
+    async (tabId: string) => {
+      const tab = tabs.find((t) => t.id === tabId)
+      if (!tab) return
+
+      // Check for unsaved changes
+      if (tab.content !== tab.savedContent) {
+        const response = await window.matslop.confirmClose(tab.filename)
+        if (response === 2) return // Cancel
+        if (response === 0) {
+          // Save
+          if (tab.filePath) {
+            const saveResult = await window.matslop.saveFile(
+              tab.filePath,
+              tab.content
+            )
+            if (!saveResult.success) return
+          } else {
+            const saveResult = await window.matslop.saveFileAs(
+              tab.content,
+              tab.filename
+            )
+            if (!saveResult) return // User cancelled save dialog
+          }
+        }
+        // response === 1 means Discard — fall through to close
+      }
+
       setTabs((prev) => {
         const idx = prev.findIndex((t) => t.id === tabId)
         const next = prev.filter((t) => t.id !== tabId)
@@ -47,7 +135,7 @@ function EditorPanel({
         return next
       })
     },
-    [activeTabId]
+    [tabs, activeTabId]
   )
 
   const handleContentChange = useCallback((tabId: string, content: string) => {
@@ -55,6 +143,23 @@ function EditorPanel({
       prev.map((t) => (t.id === tabId ? { ...t, content } : t))
     )
   }, [])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const ctrl = e.ctrlKey || e.metaKey
+
+      if (ctrl && e.shiftKey && e.key === 'S') {
+        e.preventDefault()
+        handleSaveAs()
+      } else if (ctrl && e.key === 's') {
+        e.preventDefault()
+        handleSave()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [handleSave, handleSaveAs])
 
   const allPanels: { key: keyof PanelVisibility; label: string }[] = [
     { key: 'fileBrowser', label: 'File Browser' },
@@ -73,6 +178,8 @@ function EditorPanel({
           onTabSelect={handleTabSelect}
           onTabClose={handleTabClose}
           onContentChange={handleContentChange}
+          onNewFile={handleNewFile}
+          onOpenFile={handleOpenFile}
         />
       </div>
       {hiddenPanels.length > 0 && (
