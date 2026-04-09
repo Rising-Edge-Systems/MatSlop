@@ -5,6 +5,34 @@ import os from 'os'
 import { autoDetectOctavePath, validateOctavePath, getStoredOctavePath, setOctavePath } from './octaveConfig'
 import { OctaveProcessManager } from './octaveProcess'
 
+// Command history file path
+function getHistoryFilePath(): string {
+  const userDataPath = app.getPath('userData')
+  return path.join(userDataPath, 'command-history.json')
+}
+
+function readCommandHistory(): string[] {
+  try {
+    const filePath = getHistoryFilePath()
+    if (fs.existsSync(filePath)) {
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+      if (Array.isArray(data)) return data
+    }
+  } catch {
+    // ignore read errors
+  }
+  return []
+}
+
+function writeCommandHistory(history: string[]): void {
+  try {
+    const filePath = getHistoryFilePath()
+    fs.writeFileSync(filePath, JSON.stringify(history), 'utf-8')
+  } catch {
+    // ignore write errors
+  }
+}
+
 let octaveProcess: OctaveProcessManager | null = null
 let mainWindow: BrowserWindow | null = null
 
@@ -282,6 +310,34 @@ ipcMain.handle('octave:browse', async () => {
   })
   if (result.canceled || result.filePaths.length === 0) return null
   return result.filePaths[0]
+})
+
+// IPC handlers for command history persistence
+ipcMain.handle('history:load', () => {
+  return readCommandHistory()
+})
+
+ipcMain.handle('history:save', (_event, history: string[]) => {
+  writeCommandHistory(history)
+})
+
+ipcMain.handle('history:append', (_event, command: string) => {
+  const history = readCommandHistory()
+  history.push(command)
+  // Keep max 10000 entries
+  if (history.length > 10000) {
+    history.splice(0, history.length - 10000)
+  }
+  writeCommandHistory(history)
+})
+
+ipcMain.handle('history:deleteEntry', (_event, index: number) => {
+  const history = readCommandHistory()
+  if (index >= 0 && index < history.length) {
+    history.splice(index, 1)
+    writeCommandHistory(history)
+  }
+  return history
 })
 
 app.whenReady().then(() => {

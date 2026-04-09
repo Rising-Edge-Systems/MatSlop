@@ -5,6 +5,7 @@ import FileBrowser from './panels/FileBrowser'
 import EditorPanel from './panels/EditorPanel'
 import WorkspacePanel from './panels/WorkspacePanel'
 import CommandWindow, { type PendingCommand } from './panels/CommandWindow'
+import CommandHistoryPanel from './panels/CommandHistoryPanel'
 import StatusBar from './panels/StatusBar'
 import type { CursorPosition } from './panels/StatusBar'
 import OctaveSetupDialog from './dialogs/OctaveSetupDialog'
@@ -23,6 +24,7 @@ interface PanelVisibility {
   fileBrowser: boolean
   workspace: boolean
   commandWindow: boolean
+  commandHistory: boolean
 }
 
 function App(): React.JSX.Element {
@@ -30,6 +32,7 @@ function App(): React.JSX.Element {
     fileBrowser: true,
     workspace: true,
     commandWindow: true,
+    commandHistory: false,
   })
   const [pendingOpenPath, setPendingOpenPath] = useState<string | null>(null)
   const [octaveStatus, setOctaveStatus] = useState<OctaveStatus>({ path: null, version: null, configured: false, engineStatus: 'disconnected' })
@@ -40,6 +43,8 @@ function App(): React.JSX.Element {
   const pendingCommandIdRef = useRef(0)
   const [workspaceRefreshTrigger, setWorkspaceRefreshTrigger] = useState(0)
   const [inspectedVariable, setInspectedVariable] = useState<InspectedVariable | null>(null)
+  const [historyVersion, setHistoryVersion] = useState(0)
+  const [pasteCommand, setPasteCommand] = useState<string | null>(null)
 
   // Start Octave process when path becomes configured
   const startOctaveProcess = useCallback(async (binaryPath: string) => {
@@ -162,6 +167,18 @@ function App(): React.JSX.Element {
     setInspectedVariable(variable)
   }, [])
 
+  const handleHistoryChanged = useCallback(() => {
+    setHistoryVersion((prev) => prev + 1)
+  }, [])
+
+  const handleHistoryExecute = useCallback((command: string) => {
+    setPasteCommand(command)
+  }, [])
+
+  const handlePasteConsumed = useCallback(() => {
+    setPasteCommand(null)
+  }, [])
+
   return (
     <div className="app">
       {showOctaveSetup && <OctaveSetupDialog onConfigured={handleOctaveConfigured} />}
@@ -213,19 +230,33 @@ function App(): React.JSX.Element {
               </Allotment>
             </Allotment.Pane>
 
-            {/* Bottom: Command Window */}
+            {/* Bottom: Command Window + Command History */}
             <Allotment.Pane
               minSize={100}
               preferredSize={200}
               snap
-              visible={visibility.commandWindow}
+              visible={visibility.commandWindow || visibility.commandHistory}
             >
-              <CommandWindow
-                onCollapse={() => togglePanel('commandWindow')}
-                engineStatus={octaveStatus.engineStatus}
-                pendingCommand={pendingCommand}
-                onCommandExecuted={handleCommandExecuted}
-              />
+              <Allotment>
+                <Allotment.Pane minSize={200} visible={visibility.commandWindow}>
+                  <CommandWindow
+                    onCollapse={() => togglePanel('commandWindow')}
+                    engineStatus={octaveStatus.engineStatus}
+                    pendingCommand={pendingCommand}
+                    onCommandExecuted={handleCommandExecuted}
+                    onHistoryChanged={handleHistoryChanged}
+                    pasteCommand={pasteCommand}
+                    onPasteConsumed={handlePasteConsumed}
+                  />
+                </Allotment.Pane>
+                <Allotment.Pane minSize={150} preferredSize={250} snap visible={visibility.commandHistory}>
+                  <CommandHistoryPanel
+                    onCollapse={() => togglePanel('commandHistory')}
+                    onExecuteCommand={handleHistoryExecute}
+                    historyVersion={historyVersion}
+                  />
+                </Allotment.Pane>
+              </Allotment>
             </Allotment.Pane>
           </Allotment>
         </Allotment.Pane>

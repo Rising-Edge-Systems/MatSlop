@@ -1087,3 +1087,66 @@ body {
 .ws-row {
   cursor: pointer;
 }
+
+/* Command History Panel */
+.ch-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.ch-filter-bar {
+  padding: 4px 8px;
+  background: #2d2d2d;
+  border-bottom: 1px solid #3c3c3c;
+  flex-shrink: 0;
+}
+
+.ch-filter-input {
+  width: 100%;
+  padding: 3px 8px;
+  font-size: 12px;
+  border: 1px solid #3c3c3c;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border-radius: 3px;
+  outline: none;
+  font-family: inherit;
+}
+
+.ch-filter-input:focus {
+  border-color: #007acc;
+}
+
+.ch-filter-input::placeholder {
+  color: #666;
+}
+
+.ch-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2px 0;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.ch-entry {
+  padding: 2px 8px;
+  color: #cccccc;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ch-entry:hover {
+  background: #2a2d2e;
+}
+
+.ch-empty {
+  padding: 12px 8px;
+  color: #666;
+  font-size: 12px;
+  text-align: center;
+}

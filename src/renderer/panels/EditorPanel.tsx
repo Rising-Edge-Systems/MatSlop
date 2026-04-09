@@ -10,6 +10,7 @@ interface PanelVisibility {
   fileBrowser: boolean
   workspace: boolean
   commandWindow: boolean
+  commandHistory: boolean
 }
 
 interface EditorPanelProps {
@@ -297,6 +298,7 @@ function EditorPanel({
     { key: 'fileBrowser', label: 'File Browser' },
     { key: 'workspace', label: 'Workspace' },
     { key: 'commandWindow', label: 'Command Window' },
+    { key: 'commandHistory', label: 'Command History' },
   ]
   const hiddenPanels = allPanels.filter((p) => !panelVisibility[p.key])
 

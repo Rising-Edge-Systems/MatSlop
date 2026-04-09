@@ -18,9 +18,12 @@ interface CommandWindowProps {
   engineStatus: OctaveEngineStatus
   pendingCommand?: PendingCommand | null
   onCommandExecuted?: () => void
+  onHistoryChanged?: () => void
+  pasteCommand?: string | null
+  onPasteConsumed?: () => void
 }
 
-function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExecuted }: CommandWindowProps): React.JSX.Element {
+function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExecuted, onHistoryChanged, pasteCommand, onPasteConsumed }: CommandWindowProps): React.JSX.Element {
   const [outputEntries, setOutputEntries] = useState<OutputEntry[]>([])
   const [inputValue, setInputValue] = useState('')
   const [commandHistory, setCommandHistory] = useState<string[]>([])
@@ -69,6 +72,14 @@ function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExec
       onCommandExecuted?.()
     })
   }, [pendingCommand, onCommandExecuted])
+
+  // Handle paste command from Command History panel
+  useEffect(() => {
+    if (pasteCommand === null || pasteCommand === undefined) return
+    setInputValue(pasteCommand)
+    onPasteConsumed?.()
+    inputRef.current?.focus()
+  }, [pasteCommand, onPasteConsumed])
 
   // Focus input on click anywhere in the panel content
   const handlePanelClick = useCallback(() => {
@@ -139,6 +150,11 @@ function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExec
       return [...filtered, fullCommand]
     })
     setHistoryIndex(-1)
+
+    // Persist to disk
+    window.matslop.historyAppend(fullCommand).then(() => {
+      onHistoryChanged?.()
+    })
 
     await executeCommand(fullCommand)
   }, [inputValue, continuationBuffer, executeCommand])

@@ -61,4 +61,11 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.on('octave:crashed', handler)
     return () => ipcRenderer.removeListener('octave:crashed', handler)
   },
+  // Command history persistence
+  historyLoad: (): Promise<string[]> =>
+    ipcRenderer.invoke('history:load'),
+  historyAppend: (command: string): Promise<void> =>
+    ipcRenderer.invoke('history:append', command),
+  historyDeleteEntry: (index: number): Promise<string[]> =>
+    ipcRenderer.invoke('history:deleteEntry', index),
 })
