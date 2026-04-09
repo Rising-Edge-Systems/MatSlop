@@ -464,3 +464,13 @@ Started: 2026-04-09
   - Use CSS transitions on drop zones for smooth visual feedback
   - Adjust target index after array splice to account for removed element position
 ---
+
+## 2026-04-09 - US-027: Find and Replace in Editor
+- Verified all acceptance criteria already met by existing implementation
+- Monaco's built-in find widget provides: Ctrl+F find, Ctrl+H replace, case sensitive/whole word/regex toggles, replace one/all, match count, Esc to close
+- Shortcut manager (shortcutManager.ts) routes Ctrl+F → actions.find and Ctrl+H → editor.action.startFindReplaceAction
+- Menu actions for find/findReplace also handled in EditorPanel.tsx
+- Files changed: ralph-tui/prd.json (marked passes: true)
+- **Learnings for future iterations:**
+  - Monaco built-in actions handle many editor features (find, replace, go to line, comment toggle) — check if Monaco already provides functionality before building custom UI
+---
