@@ -1427,3 +1427,144 @@ body {
 .about-dialog .about-close-btn:hover {
   background: var(--accent-hover);
 }
+
+/* Preferences Dialog */
+.prefs-dialog {
+  background: var(--bg-dialog);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  width: 520px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.prefs-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-dialog-header);
+  border-radius: 8px 8px 0 0;
+}
+
+.prefs-dialog-header h2 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-heading);
+}
+
+.prefs-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.prefs-close-btn:hover {
+  color: var(--text-bright);
+}
+
+.prefs-dialog-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+}
+
+.prefs-section {
+  margin-bottom: 20px;
+}
+
+.prefs-section:last-child {
+  margin-bottom: 0;
+}
+
+.prefs-section h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.prefs-row {
+  margin-bottom: 12px;
+}
+
+.prefs-row:last-child {
+  margin-bottom: 0;
+}
+
+.prefs-row > label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.prefs-input,
+.prefs-select {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 13px;
+  border-radius: 4px;
+}
+
+.prefs-input:focus,
+.prefs-select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.prefs-select {
+  cursor: pointer;
+}
+
+.prefs-path-row {
+  display: flex;
+  gap: 6px;
+}
+
+.prefs-path-input {
+  flex: 1;
+}
+
+.prefs-browse-btn {
+  background: var(--bg-button);
+  border: 1px solid var(--border-button);
+  color: var(--text-button);
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.prefs-browse-btn:hover {
+  background: var(--bg-button-hover);
+  color: var(--text-button-hover);
+}
+
+.prefs-octave-status {
+  font-size: 12px;
+  margin-top: 4px;
+  color: var(--text-muted);
+}
+
+.prefs-octave-status.valid {
+  color: var(--color-success);
+}
+
+.prefs-octave-status.invalid {
+  color: var(--color-error);
+}

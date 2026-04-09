@@ -11,6 +11,7 @@ import StatusBar from './panels/StatusBar'
 import type { CursorPosition } from './panels/StatusBar'
 import OctaveSetupDialog from './dialogs/OctaveSetupDialog'
 import VariableInspectorDialog, { type InspectedVariable } from './dialogs/VariableInspectorDialog'
+import PreferencesDialog, { type EditorPreferences } from './dialogs/PreferencesDialog'
 import { updateWorkspaceVariables, updateMFileNames } from './editor/matlabCompletionProvider'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -55,6 +56,13 @@ function App(): React.JSX.Element {
   const [themeMode, setThemeMode] = useState<ThemeMode>('system')
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('dark')
   const [errorCount, setErrorCount] = useState(0)
+  const [showPreferences, setShowPreferences] = useState(false)
+  const [editorSettings, setEditorSettings] = useState({
+    fontFamily: "'Consolas', 'Courier New', monospace",
+    fontSize: 14,
+    tabSize: 4,
+    insertSpaces: true,
+  })
 
   // Start Octave process when path becomes configured
   const startOctaveProcess = useCallback(async (binaryPath: string) => {
@@ -111,6 +119,18 @@ function App(): React.JSX.Element {
     })
   }, [])
 
+  // Load editor preferences on startup
+  useEffect(() => {
+    window.matslop.configGetPreferences().then((stored) => {
+      setEditorSettings({
+        fontFamily: stored.fontFamily,
+        fontSize: stored.fontSize,
+        tabSize: stored.tabSize,
+        insertSpaces: stored.insertSpaces,
+      })
+    })
+  }, [])
+
   // Resolve theme mode to actual light/dark and apply to document
   useEffect(() => {
     const resolve = (mode: ThemeMode, prefersDark: boolean): 'light' | 'dark' => {
@@ -139,6 +159,16 @@ function App(): React.JSX.Element {
   const handleSetTheme = useCallback((mode: ThemeMode) => {
     setThemeMode(mode)
     window.matslop.configSetTheme(mode)
+  }, [])
+
+  const handlePreferencesChanged = useCallback((prefs: EditorPreferences) => {
+    setThemeMode(prefs.theme)
+    setEditorSettings({
+      fontFamily: prefs.fontFamily,
+      fontSize: prefs.fontSize,
+      tabSize: prefs.tabSize,
+      insertSpaces: prefs.insertSpaces,
+    })
   }, [])
 
   const togglePanel = (panel: keyof PanelVisibility) => {
@@ -222,6 +252,9 @@ function App(): React.JSX.Element {
           break
         case 'stopExecution':
           handleStop()
+          break
+        case 'preferences':
+          setShowPreferences(true)
           break
         case 'about':
           setShowAbout(true)
@@ -368,6 +401,12 @@ function App(): React.JSX.Element {
           </div>
         </div>
       )}
+      {showPreferences && (
+        <PreferencesDialog
+          onClose={() => setShowPreferences(false)}
+          onPreferencesChanged={handlePreferencesChanged}
+        />
+      )}
       {inspectedVariable && (
         <VariableInspectorDialog
           variable={inspectedVariable}
@@ -407,6 +446,7 @@ function App(): React.JSX.Element {
                     menuAction={menuAction}
                     onMenuActionConsumed={handleMenuActionConsumed}
                     editorTheme={resolvedTheme === 'light' ? 'vs-light' : 'vs-dark'}
+                    editorSettings={editorSettings}
                   />
                 </Allotment.Pane>
                 <Allotment.Pane

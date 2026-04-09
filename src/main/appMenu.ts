@@ -24,6 +24,7 @@ export type MenuAction =
   | 'runSection'
   | 'stopExecution'
   | 'clearCommandWindow'
+  | 'preferences'
   | 'about'
 
 export function buildAppMenu(mainWindow: BrowserWindow): Menu {
@@ -113,6 +114,12 @@ export function buildAppMenu(mainWindow: BrowserWindow): Menu {
         },
         { type: 'separator' },
         { role: 'selectAll', accelerator: 'CmdOrCtrl+A' },
+        { type: 'separator' },
+        {
+          label: 'Preferences...',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => send('preferences'),
+        },
       ],
     },
     {

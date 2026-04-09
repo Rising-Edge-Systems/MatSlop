@@ -18,6 +18,12 @@ interface TabbedEditorProps {
   onNewFile?: () => void
   onOpenFile?: () => void
   editorTheme?: string
+  editorSettings?: {
+    fontFamily: string
+    fontSize: number
+    tabSize: number
+    insertSpaces: boolean
+  }
 }
 
 function TabbedEditor({
@@ -32,6 +38,7 @@ function TabbedEditor({
   onNewFile,
   onOpenFile,
   editorTheme,
+  editorSettings,
 }: TabbedEditorProps): React.JSX.Element {
   const editorRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null)
   const monacoRef = useRef<typeof Monaco | null>(null)
@@ -202,12 +209,12 @@ function TabbedEditor({
               folding: true,
               foldingStrategy: 'indentation',
               minimap: { enabled: true },
-              fontSize: 14,
-              fontFamily: "'Consolas', 'Courier New', monospace",
+              fontSize: editorSettings?.fontSize ?? 14,
+              fontFamily: editorSettings?.fontFamily ?? "'Consolas', 'Courier New', monospace",
               scrollBeyondLastLine: false,
               automaticLayout: true,
-              tabSize: 4,
-              insertSpaces: true,
+              tabSize: editorSettings?.tabSize ?? 4,
+              insertSpaces: editorSettings?.insertSpaces ?? true,
               renderWhitespace: 'selection',
               wordWrap: 'off',
             }}

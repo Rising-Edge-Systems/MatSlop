@@ -86,4 +86,14 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.invoke('config:getTheme'),
   configSetTheme: (theme: 'light' | 'dark' | 'system'): Promise<void> =>
     ipcRenderer.invoke('config:setTheme', theme),
+  configGetPreferences: (): Promise<{
+    theme: 'light' | 'dark' | 'system'
+    fontFamily: string
+    fontSize: number
+    tabSize: number
+    insertSpaces: boolean
+    defaultWorkingDirectory: string
+  }> => ipcRenderer.invoke('config:getPreferences'),
+  configSetPreferences: (prefs: Record<string, unknown>): Promise<void> =>
+    ipcRenderer.invoke('config:setPreferences', prefs),
 })

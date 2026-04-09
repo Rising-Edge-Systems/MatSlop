@@ -44,5 +44,14 @@ interface Window {
     // Theme/config
     configGetTheme: () => Promise<'light' | 'dark' | 'system'>
     configSetTheme: (theme: 'light' | 'dark' | 'system') => Promise<void>
+    configGetPreferences: () => Promise<{
+      theme: 'light' | 'dark' | 'system'
+      fontFamily: string
+      fontSize: number
+      tabSize: number
+      insertSpaces: boolean
+      defaultWorkingDirectory: string
+    }>
+    configSetPreferences: (prefs: Record<string, unknown>) => Promise<void>
   }
 }

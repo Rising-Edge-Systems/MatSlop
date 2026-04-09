@@ -33,6 +33,12 @@ interface EditorPanelProps {
   menuAction?: MenuAction | null
   onMenuActionConsumed?: () => void
   editorTheme?: string
+  editorSettings?: {
+    fontFamily: string
+    fontSize: number
+    tabSize: number
+    insertSpaces: boolean
+  }
 }
 
 function EditorPanel({
@@ -49,6 +55,7 @@ function EditorPanel({
   menuAction,
   onMenuActionConsumed,
   editorTheme,
+  editorSettings,
 }: EditorPanelProps): React.JSX.Element {
   const [tabs, setTabs] = useState<EditorTab[]>(() => {
     const initial = createTab(
@@ -454,6 +461,7 @@ function EditorPanel({
           onNewFile={handleNewFile}
           onOpenFile={handleOpenFile}
           editorTheme={editorTheme}
+          editorSettings={editorSettings}
         />
       </div>
       {hiddenPanels.length > 0 && (
