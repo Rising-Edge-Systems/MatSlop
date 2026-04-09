@@ -19,10 +19,103 @@ body {
 }
 
 .app {
+  height: 100%;
+  width: 100%;
+}
+
+/* Panel common styles */
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: #252526;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 8px;
+  background: #2d2d2d;
+  border-bottom: 1px solid #3c3c3c;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #bbbbbb;
+  user-select: none;
+}
+
+.panel-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-collapse-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
-  height: 100%;
-  gap: 8px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: #888;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.panel-collapse-btn:hover {
+  background: #444;
+  color: #ccc;
+}
+
+.panel-content {
+  flex: 1;
+  overflow: auto;
+  padding: 8px;
+}
+
+.placeholder-text {
+  color: #666;
+  font-size: 13px;
+}
+
+/* Editor panel specifics */
+.editor-panel {
+  position: relative;
+}
+
+.collapsed-panels-bar {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+  background: #2d2d2d;
+  border-top: 1px solid #3c3c3c;
+}
+
+.restore-panel-btn {
+  padding: 2px 8px;
+  font-size: 11px;
+  border: 1px solid #555;
+  background: #333;
+  color: #bbb;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.restore-panel-btn:hover {
+  background: #444;
+  color: #ddd;
+}
+
+/* Command Window specifics */
+.command-window .panel-content {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 13px;
 }
