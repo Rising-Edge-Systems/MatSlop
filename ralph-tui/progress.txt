@@ -39,6 +39,7 @@ Started: 2026-04-09
 - Keyboard shortcuts centralized in src/renderer/shortcuts/shortcutManager.ts — add new shortcuts there, not as scattered keydown handlers
 - Monaco built-in actions: actions.find, editor.action.startFindReplaceAction, editor.action.gotoLine, editor.action.commentLine
 - Auto-complete: matlabCompletionProvider.ts has module-level state updated via updateWorkspaceVariables() and updateMFileNames() — call these to refresh completions
+- Diagnostics: matlabDiagnostics.ts analyzeMatlabCode() returns diagnostics; use diagnosticsToMarkers() to convert to Monaco markers; set via monaco.editor.setModelMarkers(model, 'matlab-diagnostics', markers)
 
 ---
 
@@ -353,4 +354,20 @@ Started: 2026-04-09
   - WorkspacePanel exports WorkspaceVariable type and has onVariablesChanged callback for external consumers
   - readDir IPC already sufficient for listing .m files — no new IPC needed
   - Monaco `model.getWordUntilPosition(position)` gives the current word being typed — use it for range calculation
+---
+
+## 2026-04-09 - US-021: Basic Syntax Error Highlighting in Editor
+- Created matlabDiagnostics.ts with bracket/parenthesis checking and function/end block matching
+- Diagnostics skip content inside strings (single/double quoted) and comments (line/block)
+- Integrated into TabbedEditor with 500ms debounce via setTimeout
+- Monaco markers set via monaco.editor.setModelMarkers for red underlines and hover messages
+- Error count shown in StatusBar (red text, e.g., "3 errors")
+- Error count threaded: TabbedEditor → EditorPanel → App.tsx → StatusBar
+- Files changed: src/renderer/editor/matlabDiagnostics.ts (new), src/renderer/editor/TabbedEditor.tsx, src/renderer/panels/StatusBar.tsx, src/renderer/panels/EditorPanel.tsx, src/renderer/App.tsx, src/renderer/styles.css
+- **Learnings for future iterations:**
+  - Monaco markers: use `monaco.editor.setModelMarkers(model, 'owner-id', markers)` — owner string groups markers for replacement
+  - MarkerSeverity available from monaco namespace: `monaco.MarkerSeverity.Error`, `.Warning`, etc.
+  - String/comment removal for keyword scanning must preserve character positions (replace with spaces, not remove) to keep column numbers accurate
+  - Transpose operator `'` after identifiers/brackets must be distinguished from string start in MATLAB
+  - Debounced diagnostics should run on both content change and tab switch
 ---
