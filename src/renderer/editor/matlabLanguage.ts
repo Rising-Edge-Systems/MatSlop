@@ -1,4 +1,5 @@
 import type { languages } from 'monaco-editor'
+import { createMatlabCompletionProvider } from './matlabCompletionProvider'
 
 export const MATLAB_LANGUAGE_ID = 'matlab'
 
@@ -204,10 +205,21 @@ export const matlabTokensProvider: languages.IMonarchLanguage = {
   },
 }
 
+let completionProviderRegistered = false
+
 export function registerMatlabLanguage(monaco: typeof import('monaco-editor')): void {
   if (!monaco.languages.getLanguages().some((lang) => lang.id === MATLAB_LANGUAGE_ID)) {
     monaco.languages.register({ id: MATLAB_LANGUAGE_ID, extensions: ['.m'] })
   }
   monaco.languages.setLanguageConfiguration(MATLAB_LANGUAGE_ID, matlabLanguageConfig)
   monaco.languages.setMonarchTokensProvider(MATLAB_LANGUAGE_ID, matlabTokensProvider)
+
+  // Register completion provider once
+  if (!completionProviderRegistered) {
+    monaco.languages.registerCompletionItemProvider(
+      MATLAB_LANGUAGE_ID,
+      createMatlabCompletionProvider(monaco)
+    )
+    completionProviderRegistered = true
+  }
 }

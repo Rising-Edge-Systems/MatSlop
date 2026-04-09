@@ -10,11 +10,14 @@ interface WorkspaceVariable {
   value: string
 }
 
+export type { WorkspaceVariable }
+
 export interface WorkspacePanelProps {
   onCollapse: () => void
   engineStatus: OctaveEngineStatus
   refreshTrigger: number
   onInspectVariable?: (variable: { name: string; size: string; class: string }) => void
+  onVariablesChanged?: (variables: Array<{ name: string; size: string; class: string }>) => void
 }
 
 function parseWhosOutput(output: string): WorkspaceVariable[] {
@@ -103,7 +106,7 @@ function formatValuePreview(variable: WorkspaceVariable, valueOutput: string): s
   return `[${size} ${cls}]`
 }
 
-function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVariable }: WorkspacePanelProps): React.JSX.Element {
+function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVariable, onVariablesChanged }: WorkspacePanelProps): React.JSX.Element {
   const [variables, setVariables] = useState<WorkspaceVariable[]>([])
   const [sortColumn, setSortColumn] = useState<'name' | 'size' | 'class'>('name')
   const [sortAsc, setSortAsc] = useState(true)
@@ -139,12 +142,13 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
       )
 
       setVariables(varsWithValues)
+      onVariablesChanged?.(varsWithValues.map((v) => ({ name: v.name, size: v.size, class: v.class })))
     } catch {
       // ignore errors during refresh
     } finally {
       refreshingRef.current = false
     }
-  }, [engineStatus])
+  }, [engineStatus, onVariablesChanged])
 
   // Refresh on trigger change (after commands execute)
   useEffect(() => {
@@ -159,6 +163,7 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
       refreshWorkspace()
     } else if (engineStatus === 'disconnected') {
       setVariables([])
+      onVariablesChanged?.([])
     }
   }, [engineStatus, refreshWorkspace])
 

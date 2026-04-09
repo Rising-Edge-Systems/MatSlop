@@ -11,6 +11,7 @@ import StatusBar from './panels/StatusBar'
 import type { CursorPosition } from './panels/StatusBar'
 import OctaveSetupDialog from './dialogs/OctaveSetupDialog'
 import VariableInspectorDialog, { type InspectedVariable } from './dialogs/VariableInspectorDialog'
+import { updateWorkspaceVariables, updateMFileNames } from './editor/matlabCompletionProvider'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 export type OctaveEngineStatus = 'ready' | 'busy' | 'disconnected'
@@ -296,6 +297,29 @@ function App(): React.JSX.Element {
     setInspectedVariable(variable)
   }, [])
 
+  const handleVariablesChanged = useCallback(
+    (variables: Array<{ name: string; class: string; size: string }>) => {
+      updateWorkspaceVariables(variables)
+    },
+    []
+  )
+
+  // Update .m file names for auto-complete when cwd changes
+  useEffect(() => {
+    if (!cwd) {
+      updateMFileNames([])
+      return
+    }
+    window.matslop.readDir(cwd).then((entries) => {
+      const mFiles = entries
+        .filter((e) => !e.isDirectory && e.name.endsWith('.m'))
+        .map((e) => e.name)
+      updateMFileNames(mFiles)
+    }).catch(() => {
+      updateMFileNames([])
+    })
+  }, [cwd])
+
   const handleSaveFigure = useCallback(async (figure: FigureData) => {
     const result = await window.matslop.figuresSaveDialog(`figure_${figure.handle}.png`)
     if (!result) return
@@ -387,7 +411,7 @@ function App(): React.JSX.Element {
                 >
                   <Allotment vertical>
                     <Allotment.Pane minSize={100} visible={visibility.workspace}>
-                      <WorkspacePanel onCollapse={() => togglePanel('workspace')} engineStatus={octaveStatus.engineStatus} refreshTrigger={workspaceRefreshTrigger} onInspectVariable={handleInspectVariable} />
+                      <WorkspacePanel onCollapse={() => togglePanel('workspace')} engineStatus={octaveStatus.engineStatus} refreshTrigger={workspaceRefreshTrigger} onInspectVariable={handleInspectVariable} onVariablesChanged={handleVariablesChanged} />
                     </Allotment.Pane>
                     <Allotment.Pane minSize={100} visible={figures.length > 0}>
                       <FigurePanel figures={figures} onSaveFigure={handleSaveFigure} />
