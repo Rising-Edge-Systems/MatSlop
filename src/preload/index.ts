@@ -96,4 +96,8 @@ contextBridge.exposeInMainWorld('matslop', {
   }> => ipcRenderer.invoke('config:getPreferences'),
   configSetPreferences: (prefs: Record<string, unknown>): Promise<void> =>
     ipcRenderer.invoke('config:setPreferences', prefs),
+  configGetShowWelcome: (): Promise<boolean> =>
+    ipcRenderer.invoke('config:getShowWelcome'),
+  configSetShowWelcome: (show: boolean): Promise<void> =>
+    ipcRenderer.invoke('config:setShowWelcome', show),
 })

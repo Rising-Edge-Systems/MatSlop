@@ -1,4 +1,4 @@
-export type EditorTabMode = 'script' | 'livescript'
+export type EditorTabMode = 'script' | 'livescript' | 'welcome'
 
 export interface EditorTab {
   id: string

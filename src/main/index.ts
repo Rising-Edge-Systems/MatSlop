@@ -403,6 +403,14 @@ ipcMain.handle('config:setPreferences', (_event, prefs: Partial<AppPreferences>)
   setPreferences(prefs)
 })
 
+ipcMain.handle('config:getShowWelcome', () => {
+  return getPreferences().showWelcome
+})
+
+ipcMain.handle('config:setShowWelcome', (_event, show: boolean) => {
+  setPreferences({ showWelcome: show })
+})
+
 app.whenReady().then(() => {
   createWindow()
 

@@ -67,6 +67,19 @@ function EditorPanel({
   const [activeTabId, setActiveTabId] = useState<string | null>(
     () => tabs[0]?.id ?? null
   )
+  const [welcomeTabId, setWelcomeTabId] = useState<string | null>(null)
+
+  // Show welcome tab on first launch
+  useEffect(() => {
+    window.matslop.configGetShowWelcome().then((show) => {
+      if (show) {
+        const welcomeTab = createTab('Welcome', '', null, 'welcome')
+        setTabs((prev) => [welcomeTab, ...prev])
+        setActiveTabId(welcomeTab.id)
+        setWelcomeTabId(welcomeTab.id)
+      }
+    })
+  }, [])
   const editorInstanceRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const dragCounterRef = useRef(0)
@@ -82,6 +95,20 @@ function EditorPanel({
   const getActiveTab = useCallback((): EditorTab | null => {
     return tabs.find((t) => t.id === activeTabId) ?? null
   }, [tabs, activeTabId])
+
+  const handleCloseWelcome = useCallback(() => {
+    if (!welcomeTabId) return
+    setTabs((prev) => {
+      const next = prev.filter((t) => t.id !== welcomeTabId)
+      if (welcomeTabId === activeTabId && next.length > 0) {
+        setActiveTabId(next[0].id)
+      } else if (next.length === 0) {
+        setActiveTabId(null)
+      }
+      return next
+    })
+    setWelcomeTabId(null)
+  }, [welcomeTabId, activeTabId])
 
   const handleNewFile = useCallback(() => {
     const tab = createTab()
@@ -542,6 +569,7 @@ function EditorPanel({
           onErrorCountChange={onErrorCountChange}
           onNewFile={handleNewFile}
           onOpenFile={handleOpenFile}
+          onCloseWelcome={handleCloseWelcome}
           editorTheme={editorTheme}
           engineStatus={engineStatus}
           editorSettings={editorSettings}

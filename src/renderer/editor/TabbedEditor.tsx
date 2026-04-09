@@ -6,6 +6,7 @@ import { registerMatlabLanguage, MATLAB_LANGUAGE_ID } from './matlabLanguage'
 import { analyzeMatlabCode, diagnosticsToMarkers } from './matlabDiagnostics'
 import type { EditorTab } from './editorTypes'
 import LiveScriptEditor from './LiveScriptEditor'
+import WelcomeTab from './WelcomeTab'
 import type { OctaveEngineStatus } from '../App'
 
 interface TabbedEditorProps {
@@ -19,6 +20,7 @@ interface TabbedEditorProps {
   onErrorCountChange?: (count: number) => void
   onNewFile?: () => void
   onOpenFile?: () => void
+  onCloseWelcome?: () => void
   editorTheme?: string
   engineStatus?: OctaveEngineStatus
   editorSettings?: {
@@ -40,6 +42,7 @@ function TabbedEditor({
   onErrorCountChange,
   onNewFile,
   onOpenFile,
+  onCloseWelcome,
   editorTheme,
   engineStatus,
   editorSettings,
@@ -200,7 +203,9 @@ function TabbedEditor({
         </div>
       </div>
       <div className="editor-content">
-        {activeTab && activeTab.mode === 'livescript' ? (
+        {activeTab && activeTab.mode === 'welcome' ? (
+          <WelcomeTab onDismiss={() => onCloseWelcome?.()} />
+        ) : activeTab && activeTab.mode === 'livescript' ? (
           <LiveScriptEditor
             key={activeTab.id}
             content={activeTab.content}

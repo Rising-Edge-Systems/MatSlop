@@ -2012,3 +2012,112 @@ body {
   outline: none;
   box-sizing: border-box;
 }
+
+/* Welcome Tab */
+.welcome-tab {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg-main);
+}
+
+.welcome-content {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 48px 32px;
+}
+
+.welcome-title {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--text-heading);
+  margin: 0 0 4px 0;
+}
+
+.welcome-subtitle {
+  font-size: 15px;
+  color: var(--text-muted);
+  margin: 0 0 4px 0;
+}
+
+.welcome-version {
+  font-size: 12px;
+  color: var(--text-disabled);
+  margin: 0 0 32px 0;
+}
+
+.welcome-section {
+  margin-bottom: 24px;
+}
+
+.welcome-section h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-heading);
+  margin: 0 0 8px 0;
+}
+
+.welcome-tips {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.welcome-tips li {
+  font-size: 13px;
+  color: var(--text-primary);
+  padding: 4px 0;
+  line-height: 1.5;
+}
+
+.welcome-text {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.welcome-link {
+  color: var(--accent-button-bg);
+  text-decoration: none;
+}
+
+.welcome-link:hover {
+  text-decoration: underline;
+}
+
+.welcome-footer {
+  margin-top: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.welcome-checkbox {
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.welcome-checkbox input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.welcome-close-btn {
+  background: var(--accent-button-bg);
+  color: #fff;
+  border: none;
+  padding: 8px 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.welcome-close-btn:hover {
+  background: var(--accent-hover);
+}

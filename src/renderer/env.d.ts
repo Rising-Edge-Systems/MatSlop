@@ -53,5 +53,7 @@ interface Window {
       defaultWorkingDirectory: string
     }>
     configSetPreferences: (prefs: Record<string, unknown>) => Promise<void>
+    configGetShowWelcome: () => Promise<boolean>
+    configSetShowWelcome: (show: boolean) => Promise<void>
   }
 }

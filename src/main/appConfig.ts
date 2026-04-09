@@ -9,6 +9,7 @@ export interface AppPreferences {
   tabSize: number
   insertSpaces: boolean
   defaultWorkingDirectory: string
+  showWelcome: boolean
 }
 
 const defaults: AppPreferences = {
@@ -18,6 +19,7 @@ const defaults: AppPreferences = {
   tabSize: 4,
   insertSpaces: true,
   defaultWorkingDirectory: '',
+  showWelcome: true,
 }
 
 const store = new Store<AppPreferences>()
@@ -38,6 +40,7 @@ export function getPreferences(): AppPreferences {
     tabSize: store.get('tabSize', defaults.tabSize) as number,
     insertSpaces: store.get('insertSpaces', defaults.insertSpaces) as boolean,
     defaultWorkingDirectory: store.get('defaultWorkingDirectory', defaults.defaultWorkingDirectory) as string,
+    showWelcome: store.get('showWelcome', defaults.showWelcome) as boolean,
   }
 }
 
