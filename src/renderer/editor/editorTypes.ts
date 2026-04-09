@@ -27,10 +27,16 @@ export function createTab(
   }
 }
 
+export interface LiveScriptCellFigure {
+  imageDataUrl: string
+  tempPath: string
+}
+
 export interface LiveScriptCell {
   type: 'code' | 'markdown'
   content: string
   output: string
+  figures?: LiveScriptCellFigure[]
 }
 
 export interface LiveScriptDocument {

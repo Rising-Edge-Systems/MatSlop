@@ -4,11 +4,12 @@ import type { editor as monacoEditor } from 'monaco-editor'
 import type Monaco from 'monaco-editor'
 import Markdown from 'react-markdown'
 import { registerMatlabLanguage, MATLAB_LANGUAGE_ID } from './matlabLanguage'
-import { Plus, Trash2, Code, FileText, GripVertical, Play, PlayCircle, Loader } from 'lucide-react'
+import { Plus, Trash2, Code, FileText, GripVertical, Play, PlayCircle, Loader, Download, ExternalLink } from 'lucide-react'
 import {
   parseLiveScript,
   serializeLiveScript,
   type LiveScriptCell,
+  type LiveScriptCellFigure,
   type LiveScriptDocument,
 } from './editorTypes'
 import type { OctaveEngineStatus } from '../App'
@@ -34,14 +35,18 @@ function nextCellId(): string {
 interface CellWithId extends LiveScriptCell {
   _id: string
   _isError?: boolean
+  _figures?: LiveScriptCellFigure[]
 }
 
 function addIds(cells: LiveScriptCell[]): CellWithId[] {
-  return cells.map((c) => ({ ...c, _id: nextCellId() }))
+  return cells.map((c) => ({ ...c, _id: nextCellId(), _figures: c.figures }))
 }
 
 function stripIds(cells: CellWithId[]): LiveScriptCell[] {
-  return cells.map(({ _id, _isError, ...rest }) => rest)
+  return cells.map(({ _id, _isError, _figures, ...rest }) => ({
+    ...rest,
+    figures: _figures && _figures.length > 0 ? _figures : rest.figures,
+  }))
 }
 
 function LiveScriptEditor({
@@ -114,20 +119,71 @@ function LiveScriptEditor({
     setAddMenuIndex((prev) => (prev === index ? null : index))
   }, [])
 
+  // Capture any open figures from Octave as inline images
+  const captureFigures = useCallback(async (): Promise<LiveScriptCellFigure[]> => {
+    const captureScript = [
+      "__mslp_fh__=get(0,'children');",
+      "for __mslp_k__=1:length(__mslp_fh__);",
+      "__mslp_fp__=[tempdir() 'matslop_ls_fig_' num2str(__mslp_fh__(__mslp_k__)) '.png'];",
+      "try;print(__mslp_fh__(__mslp_k__),__mslp_fp__,'-dpng','-r150');",
+      "disp(['__MATSLOP_LS_FIG__:' num2str(__mslp_fh__(__mslp_k__)) ':' __mslp_fp__]);",
+      "catch;end;end;",
+      "clear __mslp_fh__ __mslp_k__ __mslp_fp__;"
+    ].join('')
+
+    try {
+      const result = await window.matslop.octaveExecute(captureScript)
+      const output = result.output || ''
+      const figMatches = [...output.matchAll(/__MATSLOP_LS_FIG__:(\d+):(.+)/g)]
+      if (figMatches.length === 0) return []
+
+      const figures: LiveScriptCellFigure[] = []
+      for (const m of figMatches) {
+        const tempPath = m[2].trim()
+        const base64 = await window.matslop.figuresReadImage(tempPath)
+        if (base64) {
+          figures.push({
+            imageDataUrl: `data:image/png;base64,${base64}`,
+            tempPath,
+          })
+        }
+      }
+      return figures
+    } catch {
+      return []
+    }
+  }, [])
+
+  // Close all open figures so the next cell starts clean
+  const closeAllFigures = useCallback(async (): Promise<void> => {
+    try {
+      await window.matslop.octaveExecute('close all;')
+    } catch {
+      // ignore
+    }
+  }, [])
+
   const handleRunCell = useCallback(async (cellId: string) => {
     const cell = cells.find((c) => c._id === cellId)
     if (!cell || cell.type !== 'code' || !cell.content.trim()) return
     if (engineStatus !== 'ready') return
+
+    // Close any existing figures before running cell
+    await closeAllFigures()
 
     setRunningCellId(cellId)
     try {
       const result = await window.matslop.octaveExecute(cell.content)
       const output = result.error ? result.error : result.output
       const isError = !!result.error
+
+      // Capture any figures produced by this cell
+      const cellFigures = isError ? [] : await captureFigures()
+
       setCells((prev) =>
         prev.map((c) =>
           c._id === cellId
-            ? { ...c, output: output || '', _isError: isError }
+            ? { ...c, output: output || '', _isError: isError, _figures: cellFigures }
             : c
         )
       )
@@ -135,14 +191,14 @@ function LiveScriptEditor({
       setCells((prev) =>
         prev.map((c) =>
           c._id === cellId
-            ? { ...c, output: String(err), _isError: true }
+            ? { ...c, output: String(err), _isError: true, _figures: [] }
             : c
         )
       )
     } finally {
       setRunningCellId(null)
     }
-  }, [cells, engineStatus])
+  }, [cells, engineStatus, captureFigures, closeAllFigures])
 
   const handleRunAll = useCallback(async () => {
     if (engineStatus !== 'ready') return
@@ -150,15 +206,22 @@ function LiveScriptEditor({
     const codeCells = cells.filter((c) => c.type === 'code')
     for (const cell of codeCells) {
       if (!cell.content.trim()) continue
+
+      // Close figures before each cell so captures are cell-specific
+      await closeAllFigures()
+
       setRunningCellId(cell._id)
       try {
         const result = await window.matslop.octaveExecute(cell.content)
         const output = result.error ? result.error : result.output
         const isError = !!result.error
+
+        const cellFigures = isError ? [] : await captureFigures()
+
         setCells((prev) =>
           prev.map((c) =>
             c._id === cell._id
-              ? { ...c, output: output || '', _isError: isError }
+              ? { ...c, output: output || '', _isError: isError, _figures: cellFigures }
               : c
           )
         )
@@ -168,7 +231,7 @@ function LiveScriptEditor({
         setCells((prev) =>
           prev.map((c) =>
             c._id === cell._id
-              ? { ...c, output: String(err), _isError: true }
+              ? { ...c, output: String(err), _isError: true, _figures: [] }
               : c
           )
         )
@@ -178,7 +241,7 @@ function LiveScriptEditor({
       }
     }
     setRunningAll(false)
-  }, [cells, engineStatus])
+  }, [cells, engineStatus, captureFigures, closeAllFigures])
 
   const handleEditorMount: OnMount = useCallback((_editor, monaco) => {
     if (!monacoRefLocal.current) {
@@ -288,6 +351,9 @@ function LiveScriptEditor({
                         <pre>{cell.output}</pre>
                       </div>
                     )}
+                    {(cell._figures ?? cell.figures ?? []).length > 0 && (
+                      <InlinePlots figures={cell._figures ?? cell.figures ?? []} />
+                    )}
                   </>
                 ) : (
                   <MarkdownCell
@@ -315,6 +381,74 @@ function LiveScriptEditor({
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+// Inline plot display with context menu
+interface InlinePlotsProps {
+  figures: LiveScriptCellFigure[]
+}
+
+function InlinePlots({ figures }: InlinePlotsProps): React.JSX.Element {
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; figure: LiveScriptCellFigure } | null>(null)
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, figure: LiveScriptCellFigure) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({ x: e.clientX, y: e.clientY, figure })
+  }, [])
+
+  const handleSaveAs = useCallback(async () => {
+    if (!contextMenu) return
+    const result = await window.matslop.figuresSaveDialog('figure.png')
+    if (result) {
+      await window.matslop.figuresCopyFile(contextMenu.figure.tempPath, result.filePath)
+    }
+    setContextMenu(null)
+  }, [contextMenu])
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = (): void => setContextMenu(null)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [contextMenu])
+
+  return (
+    <div className="ls-inline-plots">
+      {figures.map((fig, i) => (
+        <img
+          key={i}
+          src={fig.imageDataUrl}
+          alt={`Plot ${i + 1}`}
+          className="ls-inline-plot-image"
+          draggable={false}
+          onContextMenu={(e) => handleContextMenu(e, fig)}
+        />
+      ))}
+      {contextMenu && (
+        <div
+          className="ls-plot-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button onClick={handleSaveAs}>
+            <Download size={14} /> Save As Image
+          </button>
+          <button onClick={() => {
+            // Open in the figure panel by opening a new window with the image
+            const w = window.open('', '_blank', 'width=800,height=600')
+            if (w) {
+              w.document.write(`<html><head><title>Figure</title></head><body style="margin:0;display:flex;align-items:center;justify-content:center;background:#1e1e1e;"><img src="${contextMenu.figure.imageDataUrl}" style="max-width:100%;max-height:100vh;"/></body></html>`)
+            }
+            setContextMenu(null)
+          }}>
+            <ExternalLink size={14} /> Open in Figure Window
+          </button>
+        </div>
+      )}
     </div>
   )
 }
