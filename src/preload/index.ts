@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 
 contextBridge.exposeInMainWorld('matslop', {
   platform: process.platform,
@@ -40,4 +40,25 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.invoke('octave:setPath', binaryPath),
   octaveBrowse: (): Promise<string | null> =>
     ipcRenderer.invoke('octave:browse'),
+  // Octave process management
+  octaveStart: (binaryPath: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('octave:start', binaryPath),
+  octaveExecute: (command: string): Promise<{ output: string; error: string; isComplete: boolean }> =>
+    ipcRenderer.invoke('octave:execute', command),
+  octaveInterrupt: (): Promise<void> =>
+    ipcRenderer.invoke('octave:interrupt'),
+  octaveRestart: (binaryPath: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('octave:restart', binaryPath),
+  octaveGetStatus: (): Promise<'ready' | 'busy' | 'disconnected'> =>
+    ipcRenderer.invoke('octave:getStatus'),
+  onOctaveStatusChanged: (callback: (status: 'ready' | 'busy' | 'disconnected') => void): (() => void) => {
+    const handler = (_event: IpcRendererEvent, status: 'ready' | 'busy' | 'disconnected'): void => callback(status)
+    ipcRenderer.on('octave:statusChanged', handler)
+    return () => ipcRenderer.removeListener('octave:statusChanged', handler)
+  },
+  onOctaveCrashed: (callback: (info: { code: number | null; signal: string | null; error?: string }) => void): (() => void) => {
+    const handler = (_event: IpcRendererEvent, info: { code: number | null; signal: string | null; error?: string }): void => callback(info)
+    ipcRenderer.on('octave:crashed', handler)
+    return () => ipcRenderer.removeListener('octave:crashed', handler)
+  },
 })

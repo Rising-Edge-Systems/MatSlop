@@ -23,5 +23,13 @@ interface Window {
     octaveGetPath: () => Promise<string | null>
     octaveSetPath: (binaryPath: string) => Promise<void>
     octaveBrowse: () => Promise<string | null>
+    // Octave process management
+    octaveStart: (binaryPath: string) => Promise<{ success: boolean; error?: string }>
+    octaveExecute: (command: string) => Promise<{ output: string; error: string; isComplete: boolean }>
+    octaveInterrupt: () => Promise<void>
+    octaveRestart: (binaryPath: string) => Promise<{ success: boolean }>
+    octaveGetStatus: () => Promise<'ready' | 'busy' | 'disconnected'>
+    onOctaveStatusChanged: (callback: (status: 'ready' | 'busy' | 'disconnected') => void) => () => void
+    onOctaveCrashed: (callback: (info: { code: number | null; signal: string | null; error?: string }) => void) => () => void
   }
 }

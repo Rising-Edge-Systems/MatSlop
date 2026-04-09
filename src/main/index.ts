@@ -3,9 +3,13 @@ import path from 'path'
 import fs from 'fs'
 import os from 'os'
 import { autoDetectOctavePath, validateOctavePath, getStoredOctavePath, setOctavePath } from './octaveConfig'
+import { OctaveProcessManager } from './octaveProcess'
+
+let octaveProcess: OctaveProcessManager | null = null
+let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 800,
@@ -199,6 +203,74 @@ ipcMain.handle('octave:setPath', (_event, binaryPath: string) => {
   setOctavePath(binaryPath)
 })
 
+// IPC handlers for Octave process management
+ipcMain.handle('octave:start', async (_event, binaryPath: string) => {
+  try {
+    if (octaveProcess) {
+      octaveProcess.stop()
+    }
+    octaveProcess = new OctaveProcessManager(binaryPath)
+
+    octaveProcess.on('status', (status: string) => {
+      mainWindow?.webContents.send('octave:statusChanged', status)
+    })
+
+    octaveProcess.on('exit', (info: { code: number | null; signal: string | null }) => {
+      mainWindow?.webContents.send('octave:crashed', info)
+    })
+
+    octaveProcess.on('error', (err: Error) => {
+      mainWindow?.webContents.send('octave:crashed', { code: null, signal: null, error: err.message })
+    })
+
+    octaveProcess.start()
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('octave:execute', async (_event, command: string) => {
+  if (!octaveProcess || !octaveProcess.isRunning()) {
+    return { output: '', error: 'Octave is not running', isComplete: true }
+  }
+  try {
+    return await octaveProcess.executeCommand(command)
+  } catch (err) {
+    return { output: '', error: String(err), isComplete: true }
+  }
+})
+
+ipcMain.handle('octave:interrupt', () => {
+  octaveProcess?.interrupt()
+})
+
+ipcMain.handle('octave:restart', async (_event, binaryPath: string) => {
+  if (octaveProcess) {
+    octaveProcess.stop()
+  }
+  octaveProcess = new OctaveProcessManager(binaryPath)
+
+  octaveProcess.on('status', (status: string) => {
+    mainWindow?.webContents.send('octave:statusChanged', status)
+  })
+
+  octaveProcess.on('exit', (info: { code: number | null; signal: string | null }) => {
+    mainWindow?.webContents.send('octave:crashed', info)
+  })
+
+  octaveProcess.on('error', (err: Error) => {
+    mainWindow?.webContents.send('octave:crashed', { code: null, signal: null, error: err.message })
+  })
+
+  octaveProcess.start()
+  return { success: true }
+})
+
+ipcMain.handle('octave:getStatus', () => {
+  return octaveProcess?.getStatus() ?? 'disconnected'
+})
+
 ipcMain.handle('octave:browse', async () => {
   const result = await dialog.showOpenDialog({
     title: 'Select GNU Octave Binary',
@@ -225,5 +297,12 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
+  }
+})
+
+app.on('before-quit', () => {
+  if (octaveProcess) {
+    octaveProcess.stop()
+    octaveProcess = null
   }
 })

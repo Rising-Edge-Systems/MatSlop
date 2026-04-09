@@ -7,10 +7,13 @@ import WorkspacePanel from './panels/WorkspacePanel'
 import CommandWindow from './panels/CommandWindow'
 import OctaveSetupDialog from './dialogs/OctaveSetupDialog'
 
+export type OctaveEngineStatus = 'ready' | 'busy' | 'disconnected'
+
 export interface OctaveStatus {
   path: string | null
   version: string | null
   configured: boolean
+  engineStatus: OctaveEngineStatus
 }
 
 interface PanelVisibility {
@@ -26,8 +29,33 @@ function App(): React.JSX.Element {
     commandWindow: true,
   })
   const [pendingOpenPath, setPendingOpenPath] = useState<string | null>(null)
-  const [octaveStatus, setOctaveStatus] = useState<OctaveStatus>({ path: null, version: null, configured: false })
+  const [octaveStatus, setOctaveStatus] = useState<OctaveStatus>({ path: null, version: null, configured: false, engineStatus: 'disconnected' })
   const [showOctaveSetup, setShowOctaveSetup] = useState(false)
+
+  // Start Octave process when path becomes configured
+  const startOctaveProcess = useCallback(async (binaryPath: string) => {
+    const result = await window.matslop.octaveStart(binaryPath)
+    if (!result.success) {
+      console.error('Failed to start Octave:', result.error)
+    }
+  }, [])
+
+  useEffect(() => {
+    // Listen for Octave engine status changes
+    const unsubStatus = window.matslop.onOctaveStatusChanged((status) => {
+      setOctaveStatus((prev) => ({ ...prev, engineStatus: status }))
+    })
+
+    const unsubCrash = window.matslop.onOctaveCrashed((info) => {
+      console.error('Octave process crashed:', info)
+      setOctaveStatus((prev) => ({ ...prev, engineStatus: 'disconnected' }))
+    })
+
+    return () => {
+      unsubStatus()
+      unsubCrash()
+    }
+  }, [])
 
   useEffect(() => {
     // Check if Octave is already configured on startup
@@ -35,19 +63,22 @@ function App(): React.JSX.Element {
       if (storedPath) {
         const result = await window.matslop.octaveValidate(storedPath)
         if (result.valid) {
-          setOctaveStatus({ path: storedPath, version: result.version ?? 'unknown', configured: true })
+          setOctaveStatus({ path: storedPath, version: result.version ?? 'unknown', configured: true, engineStatus: 'disconnected' })
+          // Auto-start the Octave process
+          startOctaveProcess(storedPath)
           return
         }
       }
       // Not configured or invalid — show setup dialog
       setShowOctaveSetup(true)
     })
-  }, [])
+  }, [startOctaveProcess])
 
   const handleOctaveConfigured = useCallback((path: string, version: string) => {
-    setOctaveStatus({ path, version, configured: true })
+    setOctaveStatus({ path, version, configured: true, engineStatus: 'disconnected' })
     setShowOctaveSetup(false)
-  }, [])
+    startOctaveProcess(path)
+  }, [startOctaveProcess])
 
   const togglePanel = (panel: keyof PanelVisibility) => {
     setVisibility((prev) => ({ ...prev, [panel]: !prev[panel] }))
