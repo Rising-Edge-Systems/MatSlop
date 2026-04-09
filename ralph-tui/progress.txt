@@ -5,11 +5,40 @@ Started: 2026-04-09
 ## Codebase Patterns
 - Uses electron-vite for dev/build (not plain webpack or vite)
 - Single tsconfig.json with noEmit for typecheck; electron-vite handles actual compilation
-- ESLint flat config (eslint.config.js) with typescript-eslint
+- ESLint flat config (eslint.config.js) with typescript-eslint (no react-hooks plugin)
 - Package type is "module" (ESM)
 - Source structure: src/main/ (Electron main process), src/preload/ (context bridge), src/renderer/ (React UI)
+- Editor components live in src/renderer/editor/
 - Run `npx tsc --noEmit` for typecheck, `npx eslint src/` for lint
 - Build with `npx electron-vite build`
+- Monaco Editor uses @monaco-editor/react with `key` prop for tab switching
+- MATLAB language definition is in src/renderer/editor/matlabLanguage.ts
+- IPC pattern: ipcMain.handle (main) → ipcRenderer.invoke (preload) → typed in env.d.ts — keep all three in sync
+- File dialog extensions use no dot: ['m'] not ['.m']
+- Cross-panel communication: lift shared state to App.tsx (e.g., pendingOpenPath pattern) rather than refs or events
+- FileBrowser component is in src/renderer/panels/FileBrowser.tsx with full filesystem IPC
+- OctaveProcessManager in src/main/octaveProcess.ts uses delimiter pattern (___MATSLOP_CMD_DONE___) to detect command completion
+- Octave process IPC: octave:start, octave:execute, octave:interrupt, octave:restart, octave:getStatus + event listeners onOctaveStatusChanged, onOctaveCrashed
+- OctaveEngineStatus type ('ready' | 'busy' | 'disconnected') is exported from App.tsx and used throughout
+- StatusBar is outside Allotment; App uses flex column with .app-main (flex:1) wrapper around Allotment
+- CursorPosition tracked via Monaco onDidChangeCursorPosition, threaded TabbedEditor → EditorPanel → App.tsx
+- FileBrowser cwd is lifted to App.tsx via onCwdChange callback
+- lucide-react installed for icons — use `import { IconName } from 'lucide-react'` with `size={16}` prop
+- EditorToolbar sits between PanelHeader and editor-panel-content in EditorPanel
+- PendingCommand pattern (with unique id counter) for App.tsx → CommandWindow external command execution
+- Monaco editor instance accessible in EditorPanel via TabbedEditor's onEditorRef callback
+- WorkspacePanel uses refreshTrigger counter from App.tsx (incremented in handleCommandExecuted) to refresh after each command
+- Dialog overlay pattern: fixed z-index 2000, click-outside closes via e.target === e.currentTarget, Escape key via window keydown listener
+- PanelVisibility in App.tsx has 4 keys: fileBrowser, workspace, commandWindow, commandHistory — update both App.tsx and EditorPanel.tsx when adding panels
+- Command history persisted via IPC to app.getPath('userData')/command-history.json
+- Figure capture: handleCommandExecuted sends combined pwd+figure-capture Octave script, parses __MATSLOP_PWD__ and __MATSLOP_FIG__ markers
+- Right column uses nested vertical Allotment: WorkspacePanel top, FigurePanel bottom (auto-visible when figures exist)
+- Figures IPC: figures:readImage (base64), figures:saveDialog, figures:copyFile — bridge methods prefixed with `figures`
+- All UI colors use CSS variables (--bg-main, --text-primary, etc.) defined in styles.css :root — use variables, never hardcode colors
+- Theme config: appConfig.ts (electron-store) for general settings; resolved theme ('light'|'dark') available in App.tsx as resolvedTheme
+- Keyboard shortcuts centralized in src/renderer/shortcuts/shortcutManager.ts — add new shortcuts there, not as scattered keydown handlers
+- Monaco built-in actions: actions.find, editor.action.startFindReplaceAction, editor.action.gotoLine, editor.action.commentLine
+- Auto-complete: matlabCompletionProvider.ts has module-level state updated via updateWorkspaceVariables() and updateMFileNames() — call these to refresh completions
 
 ---
 
@@ -35,4 +64,293 @@ Started: 2026-04-09
   - Allotment's `snap` prop allows panels to collapse when dragged below minSize
   - Allotment's `visible` prop controls panel visibility without removing from DOM
   - PanelVisibility state is managed in App.tsx and threaded through to EditorPanel for restore buttons
+---
+
+## 2026-04-09 - US-003: Monaco Editor with MATLAB Syntax Highlighting
+- Installed @monaco-editor/react and monaco-editor packages
+- Created custom MATLAB/Octave Monarch language definition with keywords, builtins, operators, comments (line + block), strings (single + double quoted), numbers, matrix brackets
+- Created TabbedEditor component with tab bar, active tab highlighting, close buttons, unsaved dot indicator
+- Created EditorTab type and createTab factory in editorTypes.ts
+- Updated EditorPanel to use TabbedEditor with state management for tabs
+- Added CSS for editor tabs, modified indicator, and empty state
+- Files changed: package.json, package-lock.json, src/renderer/editor/matlabLanguage.ts, src/renderer/editor/editorTypes.ts, src/renderer/editor/TabbedEditor.tsx, src/renderer/panels/EditorPanel.tsx, src/renderer/styles.css
+- **Learnings for future iterations:**
+  - @monaco-editor/react uses `key` prop to force remount when switching tabs (simpler than model swapping)
+  - Monaco language registration should check if already registered to avoid duplicates
+  - ESLint flat config in this project doesn't include react-hooks plugin, so don't use react-hooks eslint directives
+  - `automaticLayout: true` on Monaco is essential in resizable panel layouts
+---
+
+## 2026-04-09 - US-004: File Open, Save, Save As, and New File
+- Added IPC handlers in main process for file:open, file:save, file:saveAs, file:confirmClose
+- Exposed file operations through preload context bridge (window.matslop API)
+- Updated env.d.ts with TypeScript types for the expanded matslop API
+- EditorPanel now manages file operations: handleNewFile, handleOpenFile, handleSave, handleSaveAs
+- Tab close now prompts Save/Discard/Cancel dialog when there are unsaved changes
+- Ctrl+S triggers save (prompts Save As for untitled), Ctrl+Shift+S triggers Save As
+- Added "+" (New File) and open button in tab bar, plus New/Open buttons in empty state
+- Files changed: src/main/index.ts, src/preload/index.ts, src/renderer/env.d.ts, src/renderer/panels/EditorPanel.tsx, src/renderer/editor/TabbedEditor.tsx, src/renderer/styles.css
+- **Learnings for future iterations:**
+  - IPC pattern: ipcMain.handle in main, ipcRenderer.invoke in preload, typed in env.d.ts — keep all three in sync
+  - File dialog filters use `extensions` without the dot (e.g., ['m'] not ['.m'])
+  - Opening an already-open file should activate its existing tab rather than creating a duplicate
+  - dialog.showMessageBox returns `response` index matching the `buttons` array order
+---
+
+## 2026-04-09 - US-005: File Browser Panel
+- Implemented full file browser with directory tree, expandable/collapsible directories, file icons
+- Added IPC handlers for: readDir, readFile, selectDirectory, getHomeDir, rename, delete, createFile, createFolder, confirmDelete
+- Updated preload bridge and env.d.ts with all new filesystem API methods
+- Built FileBrowser component with: path bar showing cwd + change directory button, recursive tree rendering, context menu (Open, Rename, Delete, New File, New Folder), inline rename and create inputs
+- Connected FileBrowser to EditorPanel via App.tsx using pendingOpenPath state pattern — double-clicking a file opens it in editor
+- Added CSS for file browser entries, context menu, rename inputs, path bar
+- Files changed: src/main/index.ts, src/preload/index.ts, src/renderer/env.d.ts, src/renderer/panels/FileBrowser.tsx, src/renderer/panels/EditorPanel.tsx, src/renderer/App.tsx, src/renderer/styles.css
+- **Learnings for future iterations:**
+  - Cross-panel communication pattern: lift state to App.tsx (pendingOpenPath + onFileOpened callback) rather than trying to use refs or events
+- electron-store v11 is ESM — use `import Store from 'electron-store'` (default import)
+- OctaveStatus state (path, version, configured) lives in App.tsx for downstream panels to consume
+  - fs.readdirSync with withFileTypes: true returns Dirent objects useful for distinguishing files from directories
+  - Directory entries should be sorted: directories first, then alphabetically
+  - Hidden files (dotfiles) are filtered out by default for cleaner UI
+  - Context menu needs fixed positioning and a click-outside handler to dismiss
+  - For path display, use CSS `direction: rtl` to show the end of long paths (most meaningful part)
+---
+
+## 2026-04-09 - US-006: Octave Path Auto-Detection and Configuration
+- Created src/main/octaveConfig.ts with auto-detection logic for Unix/macOS/Windows paths and PATH search
+- Added electron-store for persisting Octave binary path across restarts
+- Added IPC handlers: octave:autoDetect, octave:validate, octave:getPath, octave:setPath, octave:browse
+- Updated preload and env.d.ts with octave config API
+- Created OctaveSetupDialog component (src/renderer/dialogs/OctaveSetupDialog.tsx) shown when Octave not found
+- Dialog provides: install instructions, manual path input, Browse button, validation via `octave --version`
+- Integrated into App.tsx with OctaveStatus state for downstream panels
+- Files changed: package.json, package-lock.json, src/main/octaveConfig.ts, src/main/index.ts, src/preload/index.ts, src/renderer/env.d.ts, src/renderer/App.tsx, src/renderer/dialogs/OctaveSetupDialog.tsx, src/renderer/styles.css
+- **Learnings for future iterations:**
+  - electron-store v11 is ESM, use default import
+  - validateOctavePath uses execFile with 10s timeout to run `octave --version`
+  - OctaveStatus (path, version, configured) state in App.tsx will be needed by US-007 (process manager), US-008 (command window), US-009 (status bar)
+  - Setup dialog shows overlay on top of IDE — IDE still renders underneath
+---
+
+## 2026-04-09 - US-007: GNU Octave Backend Process Manager
+- Created OctaveProcessManager class in src/main/octaveProcess.ts
+- Spawns Octave with --no-gui --interactive --no-history flags, TERM=dumb env
+- Uses delimiter pattern (___MATSLOP_CMD_DONE___) appended after each command to detect output completion
+- Handles stdout/stderr buffering, output cleaning (removes Octave prompt markers)
+- Supports: executeCommand, interrupt (SIGINT), stop, restart
+- Emits events: status, exit, error — forwarded to renderer via IPC
+- Added IPC handlers: octave:start, octave:execute, octave:interrupt, octave:restart, octave:getStatus
+- Added preload bridge methods + event listeners (onOctaveStatusChanged, onOctaveCrashed)
+- Updated env.d.ts with full type declarations
+- App.tsx auto-starts Octave process after path is configured, listens for status/crash events
+- Added OctaveEngineStatus type and engineStatus field to OctaveStatus interface
+- Properly terminates Octave on app quit via app 'before-quit' handler
+- Files changed: src/main/octaveProcess.ts (new), src/main/index.ts, src/preload/index.ts, src/renderer/env.d.ts, src/renderer/App.tsx
+- **Learnings for future iterations:**
+  - Delimiter pattern: send command, then `disp('DELIMITER')`, wait for DELIMITER in stdout to know output is complete
+  - TERM=dumb env var prevents Octave from outputting terminal control sequences
+  - ipcRenderer.on + ipcRenderer.removeListener for event-based IPC (not just request/response)
+  - OctaveProcessManager is an EventEmitter — use .on('status'), .on('exit'), .on('error')
+  - mainWindow must be module-level variable so IPC handlers can send events to renderer
+---
+
+## 2026-04-09 - US-008: Command Window (Terminal Panel)
+- Implemented full interactive Command Window with >> prompt, command execution via Octave backend
+- Output entries displayed with preserved formatting, error messages in red (#f48771)
+- Command history navigable with Up/Down arrow keys, stored in state
+- Multi-line input support: lines ending with ... are buffered and concatenated before execution
+- Ctrl+C interrupts running commands (sends SIGINT via octaveInterrupt)
+- Scrollable output with auto-scroll to bottom on new output
+- clc command clears the command window (handled locally, not sent to Octave)
+- Input disabled when Octave is disconnected with placeholder message
+- Click anywhere in command window focuses the input
+- Files changed: src/renderer/panels/CommandWindow.tsx (full rewrite), src/renderer/App.tsx (pass engineStatus prop), src/renderer/styles.css (command window CSS)
+- **Learnings for future iterations:**
+  - CommandWindow receives engineStatus from App.tsx to know when Octave is ready/busy/disconnected
+  - Output entries use a typed array (OutputEntry[]) with 'command', 'output', 'error' types for styling
+  - clc is handled client-side to avoid round-trip to Octave
+  - Multi-line continuation: detect trailing `...`, buffer lines until a non-continuation line is entered
+  - History navigation resets historyIndex to -1 when user types new input
+---
+
+## 2026-04-09 - US-009: Status Bar
+- Created StatusBar component (src/renderer/panels/StatusBar.tsx) with cwd, engine status with colored dot, cursor position (Ln/Col), and UTF-8 encoding display
+- Added cursor position tracking via Monaco editor's onDidChangeCursorPosition event, threaded through TabbedEditor → EditorPanel → App.tsx
+- Lifted cwd from FileBrowser to App.tsx via onCwdChange callback so StatusBar can display it
+- Added app-main wrapper div in App.tsx so Allotment panels and StatusBar can coexist in a flex column layout
+- Styled status bar with VS Code-like blue (#007acc) background
+- Files changed: src/renderer/panels/StatusBar.tsx (new), src/renderer/App.tsx, src/renderer/panels/EditorPanel.tsx, src/renderer/editor/TabbedEditor.tsx, src/renderer/panels/FileBrowser.tsx, src/renderer/styles.css
+- **Learnings for future iterations:**
+  - StatusBar sits outside the Allotment layout — needs a flex wrapper (app-main) to avoid Allotment consuming 100% height
+  - CursorPosition type is exported from StatusBar.tsx for reuse in App.tsx
+  - Monaco's onDidChangeCursorPosition fires on every cursor move — good for real-time Ln/Col updates
+  - FileBrowser cwd is now available in App.tsx via onCwdChange — useful for future stories like US-012 (directory sync)
+---
+
+## 2026-04-09 - US-010: Editor Toolbar with Run Controls
+- Created EditorToolbar component (src/renderer/editor/EditorToolbar.tsx) with icon buttons using Lucide React
+- Toolbar has: New File, Open File, Save, Run (green play), Stop (red square), Run Section buttons
+- All buttons have tooltips showing name and keyboard shortcut
+- Run button disabled when no file open or Octave disconnected; Stop disabled when not busy
+- EditorPanel updated to include toolbar and accept engineStatus prop from App.tsx
+- Added toolbar CSS with separator, colored run/stop buttons, disabled states
+- Installed lucide-react package
+- Files changed: src/renderer/editor/EditorToolbar.tsx (new), src/renderer/panels/EditorPanel.tsx, src/renderer/App.tsx, src/renderer/styles.css, package.json, package-lock.json
+- **Learnings for future iterations:**
+  - lucide-react is now available — use it for all icon needs (import { IconName } from 'lucide-react')
+  - Toolbar lives between PanelHeader and panel-content in EditorPanel
+  - Run/Stop callbacks are passed through EditorPanel props (onRun, onStop, onRunSection) — US-011 will wire these to actual Octave execution
+  - engineStatus is now threaded to EditorPanel for toolbar button state
+---
+
+## 2026-04-09 - US-011: Run .m Script from Editor
+- Wired Run button (F5) and Run Section (Ctrl+Enter) to execute scripts via Octave backend
+- Run auto-saves the file first, then sends `cd('dir'); run('file.m')` to Octave
+- Run Section extracts code between %% cell markers at cursor position and executes it
+- Added pendingCommand pattern: App.tsx creates command → CommandWindow executes and displays output
+- TabbedEditor now exposes Monaco editor instance via onEditorRef callback for cell extraction
+- EditorPanel handles all run logic: save → extract path → call parent callback
+- Stop button calls octaveInterrupt
+- Files changed: src/renderer/App.tsx, src/renderer/panels/EditorPanel.tsx, src/renderer/panels/CommandWindow.tsx, src/renderer/editor/TabbedEditor.tsx
+- **Learnings for future iterations:**
+  - PendingCommand pattern (with unique id) avoids stale-closure issues — CommandWindow tracks last processed id to prevent re-execution
+  - For Octave script execution, use `cd('dir'); run('file.m')` — `run` is MATLAB-compatible and handles both scripts and function files
+  - Monaco editor instance is exposed from TabbedEditor via onEditorRef callback — useful for any feature needing editor API access (e.g., cell extraction, selection)
+  - Cell boundaries in MATLAB are lines starting with %% — scan up/down from cursor to find boundaries
+  - Escape single quotes in Octave string literals by doubling them: `'it''s'`
+---
+
+## 2026-04-09 - US-012: MATLAB-Compatible Current Directory Management
+- Wired bidirectional cwd sync between Command Window, File Browser, and Status Bar
+- FileBrowser now responds to `externalCwd` prop changes (e.g., when user types `cd` in Command Window) — resets tree state and reloads root
+- CommandWindow now calls `onCommandExecuted` after user-typed commands (not just pending commands), so App.tsx can query Octave's pwd and sync UI
+- App.tsx passes `cwd` as `externalCwd` to FileBrowser, completing the sync loop
+- pwd, ls, dir, addpath, rmpath all work natively through Octave backend (no special handling needed)
+- Files changed: src/renderer/App.tsx, src/renderer/panels/FileBrowser.tsx, src/renderer/panels/CommandWindow.tsx
+- **Learnings for future iterations:**
+  - FileBrowser has both internal cwd and externalCwd prop — the effect only triggers on externalCwd changes to avoid infinite loops
+  - ESLint flat config in this project doesn't have react-hooks plugin — never use `eslint-disable-line react-hooks/*` directives
+  - Commands like pwd, ls, dir, addpath, rmpath work through Octave directly — no need for special client-side handling
+  - The handleCommandExecuted flow: command runs → callback fires → App.tsx queries `pwd` → compares to current cwd → updates state → FileBrowser reacts via externalCwd prop
+---
+
+## 2026-04-09 - US-013: Workspace / Variable Viewer Panel
+- Implemented full Workspace panel with table showing Name, Value, Size, Class columns
+- After each command execution, workspace refreshes by querying Octave `whos` command
+- Scalar values show their value directly (via `disp(varname)`)
+- Vectors/matrices show dimensions (e.g., '1x3 double'), structs show field count, cell arrays show dimensions
+- Strings show truncated preview
+- Variables sortable by Name, Size, or Class columns (click header to toggle sort)
+- Connected via App.tsx: engineStatus prop + refreshTrigger counter that increments after each command
+- Files changed: src/renderer/panels/WorkspacePanel.tsx (full rewrite), src/renderer/App.tsx (added refreshTrigger state), src/renderer/styles.css (workspace table styles)
+- **Learnings for future iterations:**
+  - Octave `whos` output has a specific tabular format: Attr, Name, Size, Bytes, Class columns — parse after the ==== separator line
+  - WorkspacePanel uses a refreshTrigger counter (incremented in App.tsx handleCommandExecuted) to avoid stale closures and ensure refresh after each command
+  - For value previews, use `disp(varname)` — it outputs just the value without "ans =" for scalars
+  - refreshingRef prevents concurrent whos queries when commands execute rapidly
+  - Workspace table uses CSS table-layout: fixed with percentage widths for consistent column sizing
+---
+
+## 2026-04-09 - US-014: Variable Inspector Dialog
+- Created VariableInspectorDialog component with three view modes: MatrixView (spreadsheet grid), StructView (key-value table), StringView (editable textarea)
+- Double-clicking a workspace variable row opens the inspector modal
+- Matrix cells are editable — double-click a cell, edit, press Enter to send assignment to Octave
+- String variables editable via textarea with Apply button
+- Struct variables shown as field/value table
+- Cell arrays and other types show raw disp() output
+- Dialog title shows variable name, size, and class; Escape or click overlay to close
+- Large matrices (>50x50) truncated with notice for performance
+- WorkspaceVariable type exported from WorkspacePanel for reuse
+- Files changed: src/renderer/dialogs/VariableInspectorDialog.tsx (new), src/renderer/panels/WorkspacePanel.tsx, src/renderer/App.tsx, src/renderer/styles.css
+- **Learnings for future iterations:**
+  - InspectedVariable interface (name, size, class) is the bridge between WorkspacePanel and the inspector dialog
+  - Octave's `disp()` output for matrices needs careful parsing — wide matrices print in column groups that must be reassembled
+  - Dialog overlay pattern: fixed z-index 2000 overlay, click-outside-to-close via checking e.target === e.currentTarget
+  - WorkspacePanel now has optional `onInspectVariable` callback prop for opening the inspector
+---
+
+## 2026-04-09 - US-015: Command History Panel
+- Created CommandHistoryPanel component with filter/search, double-click to paste, right-click context menu (Copy, Execute, Delete)
+- Added IPC handlers for command history persistence: history:load, history:append, history:deleteEntry — stored as JSON in app.getPath('userData')
+- Updated CommandWindow to persist commands on execution and accept paste commands from history panel
+- Wired panel into App.tsx with visibility toggle, historyVersion counter for refresh, pasteCommand flow for command insertion
+- Panel is toggleable via collapsed panels restore bar in EditorPanel; sits beside Command Window in bottom area
+- Files changed: src/main/index.ts, src/preload/index.ts, src/renderer/env.d.ts, src/renderer/App.tsx, src/renderer/panels/EditorPanel.tsx, src/renderer/panels/CommandWindow.tsx, src/renderer/panels/CommandHistoryPanel.tsx (new), src/renderer/styles.css
+- **Learnings for future iterations:**
+  - Command history persistence uses app.getPath('userData') + command-history.json — max 10000 entries
+  - PanelVisibility now has 4 keys: fileBrowser, workspace, commandWindow, commandHistory
+  - pasteCommand pattern: parent sets string → CommandWindow consumes it into input → calls onPasteConsumed to clear
+  - historyVersion counter in App.tsx triggers CommandHistoryPanel reload from disk when CommandWindow appends
+  - Reused fb-context-menu CSS classes for the history context menu
+---
+
+## 2026-04-09 - US-016: Plot/Figure Window Support
+- Implemented figure capture: after each command, a combined Octave script queries pwd + captures all open figures to temp PNGs
+- Created FigurePanel component with tabbed view for multiple figures, active figure display, and Save as Image button (PNG/SVG/PDF)
+- Save supports PNG (copy temp file) and SVG/PDF (re-render via Octave print command)
+- Added IPC handlers: figures:readImage (base64), figures:saveDialog, figures:copyFile
+- FigurePanel appears in right column below Workspace when figures exist (auto-hides when no figures)
+- Figure images displayed with object-fit: contain for proper resizing
+- Files changed: src/main/index.ts, src/preload/index.ts, src/renderer/env.d.ts, src/renderer/App.tsx, src/renderer/panels/FigurePanel.tsx (new), src/renderer/styles.css
+- **Learnings for future iterations:**
+  - Figure capture uses internal Octave variables prefixed with `__mslp_` and clears them after — avoids polluting user workspace
+  - Combined pwd + figure capture into single Octave command to minimize busy/ready status flickering
+  - `print(figHandle, filepath, '-dpng', '-r150')` renders figures to PNG at 150 DPI
+  - `get(0, 'children')` returns all open figure handles in Octave
+  - FigurePanel visibility is tied to `figures.length > 0` — auto-shows when plots created, auto-hides on `close all`
+  - Right column now uses nested vertical Allotment: Workspace on top, Figures on bottom (when visible)
+---
+
+## 2026-04-09 - US-018: Theme Support (Light and Dark Mode)
+- Converted all hardcoded colors in styles.css to CSS variables (~90 variables)
+- Dark theme is default (`:root`), light theme via `[data-theme="light"]` selector on `<html>`
+- Created appConfig.ts with electron-store persistence for theme preference
+- Added theme submenu to View menu: Light / Dark / System options
+- Theme state managed in App.tsx with system preference detection via `matchMedia('(prefers-color-scheme: dark)')`
+- Monaco editor theme switches between `vs-light` and `vs-dark` via prop from App → EditorPanel → TabbedEditor
+- Added IPC: config:getTheme, config:setTheme for persistence across restarts
+- Files changed: src/main/appConfig.ts (new), src/main/appMenu.ts, src/main/index.ts, src/preload/index.ts, src/renderer/env.d.ts, src/renderer/App.tsx, src/renderer/panels/EditorPanel.tsx, src/renderer/editor/TabbedEditor.tsx, src/renderer/styles.css
+- **Learnings for future iterations:**
+  - CSS variables defined on `:root` for dark (default), overridden by `[data-theme="light"]` on `<html>`
+  - To apply theme: `document.documentElement.setAttribute('data-theme', 'light')` or `removeAttribute('data-theme')` for dark
+  - System preference detection: `window.matchMedia('(prefers-color-scheme: dark)')` with `addEventListener('change', ...)` for live updates
+  - appConfig.ts uses separate electron-store instance for general app config (theme, etc.) — distinct from octaveConfig store
+  - Monaco theme prop is reactive — changing it re-renders the editor with the new theme immediately
+  - All new UI colors should use CSS variables from the `:root` block, not hardcoded values
+---
+
+## 2026-04-09 - US-019: Keyboard Shortcuts
+- Created centralized ShortcutManager (src/renderer/shortcuts/shortcutManager.ts) with all shortcut definitions in one place
+- ShortcutManager uses a single global keydown listener, dispatches matched shortcuts to a registered handler
+- Replaced scattered keydown handler in EditorPanel with ShortcutManager integration
+- Added Ctrl+F (Find) and Ctrl+/ (Toggle Comment) to app menu (appMenu.ts) with proper accelerators
+- Added `find` and `toggleComment` menu action types
+- EditorPanel handles all shortcut actions: run, runSection, save, saveAs, newFile, openFile, closeTab, stop, find, findReplace, goToLine, toggleComment
+- Ctrl+/ toggleComment uses Monaco's built-in `editor.action.commentLine` which respects MATLAB language config (`lineComment: '%'`)
+- Tab/Shift+Tab indent/unindent already works natively in Monaco
+- Files changed: src/renderer/shortcuts/shortcutManager.ts (new), src/main/appMenu.ts, src/renderer/panels/EditorPanel.tsx
+- **Learnings for future iterations:**
+  - Monaco has built-in actions: `actions.find`, `editor.action.startFindReplaceAction`, `editor.action.gotoLine`, `editor.action.commentLine`
+  - Monaco's commentLine action uses the language config's `lineComment` field — no custom toggle logic needed
+  - ShortcutManager singleton pattern: `shortcutManager.start(handler)` in useEffect, `shortcutManager.stop()` in cleanup
+  - Electron menu accelerators handle Ctrl+N/O/S/W globally; ShortcutManager provides renderer-side fallback for when Monaco has focus
+  - SHORTCUT_DEFINITIONS array serves as single source of truth — use `getShortcutLabel(action)` for tooltip text
+---
+
+## 2026-04-09 - US-020: Auto-Complete for MATLAB/Octave Functions
+- Created matlabCompletionProvider.ts with ~300 Octave built-in functions organized by category (Math, Trig, Matrix, Linear Algebra, Statistics, Plotting, String, IO, Type, Polynomial, Numerical, Signal, Set, Logical, System, Constant)
+- Each built-in has name, signature, description, and category — signature shown in detail panel
+- Registered CompletionItemProvider in matlabLanguage.ts (once, guarded by flag)
+- Workspace variables provided as completions via module-level state updated from WorkspacePanel → App.tsx → updateWorkspaceVariables()
+- .m file names from current directory provided as completions via App.tsx effect on cwd change → readDir → updateMFileNames()
+- Completions only trigger after 2+ characters typed (checked in provider)
+- Workspace vars and .m file functions sorted above builtins (sortText prefix 0_ vs 1_)
+- Deduplication prevents duplicate entries when workspace var matches a builtin name
+- Files changed: src/renderer/editor/matlabCompletionProvider.ts (new), src/renderer/editor/matlabLanguage.ts, src/renderer/panels/WorkspacePanel.tsx, src/renderer/App.tsx, ralph-tui/prd.json
+- **Learnings for future iterations:**
+  - Monaco CompletionItemProvider registered via `monaco.languages.registerCompletionItemProvider` — guard with a flag to avoid duplicates since registerMatlabLanguage is called on each editor mount
+  - Module-level mutable state (completionContext) is the simplest way to pass dynamic data to Monaco providers without re-registering
+  - WorkspacePanel exports WorkspaceVariable type and has onVariablesChanged callback for external consumers
+  - readDir IPC already sufficient for listing .m files — no new IPC needed
+  - Monaco `model.getWordUntilPosition(position)` gives the current word being typed — use it for range calculation
 ---
