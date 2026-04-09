@@ -418,3 +418,20 @@ Started: 2026-04-09
   - File dialog: detect .mls by checking defaultName suffix to show correct file type filters in Save As
   - Cell add menu uses click-outside dismissal via window addEventListener('click')
 ---
+
+## 2026-04-09 - US-024: Live Script - Code Cell Execution and Inline Output
+- Added Run Cell button (play icon) to each code cell in the gutter area
+- Added Run All button at the top of the live script editor that executes all code cells sequentially
+- Code cell execution via window.matslop.octaveExecute with output displayed inline below each cell
+- Error output displayed in red (using _isError flag on CellWithId)
+- Running state shown with spinning loader icon on the executing cell
+- Run All stops execution if a cell produces an error
+- Output cached in cell.output field, persisted to .mls JSON format on save
+- Threaded engineStatus through EditorPanel → TabbedEditor → LiveScriptEditor for button state control
+- Files changed: src/renderer/editor/LiveScriptEditor.tsx, src/renderer/editor/TabbedEditor.tsx, src/renderer/panels/EditorPanel.tsx, src/renderer/styles.css
+- **Learnings for future iterations:**
+  - window.matslop.octaveExecute can be called directly from LiveScriptEditor — no need to route through pendingCommand pattern for direct execution with output capture
+  - CellWithId uses _isError transient field (stripped on serialization like _id) to track error state for styling
+  - engineStatus prop chain: App.tsx → EditorPanel → TabbedEditor → LiveScriptEditor
+  - Octave execute returns {output, error, isComplete} — check error field for red output styling
+---
