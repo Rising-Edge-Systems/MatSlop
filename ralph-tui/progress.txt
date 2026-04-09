@@ -24,3 +24,15 @@ Started: 2026-04-09
   - Don't use tsconfig project references with electron-vite — single tsconfig with noEmit works better
   - electron-vite build output goes to dist/main, dist/preload, dist/renderer
 ---
+
+## 2026-04-09 - US-002: Main Window Layout with Resizable Panel System
+- Layout already implemented in previous interrupted iteration (commit 826d403)
+- Four panel areas: File Browser (left), Editor (center), Workspace (top-right), Command Window (bottom)
+- Uses Allotment library for resizable panels with snap and minSize
+- Collapse/expand via PanelHeader collapse buttons + restore buttons in EditorPanel
+- Typecheck and lint both pass
+- **Learnings for future iterations:**
+  - Allotment's `snap` prop allows panels to collapse when dragged below minSize
+  - Allotment's `visible` prop controls panel visibility without removing from DOM
+  - PanelVisibility state is managed in App.tsx and threaded through to EditorPanel for restore buttons
+---
