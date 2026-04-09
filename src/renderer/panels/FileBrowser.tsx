@@ -23,9 +23,10 @@ interface FileBrowserProps {
   onCollapse: () => void
   onOpenFile: (filePath: string) => void
   onCwdChange?: (cwd: string) => void
+  externalCwd?: string
 }
 
-function FileBrowser({ onCollapse, onOpenFile, onCwdChange }: FileBrowserProps): React.JSX.Element {
+function FileBrowser({ onCollapse, onOpenFile, onCwdChange, externalCwd }: FileBrowserProps): React.JSX.Element {
   const [cwd, setCwd] = useState<string>('')
   const [entries, setEntries] = useState<DirEntry[]>([])
   const [treeState, setTreeState] = useState<Record<string, TreeNodeState>>({})
@@ -53,6 +54,14 @@ function FileBrowser({ onCollapse, onOpenFile, onCwdChange }: FileBrowserProps):
   useEffect(() => {
     window.matslop.getHomeDir().then(loadRoot)
   }, [loadRoot])
+
+  // Respond to external cwd changes (e.g., cd command in Command Window)
+  useEffect(() => {
+    if (externalCwd && externalCwd !== cwd) {
+      setTreeState({})
+      loadRoot(externalCwd)
+    }
+  }, [externalCwd]) // intentionally only react to externalCwd changes
 
   const handleChangeDir = useCallback(async () => {
     const dir = await window.matslop.selectDirectory()

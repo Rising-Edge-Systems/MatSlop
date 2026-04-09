@@ -100,7 +100,8 @@ function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExec
         { type: 'error', text: `Error: ${err instanceof Error ? err.message : String(err)}` },
       ])
     }
-  }, [])
+    onCommandExecuted?.()
+  }, [onCommandExecuted])
 
   const handleSubmit = useCallback(async () => {
     const trimmed = inputValue.trimEnd()

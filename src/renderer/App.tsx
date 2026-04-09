@@ -100,7 +100,14 @@ function App(): React.JSX.Element {
 
   const handleCwdChange = useCallback((newCwd: string) => {
     setCwd(newCwd)
-  }, [])
+    // Sync Octave's working directory when FileBrowser changes
+    if (octaveStatus.engineStatus === 'ready') {
+      const escapedDir = newCwd.replace(/'/g, "''")
+      window.matslop.octaveExecute(`cd('${escapedDir}')`).catch(() => {
+        // ignore cd errors
+      })
+    }
+  }, [octaveStatus.engineStatus])
 
   const handleCursorPositionChange = useCallback((line: number, column: number) => {
     setCursorPosition({ line, column })
@@ -126,9 +133,25 @@ function App(): React.JSX.Element {
     window.matslop.octaveInterrupt()
   }, [])
 
-  const handleCommandExecuted = useCallback(() => {
-    // No-op — command done, could trigger workspace refresh in future
-  }, [])
+  const handleCommandExecuted = useCallback(async () => {
+    // After each command, check if Octave's cwd changed and sync UI
+    if (octaveStatus.engineStatus === 'disconnected') return
+    try {
+      const result = await window.matslop.octaveExecute('pwd')
+      if (result.output) {
+        // pwd output is like "ans = /some/path" or just "/some/path"
+        const match = result.output.match(/ans = (.+)/) ?? result.output.match(/^\s*(.+)\s*$/m)
+        if (match) {
+          const octaveCwd = match[1].trim()
+          if (octaveCwd && octaveCwd !== cwd) {
+            setCwd(octaveCwd)
+          }
+        }
+      }
+    } catch {
+      // ignore pwd query errors
+    }
+  }, [octaveStatus.engineStatus, cwd])
 
   return (
     <div className="app">
@@ -142,7 +165,7 @@ function App(): React.JSX.Element {
           snap
           visible={visibility.fileBrowser}
         >
-          <FileBrowser onCollapse={() => togglePanel('fileBrowser')} onOpenFile={handleFileBrowserOpen} onCwdChange={handleCwdChange} />
+          <FileBrowser onCollapse={() => togglePanel('fileBrowser')} onOpenFile={handleFileBrowserOpen} onCwdChange={handleCwdChange} externalCwd={cwd} />
         </Allotment.Pane>
 
         {/* Main area: vertical split of top and bottom */}
