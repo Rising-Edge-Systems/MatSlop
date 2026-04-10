@@ -1,7 +1,7 @@
 {
   "project": "MatSlop",
   "branchName": "ralph/matslop-roadmap",
-  "description": "MatSlop MATLAB Feature-Parity Roadmap — 7 phases from layout fixes through cross-platform packaging, bringing MatSlop to production-ready MATLAB alternative.",
+  "description": "MatSlop MATLAB Feature-Parity Roadmap \u2014 7 phases from layout fixes through cross-platform packaging, bringing MatSlop to production-ready MATLAB alternative.",
   "userStories": [
     {
       "id": "US-001",
@@ -54,7 +54,7 @@
       ],
       "priority": 3,
       "passes": true,
-      "notes": "MATLAB-default layout already applied on first launch via defaultLayout in src/main/appConfig.ts (File Browser 220px left, Editor+Command Window center, Workspace 280px right) and the existing 'View → Reset Layout' menu item (resetLayout action in App.tsx restores defaultVisibility+defaultSizes). Added tests/e2e/default-layout.spec.ts with 2 tests: (1) verifies bounding boxes of FileBrowser|EditorColumn|Workspace form the MATLAB-default 3-column arrangement on first launch (launchApp uses an isolated user-data dir so every run is a fresh first launch), (2) hides panels via menu actions then triggers 'resetLayout' and asserts panels return to their original positions."
+      "notes": "MATLAB-default layout already applied on first launch via defaultLayout in src/main/appConfig.ts (File Browser 220px left, Editor+Command Window center, Workspace 280px right) and the existing 'View \u2192 Reset Layout' menu item (resetLayout action in App.tsx restores defaultVisibility+defaultSizes). Added tests/e2e/default-layout.spec.ts with 2 tests: (1) verifies bounding boxes of FileBrowser|EditorColumn|Workspace form the MATLAB-default 3-column arrangement on first launch (launchApp uses an isolated user-data dir so every run is a fresh first launch), (2) hides panels via menu actions then triggers 'resetLayout' and asserts panels return to their original positions."
     },
     {
       "id": "US-004",
@@ -90,7 +90,7 @@
       ],
       "priority": 5,
       "passes": true,
-      "notes": "The US-004 grid refactor already placed the gutter (drag handle + run button/spinner) and per-cell actions (delete button) inside every .ls-cell-code-side grid item, and add-cell rows already span both columns via `.ls-cells-grid > .ls-add-cell-row { grid-column: 1 / -1 }`. Added tests/e2e/livescript-gutter.spec.ts with 4 Playwright tests that explicitly verify: (1) every code cell has a run control, draggable drag-handle and delete button scoped inside its .ls-cell-code-side container; (2) clicking a cell's delete button removes that cell from the grid; (3) add-cell rows resolve to gridColumnStart=1 and span both grid tracks; (4) the drag handle still reorders cells inside the grid layout (synthetic DragEvents with a shared DataTransfer move the last cell above the first). No production code changes needed — this story is covered by code written during US-004 and is now regression-guarded."
+      "notes": "The US-004 grid refactor already placed the gutter (drag handle + run button/spinner) and per-cell actions (delete button) inside every .ls-cell-code-side grid item, and add-cell rows already span both columns via `.ls-cells-grid > .ls-add-cell-row { grid-column: 1 / -1 }`. Added tests/e2e/livescript-gutter.spec.ts with 4 Playwright tests that explicitly verify: (1) every code cell has a run control, draggable drag-handle and delete button scoped inside its .ls-cell-code-side container; (2) clicking a cell's delete button removes that cell from the grid; (3) add-cell rows resolve to gridColumnStart=1 and span both grid tracks; (4) the drag handle still reorders cells inside the grid layout (synthetic DragEvents with a shared DataTransfer move the last cell above the first). No production code changes needed \u2014 this story is covered by code written during US-004 and is now regression-guarded."
     },
     {
       "id": "US-006",
@@ -138,7 +138,7 @@
       ],
       "priority": 8,
       "passes": true,
-      "notes": "ADR at docs/adr/0001-plotly-vs-threejs.md — recommends Plotly.js because it covers every roadmap trace type and ships rotate/zoom/pan/hover/modebar/downloadImage built-in. Bundle size documented: plotly.js-dist-min@3.5.0 is 4.7 MB minified. Added plotly.js-dist-min and @types/plotly.js deps. Added minimal `declare module 'plotly.js-dist-min'` to src/renderer/env.d.ts. Added src/renderer/editor/plotlyAdapter.ts with a pure `figureToPlotly(figure): {data, layout, config}` (plus rgbToCss) that maps every roadmap series type — line/line3/scatter/scatter3/surface/mesh/quiver(→2 scatter traces)/quiver3(→cone)/bar/bar3(→scatter3d verticals)/contour/contour3/image(→heatmap) — and emits Plotly subplot xaxis/xaxis2/scene/scene2 for multi-axes. Added src/renderer/editor/PlotRenderer.tsx React wrapper that lazy-imports plotly.js-dist-min via dynamic import (keeps the 4.7 MB bundle out of the initial renderer chunk), mounts a div with data-testid='plot-renderer', Plotly.react on mount/update, Plotly.purge on unmount. Added tests/unit/plotly-adapter.test.ts (20 passing tests). `npm run build` succeeds (renderer bundle unchanged at ~789 KB because Plotly is lazy-loaded)."
+      "notes": "ADR at docs/adr/0001-plotly-vs-threejs.md \u2014 recommends Plotly.js because it covers every roadmap trace type and ships rotate/zoom/pan/hover/modebar/downloadImage built-in. Bundle size documented: plotly.js-dist-min@3.5.0 is 4.7 MB minified. Added plotly.js-dist-min and @types/plotly.js deps. Added minimal `declare module 'plotly.js-dist-min'` to src/renderer/env.d.ts. Added src/renderer/editor/plotlyAdapter.ts with a pure `figureToPlotly(figure): {data, layout, config}` (plus rgbToCss) that maps every roadmap series type \u2014 line/line3/scatter/scatter3/surface/mesh/quiver(\u21922 scatter traces)/quiver3(\u2192cone)/bar/bar3(\u2192scatter3d verticals)/contour/contour3/image(\u2192heatmap) \u2014 and emits Plotly subplot xaxis/xaxis2/scene/scene2 for multi-axes. Added src/renderer/editor/PlotRenderer.tsx React wrapper that lazy-imports plotly.js-dist-min via dynamic import (keeps the 4.7 MB bundle out of the initial renderer chunk), mounts a div with data-testid='plot-renderer', Plotly.react on mount/update, Plotly.purge on unmount. Added tests/unit/plotly-adapter.test.ts (20 passing tests). `npm run build` succeeds (renderer bundle unchanged at ~789 KB because Plotly is lazy-loaded)."
     },
     {
       "id": "US-009",
@@ -157,7 +157,7 @@
       ],
       "priority": 9,
       "passes": true,
-      "notes": "Wired the end-to-end interactive plot pipeline. LiveScriptEditor's runCellStatements now also emits `matslop_export_fig(gcf())` for each plot snapshot, writes the JSON to a sibling temp file via fopen/fwrite, and prints a `__MSLP_FIG_JSON_FILE__:<line>:<path>` marker. A new preload API `figuresReadTextFile` (ipcMain handler `figures:readTextFile`) reads the UTF-8 JSON back into the renderer and attaches it as `plotJson` on `LiveScriptCellFigure`. `InlinePlots` now parses `plotJson` with `parsePlotFigure` and renders via the Plotly-backed `PlotRenderer` (data-testid `plot-renderer` + wrapper `ls-inline-plot`), falling back to the PNG `InteractivePlot` on parse failure. OctaveProcessManager takes an optional `scriptsDir` arg and addpath()s it during its init script so `matslop_export_fig` is discoverable; main/index.ts passes `getMatslopScriptsDir()` (new helper in octaveConfig.ts that resolves `resources/octave-scripts` in both dev and packaged builds). package.json `extraResources` now ships `resources/octave-scripts/**/*.m`. Rotate/zoom/pan/home are Plotly-native modebar controls — no custom code needed. New tests: `tests/unit/livescript-interactive-plot.test.ts` (3 cases: quiver3 JSON → cone trace, 2D line → scatter, malformed JSON rejection drives PNG fallback) + `tests/e2e/livescript-interactive-plots.spec.ts` (opens quiver3.mls, asserts `plot-renderer` wrappers mount, the Plotly `.js-plotly-plot` is visible, and the modebar Reset/Home button is present). Files changed: src/renderer/editor/editorTypes.ts, src/renderer/editor/LiveScriptEditor.tsx, src/main/octaveProcess.ts, src/main/octaveConfig.ts, src/main/index.ts, src/preload/index.ts, src/renderer/env.d.ts, package.json, tests/unit/livescript-interactive-plot.test.ts (new), tests/e2e/livescript-interactive-plots.spec.ts (new), scripts/ralph/prd.json, scripts/ralph/progress.txt."
+      "notes": "Wired the end-to-end interactive plot pipeline. LiveScriptEditor's runCellStatements now also emits `matslop_export_fig(gcf())` for each plot snapshot, writes the JSON to a sibling temp file via fopen/fwrite, and prints a `__MSLP_FIG_JSON_FILE__:<line>:<path>` marker. A new preload API `figuresReadTextFile` (ipcMain handler `figures:readTextFile`) reads the UTF-8 JSON back into the renderer and attaches it as `plotJson` on `LiveScriptCellFigure`. `InlinePlots` now parses `plotJson` with `parsePlotFigure` and renders via the Plotly-backed `PlotRenderer` (data-testid `plot-renderer` + wrapper `ls-inline-plot`), falling back to the PNG `InteractivePlot` on parse failure. OctaveProcessManager takes an optional `scriptsDir` arg and addpath()s it during its init script so `matslop_export_fig` is discoverable; main/index.ts passes `getMatslopScriptsDir()` (new helper in octaveConfig.ts that resolves `resources/octave-scripts` in both dev and packaged builds). package.json `extraResources` now ships `resources/octave-scripts/**/*.m`. Rotate/zoom/pan/home are Plotly-native modebar controls \u2014 no custom code needed. New tests: `tests/unit/livescript-interactive-plot.test.ts` (3 cases: quiver3 JSON \u2192 cone trace, 2D line \u2192 scatter, malformed JSON rejection drives PNG fallback) + `tests/e2e/livescript-interactive-plots.spec.ts` (opens quiver3.mls, asserts `plot-renderer` wrappers mount, the Plotly `.js-plotly-plot` is visible, and the modebar Reset/Home button is present). Files changed: src/renderer/editor/editorTypes.ts, src/renderer/editor/LiveScriptEditor.tsx, src/main/octaveProcess.ts, src/main/octaveConfig.ts, src/main/index.ts, src/preload/index.ts, src/renderer/env.d.ts, package.json, tests/unit/livescript-interactive-plot.test.ts (new), tests/e2e/livescript-interactive-plots.spec.ts (new), scripts/ralph/prd.json, scripts/ralph/progress.txt."
     },
     {
       "id": "US-010",
@@ -204,8 +204,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added main-process registry (detachedFigures map + plot:openDetached / plot:getDetachedFigure IPCs) that spawns a new BrowserWindow loading ?detachedFigureId=<id>. main.tsx detects the query param and mounts a new DetachedPlot component instead of <App/>. DetachedPlot fetches the figure via IPC, runs parsePlotFigure, and renders a full-viewport PlotRenderer with canDetach={false}. Added Detach button (data-testid='plot-detach-btn') on PlotRenderer that serializes the current figure via window.matslop.plotOpenDetached. Closing the detached window frees the map entry and refocuses main. Added tests/e2e/detached-plot.spec.ts (2 tests, both passing) using a minimal synthetic figure so no Octave is needed."
     },
     {
       "id": "US-013",
@@ -462,7 +462,7 @@
       "title": "Layout presets",
       "description": "As a user, I want to save the current layout as a preset and switch between presets.",
       "acceptanceCriteria": [
-        "View → Layouts menu with: Default, Debugger, Two-Column, Code-Only",
+        "View \u2192 Layouts menu with: Default, Debugger, Two-Column, Code-Only",
         "'Save Current as Preset...' prompts for a name",
         "Custom presets persist and appear in the menu",
         "'Reset Layout' returns to Default preset",
@@ -495,7 +495,7 @@
       "title": "Publish to HTML",
       "description": "As a user, I want to export a .m or .mls file with its outputs rendered to a shareable HTML document.",
       "acceptanceCriteria": [
-        "File → Publish → HTML... generates a static HTML file with code, text output, and embedded images",
+        "File \u2192 Publish \u2192 HTML... generates a static HTML file with code, text output, and embedded images",
         "Live scripts preserve cell layout",
         "Syntax highlighting in output",
         "No JS required in output (for portability)",
@@ -546,7 +546,7 @@
       "acceptanceCriteria": [
         "Profiler panel with Start/Stop/Report buttons",
         "'Start' sends profile on; 'Stop' sends profile off",
-        "'Report' parses profile('info') output and shows function × time table",
+        "'Report' parses profile('info') output and shows function \u00d7 time table",
         "Clicking a function navigates to its definition",
         "Typecheck passes",
         "Tests pass",
@@ -578,8 +578,8 @@
       "title": "Keyboard shortcut editor",
       "description": "As a user, I want to customize keyboard shortcuts via a settings UI.",
       "acceptanceCriteria": [
-        "Preferences → Keyboard tab shows all commands with current bindings",
-        "Click a binding → 'Press a key combination...' capture",
+        "Preferences \u2192 Keyboard tab shows all commands with current bindings",
+        "Click a binding \u2192 'Press a key combination...' capture",
         "Conflicts flagged",
         "Customizations persist",
         "Typecheck passes",
@@ -614,7 +614,7 @@
       "acceptanceCriteria": [
         "File browser shows git status badges (M/A/?) on files",
         "New Source Control panel with staged/unstaged lists",
-        "Click a file → diff viewer",
+        "Click a file \u2192 diff viewer",
         "Commit button with message field",
         "Uses system git binary via child_process",
         "Typecheck passes",

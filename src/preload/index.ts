@@ -83,6 +83,13 @@ contextBridge.exposeInMainWorld('matslop', {
     encoding: 'base64' | 'utf8',
   ): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('figures:exportPlot', filePath, data, encoding),
+  // Detached plot windows (US-012)
+  plotOpenDetached: (figure: unknown): Promise<{ success: boolean; id?: string; error?: string }> =>
+    ipcRenderer.invoke('plot:openDetached', figure),
+  plotGetDetachedFigure: (id: string): Promise<unknown | null> =>
+    ipcRenderer.invoke('plot:getDetachedFigure', id),
+  _testDetachedPlotCount: (): Promise<number> =>
+    ipcRenderer.invoke('plot:_testDetachedCount'),
   // Menu action events from main process
   onMenuAction: (callback: (action: string) => void): (() => void) => {
     const handler = (_event: IpcRendererEvent, action: string): void => callback(action)

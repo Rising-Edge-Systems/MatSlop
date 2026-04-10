@@ -12,6 +12,12 @@ export interface PlotRendererProps {
   /** Explicit pixel height. Defaults to 320 for live-script inline plots. */
   height?: number
   className?: string
+  /**
+   * Whether to show the "Detach" button (US-012). Set to false when this
+   * renderer is already mounted inside a detached plot window — otherwise
+   * users could open a detached-of-a-detached window.
+   */
+  canDetach?: boolean
 }
 
 /**
@@ -28,10 +34,37 @@ export interface PlotRendererProps {
  * - `plotly_clickannotation` removes a pinned annotation when it's clicked.
  * - `plotly_doubleclick` clears all pinned annotations.
  */
-function PlotRenderer({ figure, height = 320, className }: PlotRendererProps): React.JSX.Element {
+function PlotRenderer({
+  figure,
+  height = 320,
+  className,
+  canDetach = true,
+}: PlotRendererProps): React.JSX.Element {
   const divRef = useRef<HTMLDivElement | null>(null)
   const [exportStatus, setExportStatus] = useState<'idle' | 'saving' | 'error'>('idle')
   const [exportError, setExportError] = useState<string | null>(null)
+  const [detachStatus, setDetachStatus] = useState<'idle' | 'opening' | 'error'>('idle')
+
+  /**
+   * US-012: Open this figure in its own OS window. Serializes the current
+   * `PlotFigure` via IPC, which the main process registers under a fresh id
+   * and uses as the payload for a new BrowserWindow.
+   */
+  const handleDetach = useCallback(async (): Promise<void> => {
+    try {
+      setDetachStatus('opening')
+      const result = await window.matslop.plotOpenDetached(figure)
+      if (!result?.success) {
+        setDetachStatus('error')
+        return
+      }
+      setDetachStatus('idle')
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[PlotRenderer] detach failed', err)
+      setDetachStatus('error')
+    }
+  }, [figure])
 
   /**
    * Export the current Plotly canvas (including the user's current rotation,
@@ -241,6 +274,34 @@ function PlotRenderer({ figure, height = 320, className }: PlotRendererProps): R
         data-testid="plot-renderer"
         style={{ width: '100%', height: '100%' }}
       />
+      {canDetach ? (
+        <button
+          type="button"
+          className="matslop-plot-detach-btn"
+          data-testid="plot-detach-btn"
+          onClick={() => {
+            void handleDetach()
+          }}
+          disabled={detachStatus === 'opening'}
+          title="Open plot in a new window"
+          aria-label="Detach plot to new window"
+          style={{
+            position: 'absolute',
+            top: 6,
+            right: 74,
+            zIndex: 10,
+            padding: '2px 8px',
+            font: '11px/1.4 system-ui, sans-serif',
+            background: 'rgba(255,255,255,0.92)',
+            color: '#222',
+            border: '1px solid #888',
+            borderRadius: 3,
+            cursor: detachStatus === 'opening' ? 'wait' : 'pointer',
+          }}
+        >
+          {detachStatus === 'opening' ? 'Opening…' : 'Detach'}
+        </button>
+      ) : null}
       <button
         type="button"
         className="matslop-plot-export-btn"

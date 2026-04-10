@@ -44,6 +44,14 @@ function writeCommandHistory(history: string[]): void {
 let octaveProcess: OctaveProcessManager | null = null
 let mainWindow: BrowserWindow | null = null
 
+// Registry of figures currently hosted in detached plot windows.
+// The renderer calls `plot:openDetached(figure)` to register a figure and open
+// a new BrowserWindow; the detached renderer then calls
+// `plot:getDetachedFigure(id)` from its own webContents to pull the payload.
+const detachedFigures = new Map<string, unknown>()
+const detachedWindows = new Map<string, BrowserWindow>()
+let detachedCounter = 0
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -402,6 +410,70 @@ ipcMain.handle(
     }
   },
 )
+
+/**
+ * US-012: Open a plot figure in its own OS window. The figure payload is
+ * registered in the main-process `detachedFigures` map under a fresh id;
+ * a new BrowserWindow is spawned that loads the same renderer bundle with
+ * `?detachedFigureId=<id>`. The renderer entry (main.tsx) detects the
+ * query param and mounts the lightweight `DetachedPlot` component instead
+ * of the full `App`. Closing the detached window frees the map entry and
+ * returns focus to the main window.
+ */
+ipcMain.handle('plot:openDetached', async (_event, figure: unknown) => {
+  try {
+    const id = `detfig-${++detachedCounter}`
+    detachedFigures.set(id, figure)
+
+    const win = new BrowserWindow({
+      width: 960,
+      height: 720,
+      minWidth: 400,
+      minHeight: 300,
+      title: 'MatSlop – Detached Plot',
+      webPreferences: {
+        preload: path.join(__dirname, '../preload/index.mjs'),
+        sandbox: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    })
+    // Detached windows don't need the app menu.
+    win.setMenu(null)
+    detachedWindows.set(id, win)
+
+    win.on('closed', () => {
+      detachedFigures.delete(id)
+      detachedWindows.delete(id)
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        // Return focus to the main window as per US-012 acceptance criteria.
+        mainWindow.focus()
+      }
+    })
+
+    const search = `detachedFigureId=${encodeURIComponent(id)}`
+    if (process.env.ELECTRON_RENDERER_URL) {
+      await win.loadURL(`${process.env.ELECTRON_RENDERER_URL}?${search}`)
+    } else {
+      await win.loadFile(path.join(__dirname, '../renderer/index.html'), {
+        search,
+      })
+    }
+    return { success: true, id }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+ipcMain.handle('plot:getDetachedFigure', (_event, id: string) => {
+  return detachedFigures.get(id) ?? null
+})
+
+/** Test-only helper: how many detached plot windows are currently open. */
+ipcMain.handle('plot:_testDetachedCount', () => {
+  if (!process.env.MATSLOP_USER_DATA_DIR) return 0
+  return detachedWindows.size
+})
 
 // IPC handlers for command history persistence
 ipcMain.handle('history:load', () => {

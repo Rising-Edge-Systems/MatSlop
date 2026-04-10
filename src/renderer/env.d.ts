@@ -84,6 +84,10 @@ interface Window {
       data: string,
       encoding: 'base64' | 'utf8',
     ) => Promise<{ success: boolean; error?: string }>
+    // Detached plot windows (US-012)
+    plotOpenDetached: (figure: unknown) => Promise<{ success: boolean; id?: string; error?: string }>
+    plotGetDetachedFigure: (id: string) => Promise<unknown | null>
+    _testDetachedPlotCount: () => Promise<number>
     // Menu action events from main process
     onMenuAction: (callback: (action: string) => void) => () => void
     // Theme/config
