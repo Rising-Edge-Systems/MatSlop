@@ -545,6 +545,50 @@ function cameraFromView(view: Vec2): Record<string, unknown> {
 }
 
 // --------------------------------------------------------------------------
+// Data cursor (US-010)
+// --------------------------------------------------------------------------
+
+/**
+ * Format a numeric coordinate for a data-cursor tooltip. Uses 4 significant
+ * digits for non-integer values and trims trailing zeros. Pure — safe for
+ * unit tests.
+ */
+export function formatCoord(value: number | undefined | null): string {
+  if (value === undefined || value === null || !Number.isFinite(value as number)) {
+    return '—'
+  }
+  const n = value as number
+  if (Number.isInteger(n) && Math.abs(n) < 1e6) return String(n)
+  const abs = Math.abs(n)
+  // Use scientific for very small / very large
+  if (abs !== 0 && (abs < 1e-3 || abs >= 1e6)) {
+    return n.toExponential(3)
+  }
+  // Trim trailing zeros on a 4-sig-digit fixed representation.
+  const s = n.toPrecision(4)
+  // toPrecision may return e.g. "1.500" → trim; or "1.500e+3" → leave.
+  if (s.includes('e') || s.includes('E')) return s
+  if (s.includes('.')) return s.replace(/0+$/, '').replace(/\.$/, '')
+  return s
+}
+
+/**
+ * Build the label text for a data-cursor annotation pinned on a plot point.
+ * For 2D points returns "x: 1.5\ny: 3.2"; for 3D points includes z.
+ */
+export function formatCursorLabel(point: {
+  x?: number | null
+  y?: number | null
+  z?: number | null
+}): string {
+  const parts = [`x: ${formatCoord(point.x)}`, `y: ${formatCoord(point.y)}`]
+  if (point.z !== undefined && point.z !== null) {
+    parts.push(`z: ${formatCoord(point.z)}`)
+  }
+  return parts.join('<br>')
+}
+
+// --------------------------------------------------------------------------
 // Public entrypoint
 // --------------------------------------------------------------------------
 
@@ -563,6 +607,11 @@ export function figureToPlotly(figure: PlotFigure): PlotlyFigure {
     paper_bgcolor: rgbToCss(figure.backgroundColor),
     plot_bgcolor: rgbToCss(figure.axes[0]?.backgroundColor),
     showlegend: false,
+    // US-010: nearest-point hover for MATLAB-style data cursor tooltips
+    hovermode: 'closest',
+    // Empty annotations list so plotly_click handlers can append pinned
+    // data-cursor labels via Plotly.relayout without first creating it.
+    annotations: [],
   }
 
   figure.axes.forEach((axes, i) => {

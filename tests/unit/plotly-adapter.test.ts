@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { figureToPlotly, rgbToCss } from '../../src/renderer/editor/plotlyAdapter'
+import {
+  figureToPlotly,
+  formatCoord,
+  formatCursorLabel,
+  rgbToCss,
+} from '../../src/renderer/editor/plotlyAdapter'
 import type { PlotFigure } from '../../src/main/plotSchema'
 
 function fig(overrides: Partial<PlotFigure> = {}): PlotFigure {
@@ -388,5 +393,55 @@ describe('figureToPlotly', () => {
     expect(xaxis.type).toBe('log')
     const yaxis = layout.yaxis as Record<string, unknown>
     expect(yaxis.range).toEqual([-1, 1])
+  })
+
+  it('sets hovermode=closest and an empty annotations array for data-cursor pinning', () => {
+    const out = figureToPlotly(
+      fig({
+        axes: [
+          {
+            series: [{ type: 'line', x: [1, 2], y: [3, 4] }],
+          },
+        ],
+      }),
+    )
+    const layout = out.layout as Record<string, unknown>
+    expect(layout.hovermode).toBe('closest')
+    expect(layout.annotations).toEqual([])
+  })
+})
+
+describe('formatCoord', () => {
+  it('handles integers without decimals', () => {
+    expect(formatCoord(0)).toBe('0')
+    expect(formatCoord(42)).toBe('42')
+    expect(formatCoord(-7)).toBe('-7')
+  })
+  it('formats floats at 4 significant digits trimmed', () => {
+    expect(formatCoord(1.5)).toBe('1.5')
+    expect(formatCoord(3.14159)).toBe('3.142')
+    expect(formatCoord(0.125)).toBe('0.125')
+  })
+  it('uses exponential for very small / very large', () => {
+    expect(formatCoord(1e-6)).toMatch(/e-6$/)
+    expect(formatCoord(1e9)).toMatch(/e\+9$/)
+  })
+  it('returns em-dash for null / undefined / NaN', () => {
+    expect(formatCoord(undefined)).toBe('—')
+    expect(formatCoord(null)).toBe('—')
+    expect(formatCoord(NaN)).toBe('—')
+  })
+})
+
+describe('formatCursorLabel', () => {
+  it('formats 2D points as two lines', () => {
+    expect(formatCursorLabel({ x: 1, y: 2 })).toBe('x: 1<br>y: 2')
+  })
+  it('includes z for 3D points', () => {
+    expect(formatCursorLabel({ x: 1, y: 2, z: 3 })).toBe('x: 1<br>y: 2<br>z: 3')
+  })
+  it('omits z when null / undefined', () => {
+    expect(formatCursorLabel({ x: 1, y: 2, z: null })).toBe('x: 1<br>y: 2')
+    expect(formatCursorLabel({ x: 1, y: 2, z: undefined })).toBe('x: 1<br>y: 2')
   })
 })
