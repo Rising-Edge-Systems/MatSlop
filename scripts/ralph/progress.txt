@@ -39,3 +39,16 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
   - Playwright HTML5 DnD: use page.evaluate + dispatchEvent('dragstart'|'dragover'|'drop'|'dragend') with `new DataTransfer()` instead of locator.dragTo(); React's synthetic event system picks it up
   - Typecheck baseline noise in octaveProcess.ts env.PATH is ongoing (ignore); unit tests for bundled-Octave still fail without resources/octave in dev
 ---
+
+## 2026-04-10 - US-003 Apply MATLAB-default layout preset on first launch
+- Confirmed the first-launch layout already matches MATLAB defaults via `defaultLayout` in src/main/appConfig.ts (FileBrowser 220px left, Editor+Command Window center, Workspace 280px right). `layoutGet` falls back to this when no stored layout exists, and the 'View → Reset Layout' menu item already routes to the `resetLayout` case in App.tsx which restores defaultVisibility+defaultSizes.
+- Added tests/e2e/default-layout.spec.ts with two Playwright tests:
+  1. First-launch assertion: verifies FileBrowser sits left of editor column, Workspace sits right of editor column, Editor sits above Command Window inside the center column, and widths are within sane MATLAB-like bounds.
+  2. Reset Layout assertion: toggles three panels off via `_testMenuAction`, calls `resetLayout`, then checks bounding boxes match the first-launch snapshot within tolerance.
+- Files changed: scripts/ralph/prd.json, tests/e2e/default-layout.spec.ts
+- **Learnings for future iterations:**
+  - `launchApp()` in tests/e2e/helpers/launch.ts uses an isolated `MATSLOP_USER_DATA_DIR` tmp dir, so every Playwright run naturally starts as a "first launch" — no extra flag needed to test default-layout behavior.
+  - `window.matslop._testMenuAction(action)` is a test-only preload bridge (gated on MATSLOP_USER_DATA_DIR) that lets E2E tests drive menu actions directly. Use it for any menu-driven behaviour.
+  - Panel visibility toggles + resetLayout are all handled through a single `onMenuAction` switch in App.tsx. Add new menu actions there.
+  - MATLAB-default layout is DRY across App.tsx (`defaultVisibility`/`defaultSizes`) AND appConfig.ts (`defaultLayout`). If you change one, update the other or both go out of sync.
+---

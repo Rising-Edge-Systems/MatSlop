@@ -53,8 +53,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "MATLAB-default layout already applied on first launch via defaultLayout in src/main/appConfig.ts (File Browser 220px left, Editor+Command Window center, Workspace 280px right) and the existing 'View → Reset Layout' menu item (resetLayout action in App.tsx restores defaultVisibility+defaultSizes). Added tests/e2e/default-layout.spec.ts with 2 tests: (1) verifies bounding boxes of FileBrowser|EditorColumn|Workspace form the MATLAB-default 3-column arrangement on first launch (launchApp uses an isolated user-data dir so every run is a fresh first launch), (2) hides panels via menu actions then triggers 'resetLayout' and asserts panels return to their original positions."
     },
     {
       "id": "US-004",
