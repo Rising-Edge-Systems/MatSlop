@@ -72,8 +72,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Refactored LiveScriptEditor.tsx to use a 2-track CSS grid (.ls-cells-grid with grid-template-columns: minmax(0,1fr) minmax(0,1fr)). Each code cell now emits two sibling grid items: a .ls-cell-code-side (gutter + editor + delete actions) in column 1 and a .ls-cell-output-col / .ls-cell-output-side in column 2. Outputs are no longer nested inside the code container. Markdown cells, drop zones, and add-cell rows span both columns via grid-column: 1 / -1. Hovering either half toggles a hoveredCellId state that applies .ls-cell-hover to both sides so they highlight together. Added tests/e2e/livescript-grid.spec.ts with 5 Playwright tests covering: (1) grid container has 2 template columns, (2) each code cell has a paired output sibling not nested inside the code container, (3) code and output rects share the same top y (grid-row alignment), (4) hover highlights both halves, (5) multiplot.mls still renders 4 plots in the new layout."
     },
     {
       "id": "US-005",

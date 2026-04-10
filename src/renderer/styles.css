@@ -1635,8 +1635,26 @@ body {
 }
 
 .ls-cells {
-  max-width: 900px;
+  max-width: 1400px;
   margin: 0 auto;
+}
+
+/* Live-script global 2-track grid: code on the left, outputs on the right.
+   All cells' code and output pairs align via grid-auto-flow: row, so each
+   code block sits in column 1 and its output sits at column 2 on the same
+   row. Drop zones and add-cell rows span both columns via `grid-column: 1 / -1`. */
+.ls-cells-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 0;
+  align-items: stretch;
+}
+
+.ls-cells-grid > .ls-add-cell-row,
+.ls-cells-grid > .ls-drop-zone,
+.ls-cells-grid > .ls-cell-md-full {
+  grid-column: 1 / -1;
 }
 
 .ls-add-cell-row {
@@ -1706,11 +1724,36 @@ body {
 .ls-cell {
   display: flex;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 6px 0 0 6px;
   margin: 2px 0;
   background: var(--bg-panel);
   overflow: hidden;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+/* Code cells in grid mode: the code side (left) and output side (right)
+   are siblings. Round only the appropriate corners and drop the shared
+   border so the two halves look visually attached. */
+.ls-cell-code-side {
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+}
+
+.ls-cell-output-side {
+  border: 1px solid var(--border-color);
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  margin: 2px 0;
+  background: var(--bg-main);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 60px;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.ls-cell-md-full {
+  border-radius: 6px;
 }
 
 .ls-cell-focused {
@@ -1723,6 +1766,12 @@ body {
 
 .ls-cell-markdown {
   border-left: 3px solid var(--color-success);
+}
+
+/* Hover highlight spans both the code and output halves of the same cell */
+.ls-cell-hover {
+  background: var(--bg-hover);
+  border-color: color-mix(in srgb, var(--color-accent) 60%, var(--border-color));
 }
 
 .ls-cell-gutter {
@@ -1831,32 +1880,20 @@ body {
   overflow: hidden;
 }
 
-/* MLX-style split layout: code on left, output on right */
-.ls-cell-split {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  min-height: 60px;
-}
-
+/* The code column lives inside the left grid item and fills it. */
 .ls-cell-code-col {
-  flex: 1 1 50%;
+  flex: 1;
   min-width: 0;
-  border-right: 1px solid var(--border-color);
 }
 
+/* `.ls-cell-output-col` is also used as the grid's right-side sibling
+   (see .ls-cell-output-side). Legacy selector kept so tests and plot
+   styling targeting the class continue to work. */
 .ls-cell-output-col {
-  flex: 1 1 50%;
   min-width: 0;
   display: flex;
   flex-direction: column;
   background: var(--bg-main);
-}
-
-/* Stretch split so both columns share the same height; the cell grows
-   to fit whichever side is taller. */
-.ls-cell-split {
-  align-items: stretch;
 }
 
 .ls-cell-output-col:empty::before {

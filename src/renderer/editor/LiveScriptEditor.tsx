@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { Fragment, useState, useCallback, useRef, useEffect } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import type { editor as monacoEditor } from 'monaco-editor'
 import type Monaco from 'monaco-editor'
@@ -77,6 +77,7 @@ function LiveScriptEditor({
   const [runningAll, setRunningAll] = useState(false)
   const [draggedCellId, setDraggedCellId] = useState<string | null>(null)
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
+  const [hoveredCellId, setHoveredCellId] = useState<string | null>(null)
   const contentRef = useRef(content)
   const monacoRefLocal = useRef<typeof Monaco | null>(null)
 
@@ -483,66 +484,98 @@ function LiveScriptEditor({
         </button>
       </div>
       <div
-        className={`ls-cells ${draggedCellId !== null ? 'ls-cells-dragging' : ''}`}
+        className={`ls-cells ls-cells-grid ${draggedCellId !== null ? 'ls-cells-dragging' : ''}`}
         data-testid="ls-cells"
       >
         {renderAddCellButton(0)}
-        {cells.map((cell, idx) => (
-          <div key={cell._id}>
-            <div
-              className={`ls-drop-zone ${dropTargetIndex === idx && draggedCellId !== null ? 'ls-drop-zone-active' : ''}`}
-              data-testid="ls-drop-zone"
-              data-drop-index={idx}
-              onDragOver={(e) => handleDragOver(e, idx)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, idx)}
-            />
-            <div
-              className={`ls-cell ${cell.type === 'code' ? 'ls-cell-code' : 'ls-cell-markdown'} ${focusedCellId === cell._id ? 'ls-cell-focused' : ''} ${draggedCellId === cell._id ? 'ls-cell-dragging' : ''}`}
-              data-testid="ls-cell"
-              data-cell-index={idx}
-              data-cell-type={cell.type}
-              data-cell-id={cell._id}
-              onClick={(e) => {
-                e.stopPropagation()
-                setFocusedCellId(cell._id)
-              }}
-            >
-              <div className="ls-cell-gutter">
-                <div
-                  className="ls-cell-drag-handle"
-                  data-testid="ls-cell-drag-handle"
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, cell._id)}
-                  onDragEnd={handleDragEnd}
-                >
-                  <GripVertical size={14} />
-                </div>
-                {cell.type === 'code' ? (
-                  runningCellId === cell._id ? (
-                    <Loader size={14} className="ls-cell-running-icon" />
-                  ) : (
-                    <button
-                      className="ls-cell-run-btn"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleRunCell(cell._id)
-                      }}
-                      disabled={!canRun}
-                      title="Run Cell"
-                    >
-                      <Play size={14} />
-                    </button>
-                  )
-                ) : (
-                  <span className="ls-cell-type-badge">
-                    <FileText size={12} />
-                  </span>
-                )}
+        {cells.map((cell, idx) => {
+          const isHovered = hoveredCellId === cell._id
+          const isFocused = focusedCellId === cell._id
+          const isDragging = draggedCellId === cell._id
+          const commonCellClasses = [
+            'ls-cell',
+            cell.type === 'code' ? 'ls-cell-code' : 'ls-cell-markdown',
+            isFocused ? 'ls-cell-focused' : '',
+            isDragging ? 'ls-cell-dragging' : '',
+            isHovered ? 'ls-cell-hover' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')
+          const gutter = (
+            <div className="ls-cell-gutter">
+              <div
+                className="ls-cell-drag-handle"
+                data-testid="ls-cell-drag-handle"
+                draggable
+                onDragStart={(e) => handleDragStart(e, cell._id)}
+                onDragEnd={handleDragEnd}
+              >
+                <GripVertical size={14} />
               </div>
-              <div className="ls-cell-content">
-                {cell.type === 'code' ? (
-                  <div className="ls-cell-split">
+              {cell.type === 'code' ? (
+                runningCellId === cell._id ? (
+                  <Loader size={14} className="ls-cell-running-icon" />
+                ) : (
+                  <button
+                    className="ls-cell-run-btn"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleRunCell(cell._id)
+                    }}
+                    disabled={!canRun}
+                    title="Run Cell"
+                  >
+                    <Play size={14} />
+                  </button>
+                )
+              ) : (
+                <span className="ls-cell-type-badge">
+                  <FileText size={12} />
+                </span>
+              )}
+            </div>
+          )
+          const actions = (
+            <div className="ls-cell-actions">
+              <button
+                className="ls-cell-delete-btn"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDeleteCell(cell._id)
+                }}
+                title="Delete cell"
+                disabled={cells.length <= 1}
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          )
+          return (
+            <Fragment key={cell._id}>
+              <div
+                className={`ls-drop-zone ${dropTargetIndex === idx && draggedCellId !== null ? 'ls-drop-zone-active' : ''}`}
+                data-testid="ls-drop-zone"
+                data-drop-index={idx}
+                onDragOver={(e) => handleDragOver(e, idx)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, idx)}
+              />
+              {cell.type === 'code' ? (
+                <>
+                  <div
+                    className={`${commonCellClasses} ls-cell-code-side`}
+                    data-testid="ls-cell"
+                    data-cell-index={idx}
+                    data-cell-type="code"
+                    data-cell-id={cell._id}
+                    onMouseEnter={() => setHoveredCellId(cell._id)}
+                    onMouseLeave={() => setHoveredCellId(null)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setFocusedCellId(cell._id)
+                    }}
+                  >
+                    {gutter}
                     <div className="ls-cell-code-col">
                       <CodeCell
                         cell={cell}
@@ -552,35 +585,48 @@ function LiveScriptEditor({
                         editorSettings={editorSettings}
                       />
                     </div>
-                    <div className="ls-cell-output-col">
-                      <StatementResultsColumn cell={cell} />
-                    </div>
+                    {actions}
                   </div>
-                ) : (
-                  <MarkdownCell
-                    cell={cell}
-                    isFocused={focusedCellId === cell._id}
-                    onChange={handleCellContentChange}
-                  />
-                )}
-              </div>
-              <div className="ls-cell-actions">
-                <button
-                  className="ls-cell-delete-btn"
+                  <div
+                    className={`ls-cell-output-col ls-cell-output-side ${isHovered ? 'ls-cell-hover' : ''} ${isFocused ? 'ls-cell-focused' : ''}`}
+                    data-testid="ls-cell-output"
+                    data-cell-id={cell._id}
+                    data-cell-index={idx}
+                    onMouseEnter={() => setHoveredCellId(cell._id)}
+                    onMouseLeave={() => setHoveredCellId(null)}
+                  >
+                    <StatementResultsColumn cell={cell} />
+                  </div>
+                </>
+              ) : (
+                <div
+                  className={`${commonCellClasses} ls-cell-md-full`}
+                  data-testid="ls-cell"
+                  data-cell-index={idx}
+                  data-cell-type="markdown"
+                  data-cell-id={cell._id}
+                  onMouseEnter={() => setHoveredCellId(cell._id)}
+                  onMouseLeave={() => setHoveredCellId(null)}
                   onClick={(e) => {
                     e.stopPropagation()
-                    handleDeleteCell(cell._id)
+                    setFocusedCellId(cell._id)
                   }}
-                  title="Delete cell"
-                  disabled={cells.length <= 1}
                 >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            </div>
-            {renderAddCellButton(idx + 1)}
-          </div>
-        ))}
+                  {gutter}
+                  <div className="ls-cell-content">
+                    <MarkdownCell
+                      cell={cell}
+                      isFocused={focusedCellId === cell._id}
+                      onChange={handleCellContentChange}
+                    />
+                  </div>
+                  {actions}
+                </div>
+              )}
+              {renderAddCellButton(idx + 1)}
+            </Fragment>
+          )
+        })}
         {draggedCellId !== null && (
           <div
             className={`ls-drop-zone ls-drop-zone-last ${dropTargetIndex === cells.length ? 'ls-drop-zone-active' : ''}`}

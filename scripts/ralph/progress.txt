@@ -11,6 +11,7 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
 - Prefer extracting pure helpers into src/renderer/editor/editorTypes.ts and adding vitest unit tests in tests/unit/
 - For HTML5 drag/drop E2E: dispatch DragEvents manually via page.evaluate with a shared DataTransfer — Playwright's native drag is flaky
 - LiveScript cell data lives in LiveScriptEditor.tsx; serialized via parseLiveScript/serializeLiveScript in editorTypes.ts
+- `.ls-cells-grid` is a 2-column CSS grid; each code cell emits paired sibling grid items (code-side at col 1, output-side at col 2). Full-width rows (drop zones, add-cell rows, markdown cells) use `grid-column: 1 / -1`. Hover highlight is driven by a shared `hoveredCellId` React state that applies `.ls-cell-hover` to both halves.
 
 ## 2026-04-10 - US-001 Restructure main layout
 - Refactored src/renderer/App.tsx from vertical(top-horizontal+bottom) into 3 outer horizontal columns: FileBrowser | CenterColumn | RightColumn(Workspace+Figure)
@@ -51,4 +52,19 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
   - `window.matslop._testMenuAction(action)` is a test-only preload bridge (gated on MATSLOP_USER_DATA_DIR) that lets E2E tests drive menu actions directly. Use it for any menu-driven behaviour.
   - Panel visibility toggles + resetLayout are all handled through a single `onMenuAction` switch in App.tsx. Add new menu actions there.
   - MATLAB-default layout is DRY across App.tsx (`defaultVisibility`/`defaultSizes`) AND appConfig.ts (`defaultLayout`). If you change one, update the other or both go out of sync.
+---
+
+## 2026-04-10 - US-004 Refactor live script to CSS grid with global code and output tracks
+- Refactored `LiveScriptEditor.tsx`: the `.ls-cells` container now has an additional `.ls-cells-grid` class turning it into a 2-track CSS grid (`grid-template-columns: minmax(0,1fr) minmax(0,1fr)`). Each code cell emits two sibling grid items via a React Fragment — `.ls-cell-code-side` (gutter + Monaco editor + delete actions) in column 1, and `.ls-cell-output-col .ls-cell-output-side` in column 2. Outputs are no longer nested inside the code container.
+- Markdown cells, drop zones, and add-cell rows span both columns via `grid-column: 1 / -1`. Grid auto-flow fills one row per `code, output` pair and auto-aligns by top using `align-items: stretch`.
+- Added a `hoveredCellId` React state: mouse enter/leave on either half sets the id, and both `.ls-cell-code-side` and `.ls-cell-output-side` get an `.ls-cell-hover` class when their id matches — so hovering highlights both halves.
+- Removed obsolete `.ls-cell-split` CSS. Reworked `.ls-cell` / `.ls-cell-output-side` borders so the two halves look visually attached (left half: rounded left corners + no right border; right half: rounded right corners + no left border).
+- Added `tests/e2e/livescript-grid.spec.ts` with 5 Playwright tests: grid template assertion, paired sibling assertion (+ "not nested" guard), top-alignment via bounding boxes, hover highlight propagation, and a multiplot regression check.
+- Files changed: src/renderer/editor/LiveScriptEditor.tsx, src/renderer/styles.css, tests/e2e/livescript-grid.spec.ts, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - `grid-auto-flow: row` fills in sibling declaration order, so using `<Fragment>` (not a wrapper div) is essential — a wrapper div would become a single grid item and break the 2-column alignment.
+  - Existing livescript-plots tests target `.ls-cell-output-col` — keep that class name on the output grid item (we add `.ls-cell-output-side` alongside) for backward compat.
+  - `data-testid="ls-cell"` must remain on ONE element per cell for the drag reorder test; put it on the code side (for code cells) or the single markdown wrapper (for markdown cells).
+  - Hover-highlight across separated siblings is simpler via JS state than CSS `:has()`; React's event system handles enter/leave reliably.
+  - Grid cell sizes can use `minmax(0, 1fr)` to prevent Monaco's min-content from blowing out the track width.
 ---
