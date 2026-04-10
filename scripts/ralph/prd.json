@@ -105,8 +105,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Removed per-cell vertical scroll on `.ls-cell-output` (max-height: none; overflow-y: visible; overflow-x: auto) so tall outputs expand their grid row and the existing `.ls-editor` container-level scroll handles the whole live script. Added `overflow-x: hidden; overflow-y: visible` on `.ls-cell-output-side` so wide outputs are contained within their grid track (`minmax(0,1fr)`) and cannot widen the track or push neighboring code/output rows out of alignment. Added tests/e2e/livescript-scroll.spec.ts with 3 tests: (1) computed-style assertions that .ls-editor is the scroll container and per-cell output boxes have no max-height or vertical scroll, plus output-side clamps horizontal overflow; (2) inject a 1200px-tall element into the first output and assert the output-side grew to >=1200px, the editor scrollHeight grew correspondingly, no internal vertical scroll was created, and every code/output pair still shares the same top; (3) inject a 5000px-wide element into the first output and assert grid-template-columns is unchanged, grid container width is unchanged, and pair alignment still holds."
     },
     {
       "id": "US-007",

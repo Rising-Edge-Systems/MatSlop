@@ -1749,6 +1749,11 @@ body {
   flex-direction: column;
   min-width: 0;
   min-height: 60px;
+  /* US-006: contain any horizontally-overflowing output so it cannot
+     widen this grid track and knock neighboring rows out of alignment.
+     Vertical content is free to grow the row. */
+  overflow-x: hidden;
+  overflow-y: visible;
   transition: background-color 0.15s, border-color 0.15s;
 }
 
@@ -1973,14 +1978,19 @@ body {
   min-height: 60px;
 }
 
-/* Cell output */
+/* Cell output.
+   US-006: no per-cell vertical scroll — tall outputs expand the grid row
+   and scrolling happens at the `.ls-editor` container level. Horizontal
+   overflow (wide tables, long rows) scrolls inside the cell to keep the
+   grid track width stable so neighbor rows stay aligned. */
 .ls-cell-output {
   padding: 8px 12px;
   background: var(--bg-main);
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: 13px;
-  max-height: 300px;
-  overflow: auto;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 .ls-cell-output pre {

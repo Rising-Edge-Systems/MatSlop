@@ -13,6 +13,7 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
 - LiveScript cell data lives in LiveScriptEditor.tsx; serialized via parseLiveScript/serializeLiveScript in editorTypes.ts
 - `.ls-cells-grid` is a 2-column CSS grid; each code cell emits paired sibling grid items (code-side at col 1, output-side at col 2). Full-width rows (drop zones, add-cell rows, markdown cells) use `grid-column: 1 / -1`. Hover highlight is driven by a shared `hoveredCellId` React state that applies `.ls-cell-hover` to both halves.
 - Per-cell controls (gutter = drag handle + run button/spinner; actions = delete button) live inside `.ls-cell-code-side` (code column), not on the output side. `.ls-cell-actions` uses `opacity: 0` + hover to fade in, so Playwright clicks need `{ force: true }`.
+- Live-script vertical scrolling is container-level on `.ls-editor` (overflow-y: auto). Per-cell `.ls-cell-output` uses `max-height: none; overflow-y: visible; overflow-x: auto` so tall outputs expand their grid row (the container scrolls) and wide text scrolls inside the cell. `.ls-cell-output-side` uses `overflow-x: hidden` to prevent wide content from widening its `minmax(0,1fr)` grid track and breaking row alignment.
 
 ## 2026-04-10 - US-001 Restructure main layout
 - Refactored src/renderer/App.tsx from vertical(top-horizontal+bottom) into 3 outer horizontal columns: FileBrowser | CenterColumn | RightColumn(Workspace+Figure)
@@ -83,4 +84,17 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
   - `.ls-cell-actions` uses `opacity: 0` by default (only visible on hover), so Playwright clicks on `.ls-cell-delete-btn` need `{ force: true }` to bypass visibility checks — the element is still in the DOM and functional.
   - `.ls-cells-grid > .ls-add-cell-row, .ls-drop-zone, .ls-cell-md-full { grid-column: 1 / -1 }` is the single rule responsible for full-width rows in the live-script grid. Don't apply `grid-column` on the individual elements; let this selector handle it so new element types inherit the behaviour by adding the class to the selector list.
   - Scoping per-cell controls inside `.ls-cell-code-side` (not the output-side) is the convention — search for controls inside that container when asserting gutter behaviour.
+---
+
+## 2026-04-10 - US-006 Continuous output column scrolls with code column
+- Changed `.ls-cell-output` in src/renderer/styles.css: `max-height: 300px; overflow: auto` → `max-height: none; overflow-x: auto; overflow-y: visible`. Tall outputs now expand the grid row instead of creating an inner vertical scrollbar, and the existing `.ls-editor` container `overflow-y: auto` scrolls the whole live script.
+- Added `overflow-x: hidden; overflow-y: visible` on `.ls-cell-output-side` so wide outputs are clipped inside the grid track (`minmax(0,1fr)`) and cannot widen the track or push neighbor rows out of alignment.
+- Added tests/e2e/livescript-scroll.spec.ts with 3 Playwright tests: (1) computed-style assertion that .ls-editor is the scroll container and per-cell `.ls-cell-output` has no max-height/vertical scroll and `.ls-cell-output-side` clamps horizontal overflow; (2) inject 1200px-tall element into first output → output-side offsetHeight ≥1200, editor.scrollHeight grows >500px, no inner vertical scroll, all code/output pair tops still match; (3) inject 5000px-wide element → gridTemplateColumns string unchanged, grid width unchanged within 4px, pair alignment still holds.
+- Files changed: src/renderer/styles.css, tests/e2e/livescript-scroll.spec.ts, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - `.ls-editor` already had `overflow-y: auto` from earlier iterations — US-006 was really about removing per-cell scroll boxes so the container-level scroll is the only one.
+  - For CSS grid with `minmax(0, 1fr)` tracks, you ALSO need explicit `overflow-x: hidden` on the grid item itself to stop wide intrinsic content from still growing the track. The `minmax(0,…)` only removes the min-content floor from the track algorithm; oversized content visually overflows the item unless clipped.
+  - Playwright tests can simulate "tall/wide output" synthetically by injecting a div with fixed pixel dimensions into `[data-testid="ls-cell-output"]` from `page.evaluate` — no need to run real Octave, no need for special fixtures. Clean up the injected node at the end of each test to avoid bleed into the next.
+  - When assertions read `getComputedStyle(el).overflowY`, `visible` is the default for no-scroll elements; don't expect `auto`.
+  - Baseline vitest failures: `tests/unit/octave-config.test.ts` and bundled-Octave integration tests fail in dev envs (no `resources/octave`) — ignore and move on.
 ---
