@@ -77,6 +77,12 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.invoke('figures:saveDialog', defaultName),
   figuresCopyFile: (sourcePath: string, destPath: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('figures:copyFile', sourcePath, destPath),
+  figuresExportPlot: (
+    filePath: string,
+    data: string,
+    encoding: 'base64' | 'utf8',
+  ): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('figures:exportPlot', filePath, data, encoding),
   // Menu action events from main process
   onMenuAction: (callback: (action: string) => void): (() => void) => {
     const handler = (_event: IpcRendererEvent, action: string): void => callback(action)

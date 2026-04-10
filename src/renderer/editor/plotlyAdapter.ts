@@ -589,6 +589,51 @@ export function formatCursorLabel(point: {
 }
 
 // --------------------------------------------------------------------------
+// Export helpers (US-011)
+// --------------------------------------------------------------------------
+
+/**
+ * Sanitize a string for use as a filesystem filename. Replaces runs of
+ * characters that are illegal or awkward on any OS with underscores, trims
+ * whitespace/dots, and caps length. Pure.
+ */
+export function sanitizeFilenameStem(name: string): string {
+  // Replace any char not in the safe set with '_', then collapse runs.
+  const cleaned = name
+    .replace(/[\\/:*?"<>|\0]/g, '_')
+    .replace(/\s+/g, ' ')
+    .replace(/_+/g, '_')
+    .trim()
+    .replace(/^[._]+|[._\s]+$/g, '')
+  return cleaned.slice(0, 80)
+}
+
+/**
+ * Derive a default export filename stem (no extension) from a figure.
+ * Priority: figure.name → first non-empty axes[*].title → `figure-<handle>` →
+ * `figure`. Used by the export button so saves start with a meaningful name.
+ */
+export function defaultExportFilename(figure: PlotFigure): string {
+  const candidates: string[] = []
+  if (figure.name && figure.name.trim().length > 0) {
+    candidates.push(figure.name.trim())
+  }
+  for (const ax of figure.axes) {
+    const t = (ax.title ?? '').trim()
+    if (t.length > 0) candidates.push(t)
+  }
+  if (typeof figure.handle === 'number' && Number.isFinite(figure.handle)) {
+    candidates.push(`figure-${figure.handle}`)
+  }
+  candidates.push('figure')
+  for (const c of candidates) {
+    const sanitized = sanitizeFilenameStem(c)
+    if (sanitized.length > 0) return sanitized
+  }
+  return 'figure'
+}
+
+// --------------------------------------------------------------------------
 // Public entrypoint
 // --------------------------------------------------------------------------
 

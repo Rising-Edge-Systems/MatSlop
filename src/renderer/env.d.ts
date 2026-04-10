@@ -25,6 +25,14 @@ declare module 'plotly.js-dist-min' {
         height?: number
       },
     ): Promise<string>
+    toImage(
+      root: HTMLElement,
+      opts: {
+        format: 'png' | 'svg' | 'jpeg' | 'webp'
+        width?: number
+        height?: number
+      },
+    ): Promise<string>
     Plots: { resize(root: HTMLElement): void }
   }
   const Plotly: PlotlyStatic
@@ -71,6 +79,11 @@ interface Window {
     figuresReadTextFile: (filePath: string) => Promise<string | null>
     figuresSaveDialog: (defaultName: string) => Promise<{ filePath: string; format: string } | null>
     figuresCopyFile: (sourcePath: string, destPath: string) => Promise<{ success: boolean; error?: string }>
+    figuresExportPlot: (
+      filePath: string,
+      data: string,
+      encoding: 'base64' | 'utf8',
+    ) => Promise<{ success: boolean; error?: string }>
     // Menu action events from main process
     onMenuAction: (callback: (action: string) => void) => () => void
     // Theme/config

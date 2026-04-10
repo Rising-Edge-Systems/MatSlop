@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  defaultExportFilename,
   figureToPlotly,
   formatCoord,
   formatCursorLabel,
   rgbToCss,
+  sanitizeFilenameStem,
 } from '../../src/renderer/editor/plotlyAdapter'
 import type { PlotFigure } from '../../src/main/plotSchema'
 
@@ -443,5 +445,68 @@ describe('formatCursorLabel', () => {
   it('omits z when null / undefined', () => {
     expect(formatCursorLabel({ x: 1, y: 2, z: null })).toBe('x: 1<br>y: 2')
     expect(formatCursorLabel({ x: 1, y: 2, z: undefined })).toBe('x: 1<br>y: 2')
+  })
+})
+
+describe('sanitizeFilenameStem', () => {
+  it('replaces path separators and reserved chars with underscores', () => {
+    expect(sanitizeFilenameStem('a/b\\c:d*e?f"g<h>i|j')).toBe('a_b_c_d_e_f_g_h_i_j')
+  })
+  it('collapses whitespace runs and trims edges', () => {
+    expect(sanitizeFilenameStem('  hello   world  ')).toBe('hello world')
+  })
+  it('strips leading/trailing dots and underscores', () => {
+    expect(sanitizeFilenameStem('...figure_1...')).toBe('figure_1')
+  })
+  it('caps length at 80 chars', () => {
+    const long = 'a'.repeat(200)
+    expect(sanitizeFilenameStem(long).length).toBe(80)
+  })
+  it('collapses runs of underscores', () => {
+    expect(sanitizeFilenameStem('a////b')).toBe('a_b')
+  })
+})
+
+describe('defaultExportFilename', () => {
+  it('prefers figure.name when present', () => {
+    expect(
+      defaultExportFilename({ schemaVersion: 1, handle: 1, name: 'My Plot', axes: [] }),
+    ).toBe('My Plot')
+  })
+  it('sanitizes figure.name for filesystem safety', () => {
+    expect(
+      defaultExportFilename({ schemaVersion: 1, handle: 1, name: 'foo/bar.png', axes: [] }),
+    ).toBe('foo_bar.png')
+  })
+  it('falls back to first non-empty axes title', () => {
+    expect(
+      defaultExportFilename({
+        schemaVersion: 1,
+        handle: 2,
+        axes: [
+          { series: [], title: '' },
+          { series: [], title: 'sin(x) vs x' },
+        ],
+      }),
+    ).toBe('sin(x) vs x')
+  })
+  it('falls back to figure-<handle> when no title is set', () => {
+    expect(
+      defaultExportFilename({ schemaVersion: 1, handle: 7, axes: [{ series: [] }] }),
+    ).toBe('figure-7')
+  })
+  it('falls back to figure when nothing usable is present', () => {
+    expect(
+      defaultExportFilename({
+        schemaVersion: 1,
+        handle: Number.NaN as unknown as number,
+        axes: [],
+      }),
+    ).toBe('figure')
+  })
+  it('returns figure when name sanitizes to an empty string', () => {
+    expect(
+      defaultExportFilename({ schemaVersion: 1, handle: 3, name: '////', axes: [] }),
+    ).toBe('figure-3')
   })
 })

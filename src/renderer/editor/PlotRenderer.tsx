@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PlotFigure } from '../../main/plotSchema'
-import { figureToPlotly, formatCursorLabel } from './plotlyAdapter'
+import { defaultExportFilename, figureToPlotly, formatCursorLabel } from './plotlyAdapter'
 
 // `plotly.js-dist-min` has no .d.ts of its own. A minimal module
 // declaration lives in `src/renderer/env.d.ts` so the import below type-
@@ -30,6 +30,65 @@ export interface PlotRendererProps {
  */
 function PlotRenderer({ figure, height = 320, className }: PlotRendererProps): React.JSX.Element {
   const divRef = useRef<HTMLDivElement | null>(null)
+  const [exportStatus, setExportStatus] = useState<'idle' | 'saving' | 'error'>('idle')
+  const [exportError, setExportError] = useState<string | null>(null)
+
+  /**
+   * Export the current Plotly canvas (including the user's current rotation,
+   * zoom and pinned annotations) as an image. Shows a native save dialog so
+   * the user can pick PNG or SVG, then writes the file via IPC.
+   */
+  const handleExport = useCallback(async (): Promise<void> => {
+    const el = divRef.current
+    if (!el) return
+    try {
+      setExportStatus('saving')
+      setExportError(null)
+      const defaultName = defaultExportFilename(figure)
+      // Show the native save dialog first so we know the target format
+      // before asking Plotly to rasterize (no wasted work on cancel).
+      const dialogResult = await window.matslop.figuresSaveDialog(`${defaultName}.png`)
+      if (!dialogResult) {
+        setExportStatus('idle')
+        return
+      }
+      const rawFormat = (dialogResult.format || 'png').toLowerCase()
+      const format: 'png' | 'svg' = rawFormat === 'svg' ? 'svg' : 'png'
+      const mod = await import('plotly.js-dist-min')
+      const Plotly = mod.default
+      const bounds = el.getBoundingClientRect()
+      const width = Math.max(400, Math.round(bounds.width))
+      const imgHeight = Math.max(300, Math.round(bounds.height))
+      const imgData = await Plotly.toImage(el, { format, width, height: imgHeight })
+      // Plotly.toImage returns a data URL for raster formats (data:image/png;base64,...)
+      // and either a data URL or raw SVG string for 'svg'. Normalize.
+      let payload = imgData
+      let encoding: 'base64' | 'utf8' = 'base64'
+      if (format === 'svg') {
+        encoding = 'utf8'
+        if (imgData.startsWith('data:')) {
+          const comma = imgData.indexOf(',')
+          payload = decodeURIComponent(imgData.slice(comma + 1))
+        }
+      }
+      const result = await window.matslop.figuresExportPlot(
+        dialogResult.filePath,
+        payload,
+        encoding,
+      )
+      if (!result.success) {
+        setExportStatus('error')
+        setExportError(result.error ?? 'failed to save file')
+        return
+      }
+      setExportStatus('idle')
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[PlotRenderer] export failed', err)
+      setExportStatus('error')
+      setExportError(err instanceof Error ? err.message : String(err))
+    }
+  }, [figure])
 
   useEffect(() => {
     let cancelled = false
@@ -172,11 +231,64 @@ function PlotRenderer({ figure, height = 320, className }: PlotRendererProps): R
 
   return (
     <div
-      ref={divRef}
-      className={`matslop-plot-renderer ${className ?? ''}`.trim()}
-      data-testid="plot-renderer"
-      style={{ width: '100%', height }}
-    />
+      className={`matslop-plot-renderer-wrap ${className ?? ''}`.trim()}
+      data-testid="plot-renderer-wrap"
+      style={{ position: 'relative', width: '100%', height }}
+    >
+      <div
+        ref={divRef}
+        className="matslop-plot-renderer"
+        data-testid="plot-renderer"
+        style={{ width: '100%', height: '100%' }}
+      />
+      <button
+        type="button"
+        className="matslop-plot-export-btn"
+        data-testid="plot-export-btn"
+        onClick={() => {
+          void handleExport()
+        }}
+        disabled={exportStatus === 'saving'}
+        title="Export plot as PNG or SVG"
+        aria-label="Export plot"
+        style={{
+          position: 'absolute',
+          top: 6,
+          right: 6,
+          zIndex: 10,
+          padding: '2px 8px',
+          font: '11px/1.4 system-ui, sans-serif',
+          background: 'rgba(255,255,255,0.92)',
+          color: '#222',
+          border: '1px solid #888',
+          borderRadius: 3,
+          cursor: exportStatus === 'saving' ? 'wait' : 'pointer',
+        }}
+      >
+        {exportStatus === 'saving' ? 'Saving…' : 'Export'}
+      </button>
+      {exportStatus === 'error' && exportError ? (
+        <div
+          role="alert"
+          data-testid="plot-export-error"
+          style={{
+            position: 'absolute',
+            top: 34,
+            right: 6,
+            zIndex: 10,
+            maxWidth: 240,
+            padding: '4px 8px',
+            font: '11px/1.4 system-ui, sans-serif',
+            background: 'rgba(255, 235, 235, 0.95)',
+            color: '#811',
+            border: '1px solid #c66',
+            borderRadius: 3,
+          }}
+        >
+          Export failed: {exportError}
+        </div>
+      ) : null}
+    </div>
   )
 }
 

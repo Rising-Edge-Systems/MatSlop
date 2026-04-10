@@ -375,6 +375,34 @@ ipcMain.handle('figures:copyFile', async (_event, sourcePath: string, destPath: 
   }
 })
 
+/**
+ * Write a plot export to disk. `data` is either a base64-encoded PNG payload
+ * (strip any `data:image/...;base64,` prefix) or raw UTF-8 text for SVG.
+ * Used by the renderer's PlotRenderer export button (US-011).
+ */
+ipcMain.handle(
+  'figures:exportPlot',
+  async (_event, filePath: string, data: string, encoding: 'base64' | 'utf8') => {
+    try {
+      if (!filePath || typeof filePath !== 'string') {
+        return { success: false, error: 'invalid file path' }
+      }
+      const commaIdx = data.indexOf(',')
+      const payload = encoding === 'base64' && data.startsWith('data:') && commaIdx >= 0
+        ? data.slice(commaIdx + 1)
+        : data
+      if (encoding === 'base64') {
+        fs.writeFileSync(filePath, Buffer.from(payload, 'base64'))
+      } else {
+        fs.writeFileSync(filePath, payload, 'utf-8')
+      }
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: String(err) }
+    }
+  },
+)
+
 // IPC handlers for command history persistence
 ipcMain.handle('history:load', () => {
   return readCommandHistory()
