@@ -190,3 +190,27 @@ export function parseLiveScript(content: string): LiveScriptDocument {
 export function serializeLiveScript(doc: LiveScriptDocument): string {
   return JSON.stringify(doc, null, 2)
 }
+
+/**
+ * Move the cell at `sourceIndex` so that it lands at `targetIndex` in the
+ * sequence of drop-zone slots. Drop-zone slots are the positions *between*
+ * cells, numbered 0..cells.length (inclusive).
+ *
+ * Rules:
+ *   - Returns a new array; never mutates the input.
+ *   - A no-op drop (dropping a cell into the slot immediately above or
+ *     below itself, or out-of-range indices) returns the array unchanged.
+ *
+ * Pure and stateless so that drag-reorder behavior can be unit-tested.
+ */
+export function reorderCells<T>(cells: T[], sourceIndex: number, targetIndex: number): T[] {
+  if (sourceIndex < 0 || sourceIndex >= cells.length) return cells
+  if (targetIndex < 0 || targetIndex > cells.length) return cells
+  // Dropping into the slot immediately above or below itself is a no-op.
+  if (targetIndex === sourceIndex || targetIndex === sourceIndex + 1) return cells
+  const next = cells.slice()
+  const [moved] = next.splice(sourceIndex, 1)
+  const adjustedTarget = targetIndex > sourceIndex ? targetIndex - 1 : targetIndex
+  next.splice(adjustedTarget, 0, moved)
+  return next
+}

@@ -8,6 +8,9 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
 - Run `npm run build` to verify Vite/electron-vite production build
 - Pre-existing typecheck errors in src/main/octaveProcess.ts (env.PATH) are baseline noise
 - Integration/unit tests that need bundled Octave fail in dev envs without resources/octave
+- Prefer extracting pure helpers into src/renderer/editor/editorTypes.ts and adding vitest unit tests in tests/unit/
+- For HTML5 drag/drop E2E: dispatch DragEvents manually via page.evaluate with a shared DataTransfer — Playwright's native drag is flaky
+- LiveScript cell data lives in LiveScriptEditor.tsx; serialized via parseLiveScript/serializeLiveScript in editorTypes.ts
 
 ## 2026-04-10 - US-001 Restructure main layout
 - Refactored src/renderer/App.tsx from vertical(top-horizontal+bottom) into 3 outer horizontal columns: FileBrowser | CenterColumn | RightColumn(Workspace+Figure)
@@ -20,4 +23,19 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
   - Allotment handler signatures: sizes array corresponds to pane order; use sizes[0] for first, sizes[sizes.length-1] for last to survive middle pane hiding
   - `layoutGet` schema has fileBrowserWidth/workspaceWidth/bottomHeight/commandHistoryWidth — repurposed workspaceWidth for right column in new layout
   - electron-vite builds main+preload+renderer; bundle size ~785KB for renderer
+---
+
+## 2026-04-10 - US-002 Fix live-script cell drag-and-drop reordering
+- Extracted pure `reorderCells<T>(cells, sourceIndex, targetIndex)` helper into src/renderer/editor/editorTypes.ts (handles out-of-range, no-op, and slot-index math)
+- LiveScriptEditor now delegates reorder math to reorderCells and no longer mutates inline opacity on the drag-handle (cleaner source-cell visuals via .ls-cell-dragging class only)
+- Added data-testid attributes: `ls-cells`, `ls-cell` (+ data-cell-id/index/type), `ls-drop-zone` (+ data-drop-index), `ls-cell-drag-handle`
+- CSS: added `.ls-cells-dragging .ls-drop-zone` rule so drop zones grow from 4px → 16px while a drag is in progress, making them actually hittable
+- Tests: tests/unit/livescript-reorder.test.ts (8 cases) + new Playwright test in tests/e2e/livescript.spec.ts that dispatches native DragEvents with a shared DataTransfer to move cell[1] above cell[0], then asserts data-cell-id order flipped
+- Files changed: src/renderer/editor/editorTypes.ts, src/renderer/editor/LiveScriptEditor.tsx, src/renderer/styles.css, tests/unit/livescript-reorder.test.ts, tests/e2e/livescript.spec.ts, scripts/ralph/prd.json
+- **Learnings:**
+  - DnD drop zones must be visibly large during an active drag; a 4px line looks tidy but is unhittable
+  - `e.currentTarget` inside a drag handler is the element that has the draggable attribute — setting inline style on it only affects the handle, not the whole cell. Prefer className-driven styling for the dragging state.
+  - Cell output stays "attached" to its cell automatically because reorderCells moves the same object reference; as long as callers keep _figures/_statementResults on the cell object (not in a parallel map), outputs won't orphan after reorder
+  - Playwright HTML5 DnD: use page.evaluate + dispatchEvent('dragstart'|'dragover'|'drop'|'dragend') with `new DataTransfer()` instead of locator.dragTo(); React's synthetic event system picks it up
+  - Typecheck baseline noise in octaveProcess.ts env.PATH is ongoing (ignore); unit tests for bundled-Octave still fail without resources/octave in dev
 ---

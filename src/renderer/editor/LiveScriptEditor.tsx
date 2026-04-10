@@ -10,6 +10,7 @@ import {
   parseLiveScript,
   serializeLiveScript,
   splitStatements,
+  reorderCells,
   type LiveScriptCell,
   type LiveScriptCellFigure,
   type LiveScriptStatementResult,
@@ -136,16 +137,9 @@ function LiveScriptEditor({
     setDraggedCellId(cellId)
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', cellId)
-    // Make the drag image slightly transparent
-    if (e.currentTarget instanceof HTMLElement) {
-      e.currentTarget.style.opacity = '0.5'
-    }
   }, [])
 
-  const handleDragEnd = useCallback((e: React.DragEvent) => {
-    if (e.currentTarget instanceof HTMLElement) {
-      e.currentTarget.style.opacity = '1'
-    }
+  const handleDragEnd = useCallback(() => {
     setDraggedCellId(null)
     setDropTargetIndex(null)
   }, [])
@@ -166,15 +160,8 @@ function LiveScriptEditor({
 
     setCells((prev) => {
       const sourceIndex = prev.findIndex((c) => c._id === draggedCellId)
-      if (sourceIndex === -1 || sourceIndex === targetIndex || sourceIndex === targetIndex - 1) {
-        return prev
-      }
-      const next = [...prev]
-      const [moved] = next.splice(sourceIndex, 1)
-      // Adjust target index after removal
-      const adjustedTarget = targetIndex > sourceIndex ? targetIndex - 1 : targetIndex
-      next.splice(adjustedTarget, 0, moved)
-      return next
+      if (sourceIndex === -1) return prev
+      return reorderCells(prev, sourceIndex, targetIndex)
     })
     setDraggedCellId(null)
     setDropTargetIndex(null)
@@ -495,18 +482,27 @@ function LiveScriptEditor({
           Run All
         </button>
       </div>
-      <div className="ls-cells">
+      <div
+        className={`ls-cells ${draggedCellId !== null ? 'ls-cells-dragging' : ''}`}
+        data-testid="ls-cells"
+      >
         {renderAddCellButton(0)}
         {cells.map((cell, idx) => (
           <div key={cell._id}>
             <div
               className={`ls-drop-zone ${dropTargetIndex === idx && draggedCellId !== null ? 'ls-drop-zone-active' : ''}`}
+              data-testid="ls-drop-zone"
+              data-drop-index={idx}
               onDragOver={(e) => handleDragOver(e, idx)}
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, idx)}
             />
             <div
               className={`ls-cell ${cell.type === 'code' ? 'ls-cell-code' : 'ls-cell-markdown'} ${focusedCellId === cell._id ? 'ls-cell-focused' : ''} ${draggedCellId === cell._id ? 'ls-cell-dragging' : ''}`}
+              data-testid="ls-cell"
+              data-cell-index={idx}
+              data-cell-type={cell.type}
+              data-cell-id={cell._id}
               onClick={(e) => {
                 e.stopPropagation()
                 setFocusedCellId(cell._id)
@@ -515,6 +511,7 @@ function LiveScriptEditor({
               <div className="ls-cell-gutter">
                 <div
                   className="ls-cell-drag-handle"
+                  data-testid="ls-cell-drag-handle"
                   draggable
                   onDragStart={(e) => handleDragStart(e, cell._id)}
                   onDragEnd={handleDragEnd}
@@ -587,6 +584,8 @@ function LiveScriptEditor({
         {draggedCellId !== null && (
           <div
             className={`ls-drop-zone ls-drop-zone-last ${dropTargetIndex === cells.length ? 'ls-drop-zone-active' : ''}`}
+            data-testid="ls-drop-zone"
+            data-drop-index={cells.length}
             onDragOver={(e) => handleDragOver(e, cells.length)}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, cells.length)}

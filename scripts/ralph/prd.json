@@ -37,8 +37,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Extracted pure reorderCells() helper in editorTypes.ts. LiveScriptEditor now uses it. Added data-testid='ls-cell'/'ls-drop-zone'/'ls-cell-drag-handle' plus data-cell-id attributes. CSS enlarges drop zones while dragging. Added unit tests (reorderCells) and Playwright test that simulates HTML5 drag events to drag cell 2 above cell 1 and asserts DOM order changed."
     },
     {
       "id": "US-003",

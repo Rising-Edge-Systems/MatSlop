@@ -1760,13 +1760,26 @@ body {
   transition: height 0.15s, background-color 0.15s;
 }
 
+/* While dragging, enlarge drop-zones so they are easy hit targets. */
+.ls-cells-dragging .ls-drop-zone {
+  height: 16px;
+  background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--color-accent) 50%, transparent);
+}
+
+.ls-cells-dragging .ls-drop-zone.ls-drop-zone-active,
 .ls-drop-zone-active {
-  height: 4px;
+  height: 16px;
   background-color: var(--color-accent);
+  outline: none;
 }
 
 .ls-drop-zone-last {
   height: 24px;
+}
+
+.ls-cells-dragging .ls-drop-zone-last {
+  height: 32px;
 }
 
 .ls-cell-type-badge {
