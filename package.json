@@ -36,6 +36,13 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "resources/octave-scripts",
+        "to": "octave-scripts",
+        "filter": [
+          "**/*.m"
+        ]
       }
     ],
     "linux": {

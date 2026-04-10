@@ -71,6 +71,8 @@ contextBridge.exposeInMainWorld('matslop', {
   // Figure/plot support
   figuresReadImage: (filePath: string): Promise<string | null> =>
     ipcRenderer.invoke('figures:readImage', filePath),
+  figuresReadTextFile: (filePath: string): Promise<string | null> =>
+    ipcRenderer.invoke('figures:readTextFile', filePath),
   figuresSaveDialog: (defaultName: string): Promise<{ filePath: string; format: string } | null> =>
     ipcRenderer.invoke('figures:saveDialog', defaultName),
   figuresCopyFile: (sourcePath: string, destPath: string): Promise<{ success: boolean; error?: string }> =>

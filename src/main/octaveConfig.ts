@@ -133,6 +133,33 @@ export function validateOctavePath(binaryPath: string): Promise<{ valid: boolean
   })
 }
 
+/**
+ * Resolve the directory containing bundled Octave helper scripts
+ * (e.g. `matslop_export_fig.m`). Returns the first existing candidate or
+ * `null` if no directory is found.
+ *
+ * - Packaged: `<resources>/octave-scripts` (wired via electron-builder
+ *   `extraResources` in package.json).
+ * - Dev: the repo-local `resources/octave-scripts` directory, resolved
+ *   relative to either `app.getAppPath()` or `__dirname`.
+ */
+export function getMatslopScriptsDir(): string | null {
+  const candidates = app.isPackaged
+    ? [path.join(process.resourcesPath, 'octave-scripts')]
+    : [
+        path.join(app.getAppPath(), 'resources', 'octave-scripts'),
+        path.join(__dirname, '..', '..', 'resources', 'octave-scripts')
+      ]
+  for (const c of candidates) {
+    try {
+      if (fs.existsSync(c) && fs.statSync(c).isDirectory()) return c
+    } catch {
+      // ignore
+    }
+  }
+  return null
+}
+
 export function getStoredOctavePath(): string | null {
   return store.get('octavePath') ?? null
 }

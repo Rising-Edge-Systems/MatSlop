@@ -67,6 +67,7 @@ interface Window {
     historyDeleteEntry: (index: number) => Promise<string[]>
     // Figure/plot support
     figuresReadImage: (filePath: string) => Promise<string | null>
+    figuresReadTextFile: (filePath: string) => Promise<string | null>
     figuresSaveDialog: (defaultName: string) => Promise<{ filePath: string; format: string } | null>
     figuresCopyFile: (sourcePath: string, destPath: string) => Promise<{ success: boolean; error?: string }>
     // Menu action events from main process

@@ -8,7 +8,7 @@ if (process.env.MATSLOP_USER_DATA_DIR) {
   app.setPath('userData', process.env.MATSLOP_USER_DATA_DIR)
 }
 
-import { autoDetectOctavePath, validateOctavePath, getStoredOctavePath, setOctavePath } from './octaveConfig'
+import { autoDetectOctavePath, validateOctavePath, getStoredOctavePath, setOctavePath, getMatslopScriptsDir } from './octaveConfig'
 import { OctaveProcessManager } from './octaveProcess'
 import { buildAppMenu } from './appMenu'
 import { getStoredTheme, setStoredTheme, getPreferences, setPreferences, getLayoutConfig, setLayoutConfig, getDefaultLayout, getRecentFiles, addRecentFile, clearRecentFiles, type ThemeMode, type AppPreferences, type LayoutConfig } from './appConfig'
@@ -259,7 +259,7 @@ ipcMain.handle('octave:start', async (_event, binaryPath: string) => {
     if (octaveProcess) {
       octaveProcess.stop()
     }
-    octaveProcess = new OctaveProcessManager(binaryPath)
+    octaveProcess = new OctaveProcessManager(binaryPath, getMatslopScriptsDir())
 
     octaveProcess.on('status', (status: string) => {
       mainWindow?.webContents.send('octave:statusChanged', status)
@@ -339,6 +339,14 @@ ipcMain.handle('figures:readImage', async (_event, filePath: string) => {
   try {
     const data = fs.readFileSync(filePath)
     return data.toString('base64')
+  } catch {
+    return null
+  }
+})
+
+ipcMain.handle('figures:readTextFile', async (_event, filePath: string) => {
+  try {
+    return fs.readFileSync(filePath, 'utf-8')
   } catch {
     return null
   }

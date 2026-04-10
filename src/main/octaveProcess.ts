@@ -16,14 +16,16 @@ export type OctaveEngineStatus = 'ready' | 'busy' | 'disconnected'
 export class OctaveProcessManager extends EventEmitter {
   private process: ChildProcess | null = null
   private octavePath: string
+  private scriptsDir: string | null
   private pendingResolve: ((result: CommandResult) => void) | null = null
   private stdoutBuffer = ''
   private stderrBuffer = ''
   private status: OctaveEngineStatus = 'disconnected'
 
-  constructor(octavePath: string) {
+  constructor(octavePath: string, scriptsDir: string | null = null) {
     super()
     this.octavePath = octavePath
+    this.scriptsDir = scriptsDir
   }
 
   getStatus(): OctaveEngineStatus {
@@ -100,6 +102,14 @@ export class OctaveProcessManager extends EventEmitter {
     // - Suppress graphics toolkit warning messages
     // - Disable pager
     this.setStatus('busy')
+    // Escape any single-quotes in the scripts dir for safe embedding in an
+    // Octave single-quoted string. Forward slashes are fine on Windows too.
+    const scriptsDirForOctave = this.scriptsDir
+      ? this.scriptsDir.replace(/\\/g, '/').replace(/'/g, "''")
+      : null
+    const addpathStmt = scriptsDirForOctave
+      ? `try; addpath('${scriptsDirForOctave}'); catch; end;`
+      : ''
     const initScript = [
       "warning('off', 'Octave:gnuplot-graphics');",
       "warning('off', 'all');",
@@ -108,7 +118,10 @@ export class OctaveProcessManager extends EventEmitter {
       // not as external gnuplot windows.
       "set(0, 'defaultfigurevisible', 'off');",
       "more off;",
-    ].join(' ')
+      // US-009: put bundled matslop_export_fig on the Octave load path so
+      // live-script cells can serialize figures to JSON for PlotRenderer.
+      addpathStmt,
+    ].filter(Boolean).join(' ')
     this.process.stdin?.write(initScript + '\n')
     this.process.stdin?.write(DELIMITER_COMMAND)
 

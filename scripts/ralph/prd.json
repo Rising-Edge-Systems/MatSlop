@@ -156,8 +156,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Wired the end-to-end interactive plot pipeline. LiveScriptEditor's runCellStatements now also emits `matslop_export_fig(gcf())` for each plot snapshot, writes the JSON to a sibling temp file via fopen/fwrite, and prints a `__MSLP_FIG_JSON_FILE__:<line>:<path>` marker. A new preload API `figuresReadTextFile` (ipcMain handler `figures:readTextFile`) reads the UTF-8 JSON back into the renderer and attaches it as `plotJson` on `LiveScriptCellFigure`. `InlinePlots` now parses `plotJson` with `parsePlotFigure` and renders via the Plotly-backed `PlotRenderer` (data-testid `plot-renderer` + wrapper `ls-inline-plot`), falling back to the PNG `InteractivePlot` on parse failure. OctaveProcessManager takes an optional `scriptsDir` arg and addpath()s it during its init script so `matslop_export_fig` is discoverable; main/index.ts passes `getMatslopScriptsDir()` (new helper in octaveConfig.ts that resolves `resources/octave-scripts` in both dev and packaged builds). package.json `extraResources` now ships `resources/octave-scripts/**/*.m`. Rotate/zoom/pan/home are Plotly-native modebar controls — no custom code needed. New tests: `tests/unit/livescript-interactive-plot.test.ts` (3 cases: quiver3 JSON → cone trace, 2D line → scatter, malformed JSON rejection drives PNG fallback) + `tests/e2e/livescript-interactive-plots.spec.ts` (opens quiver3.mls, asserts `plot-renderer` wrappers mount, the Plotly `.js-plotly-plot` is visible, and the modebar Reset/Home button is present). Files changed: src/renderer/editor/editorTypes.ts, src/renderer/editor/LiveScriptEditor.tsx, src/main/octaveProcess.ts, src/main/octaveConfig.ts, src/main/index.ts, src/preload/index.ts, src/renderer/env.d.ts, package.json, tests/unit/livescript-interactive-plot.test.ts (new), tests/e2e/livescript-interactive-plots.spec.ts (new), scripts/ralph/prd.json, scripts/ralph/progress.txt."
     },
     {
       "id": "US-010",

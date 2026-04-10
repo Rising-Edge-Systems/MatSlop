@@ -30,6 +30,14 @@ export function createTab(
 export interface LiveScriptCellFigure {
   imageDataUrl: string
   tempPath: string
+  /**
+   * Optional serialized plot data produced by Octave's matslop_export_fig(h)
+   * — when present, the live-script UI renders the figure with the
+   * interactive Plotly-based `PlotRenderer` instead of the static PNG
+   * snapshot. Kept as an opaque JSON string so editorTypes.ts stays free of
+   * main-process imports; the renderer parses it via parsePlotFigure().
+   */
+  plotJson?: string
 }
 
 export interface LiveScriptStatementResult {

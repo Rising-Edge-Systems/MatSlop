@@ -6,6 +6,8 @@ import Markdown from 'react-markdown'
 import { registerMatlabLanguage, MATLAB_LANGUAGE_ID } from './matlabLanguage'
 import { Plus, Trash2, Code, FileText, GripVertical, Play, PlayCircle, Loader } from 'lucide-react'
 import InteractivePlot from './InteractivePlot'
+import PlotRenderer from './PlotRenderer'
+import { parsePlotFigure, type PlotFigure } from '../../main/plotSchema'
 import {
   parseLiveScript,
   serializeLiveScript,
@@ -253,12 +255,15 @@ function LiveScriptEditor({
       const snapId = snapCount
       anchorLines.push(lineToAnchor)
       // Build the capture script. Use tempdir() and an absolute, safe path.
-      // Use str2double/sprintf via direct string building.
+      // Before closing the figure, attempt to serialize it to JSON via
+      // matslop_export_fig(gcf()) so the UI can render with Plotly (US-009).
+      // If matslop_export_fig is unavailable or fails, we silently continue
+      // with just the PNG — the UI will fall back to the static image.
       scriptParts.push(
         `__mslp_snap_path__ = [tempdir() '__mslp_${runId}_snap_${snapId}.png'];`
       )
       scriptParts.push(
-        `try; if ~isempty(get(0,'children')); print(gcf, __mslp_snap_path__, '-dpng', '-r100'); disp(['__MSLP_FIG__:${lineToAnchor}:' __mslp_snap_path__]); close(gcf); end; catch; end;`
+        `try; if ~isempty(get(0,'children')); __mslp_fh__ = gcf(); print(__mslp_fh__, __mslp_snap_path__, '-dpng', '-r100'); disp(['__MSLP_FIG__:${lineToAnchor}:' __mslp_snap_path__]); try; if exist('matslop_export_fig', 'file'); __mslp_json_path__ = [tempdir() '__mslp_${runId}_snap_${snapId}.json']; __mslp_json__ = matslop_export_fig(__mslp_fh__); __mslp_jf__ = fopen(__mslp_json_path__, 'w'); if __mslp_jf__ >= 0; fwrite(__mslp_jf__, __mslp_json__); fclose(__mslp_jf__); disp(['__MSLP_FIG_JSON_FILE__:${lineToAnchor}:' __mslp_json_path__]); end; clear __mslp_jf__ __mslp_json__ __mslp_json_path__; end; catch; end; close(__mslp_fh__); clear __mslp_fh__; end; catch; end;`
       )
     }
 
@@ -297,10 +302,29 @@ function LiveScriptEditor({
     const stdoutText = result.output || ''
     const stderrText = result.error || ''
 
-    // Parse snapshot markers from stdout (markers are printed via disp())
+    // Parse snapshot markers from stdout (markers are printed via disp()).
+    // Two marker kinds are emitted per plot group:
+    //   __MSLP_FIG__:<line>:<pngPath>            — always present
+    //   __MSLP_FIG_JSON_FILE__:<line>:<jsonPath> — only when matslop_export_fig
+    //                                              is on the Octave path (US-009)
     const figMatches = [...stdoutText.matchAll(/__MSLP_FIG__:(\d+):(.+)/g)]
-    // Clean the user-visible output: strip markers from stdout, combine with stderr
-    const cleanedStdout = stdoutText.replace(/__MSLP_FIG__:\d+:.+\n?/g, '').trim()
+    const jsonFileMatches = [...stdoutText.matchAll(/__MSLP_FIG_JSON_FILE__:(\d+):(.+)/g)]
+    // Build a per-line queue of JSON file paths so we can pair each PNG with
+    // the JSON emitted for the same anchor line (in emission order).
+    const jsonPathsByLine: Map<number, string[]> = new Map()
+    for (const m of jsonFileMatches) {
+      const line = parseInt(m[1], 10)
+      const p = m[2].trim()
+      const list = jsonPathsByLine.get(line) ?? []
+      list.push(p)
+      jsonPathsByLine.set(line, list)
+    }
+
+    // Clean the user-visible output: strip both marker kinds from stdout, combine with stderr
+    const cleanedStdout = stdoutText
+      .replace(/__MSLP_FIG__:\d+:.+\n?/g, '')
+      .replace(/__MSLP_FIG_JSON_FILE__:\d+:.+\n?/g, '')
+      .trim()
     const aggregateOutput = isError
       ? [cleanedStdout, stderrText].filter(Boolean).join('\n').trim()
       : cleanedStdout
@@ -316,6 +340,19 @@ function LiveScriptEditor({
         const fig: LiveScriptCellFigure = {
           imageDataUrl: `data:image/png;base64,${base64}`,
           tempPath,
+        }
+        // Pair with the next-in-line JSON path for this anchor line, if any.
+        const jsonPathQueue = jsonPathsByLine.get(line)
+        const jsonPath = jsonPathQueue?.shift()
+        if (jsonPath) {
+          try {
+            const jsonText = await window.matslop.figuresReadTextFile(jsonPath)
+            if (jsonText && jsonText.trim().length > 0) {
+              fig.plotJson = jsonText
+            }
+          } catch {
+            // ignore — fall back to PNG rendering
+          }
         }
         const list = figuresByLine.get(line) ?? []
         list.push(fig)
@@ -657,14 +694,34 @@ function InlinePlots({ figures }: InlinePlotsProps): React.JSX.Element {
 
   return (
     <div className="ls-inline-plots">
-      {figures.map((fig, i) => (
-        <InteractivePlot
-          key={i}
-          src={fig.imageDataUrl}
-          alt={`Plot ${i + 1}`}
-          onSaveAs={() => handleSaveAs(fig)}
-        />
-      ))}
+      {figures.map((fig, i) => {
+        // Prefer the interactive Plotly renderer when Octave provided JSON
+        // via matslop_export_fig (US-009). Fall back to the static PNG
+        // InteractivePlot if the JSON failed to parse or is missing.
+        let parsed: PlotFigure | null = null
+        if (fig.plotJson) {
+          try {
+            parsed = parsePlotFigure(fig.plotJson)
+          } catch {
+            parsed = null
+          }
+        }
+        if (parsed) {
+          return (
+            <div key={i} className="ls-inline-plot-wrapper" data-testid="ls-inline-plot">
+              <PlotRenderer figure={parsed} />
+            </div>
+          )
+        }
+        return (
+          <InteractivePlot
+            key={i}
+            src={fig.imageDataUrl}
+            alt={`Plot ${i + 1}`}
+            onSaveAs={() => handleSaveAs(fig)}
+          />
+        )
+      })}
     </div>
   )
 }
