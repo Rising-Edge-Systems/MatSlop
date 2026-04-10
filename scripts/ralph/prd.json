@@ -137,8 +137,8 @@
         "Tests pass"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "ADR at docs/adr/0001-plotly-vs-threejs.md — recommends Plotly.js because it covers every roadmap trace type and ships rotate/zoom/pan/hover/modebar/downloadImage built-in. Bundle size documented: plotly.js-dist-min@3.5.0 is 4.7 MB minified. Added plotly.js-dist-min and @types/plotly.js deps. Added minimal `declare module 'plotly.js-dist-min'` to src/renderer/env.d.ts. Added src/renderer/editor/plotlyAdapter.ts with a pure `figureToPlotly(figure): {data, layout, config}` (plus rgbToCss) that maps every roadmap series type — line/line3/scatter/scatter3/surface/mesh/quiver(→2 scatter traces)/quiver3(→cone)/bar/bar3(→scatter3d verticals)/contour/contour3/image(→heatmap) — and emits Plotly subplot xaxis/xaxis2/scene/scene2 for multi-axes. Added src/renderer/editor/PlotRenderer.tsx React wrapper that lazy-imports plotly.js-dist-min via dynamic import (keeps the 4.7 MB bundle out of the initial renderer chunk), mounts a div with data-testid='plot-renderer', Plotly.react on mount/update, Plotly.purge on unmount. Added tests/unit/plotly-adapter.test.ts (20 passing tests). `npm run build` succeeds (renderer bundle unchanged at ~789 KB because Plotly is lazy-loaded)."
     },
     {
       "id": "US-009",

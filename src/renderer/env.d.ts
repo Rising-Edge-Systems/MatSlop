@@ -1,5 +1,35 @@
 /// <reference types="vite/client" />
 
+declare module 'plotly.js-dist-min' {
+  interface PlotlyStatic {
+    newPlot(
+      root: HTMLElement,
+      data: unknown[],
+      layout?: unknown,
+      config?: unknown,
+    ): Promise<HTMLElement>
+    react(
+      root: HTMLElement,
+      data: unknown[],
+      layout?: unknown,
+      config?: unknown,
+    ): Promise<HTMLElement>
+    purge(root: HTMLElement): void
+    downloadImage(
+      root: HTMLElement,
+      opts: {
+        format: 'png' | 'svg' | 'jpeg' | 'webp'
+        filename?: string
+        width?: number
+        height?: number
+      },
+    ): Promise<string>
+    Plots: { resize(root: HTMLElement): void }
+  }
+  const Plotly: PlotlyStatic
+  export default Plotly
+}
+
 interface Window {
   matslop: {
     platform: string
