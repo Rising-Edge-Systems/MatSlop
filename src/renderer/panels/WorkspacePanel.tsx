@@ -20,49 +20,64 @@ export interface WorkspacePanelProps {
   onVariablesChanged?: (variables: Array<{ name: string; size: string; class: string }>) => void
 }
 
-function parseWhosOutput(output: string): WorkspaceVariable[] {
+export function parseWhosOutput(output: string): WorkspaceVariable[] {
   const variables: WorkspaceVariable[] = []
   const lines = output.split('\n')
 
-  // whos output format:
-  // Variables visible from the current scope:
+  // whos output format (Octave):
   //
-  // variables in scope: top scope
+  //   Attr   Name              Size                     Bytes  Class
+  //   ====   ====              ====                     =====  =====
+  //          wspace_var_1      1x1                          8  double
+  //     g    globalvar         1x1                          8  double
   //
-  //   Attr Name        Size                     Bytes  Class
-  //   ==== ====        ====                     =====  =====
-  //        x           1x1                          8  double
-  //        y           1x3                         24  double
-  //
-  // Total is 4 elements using 32 bytes
+  // The Attr column may be empty (no attributes) or contain single letters
+  // like "g" (global) or "p" (persistent). Columns are space-separated.
 
   let inTable = false
+  let attrCol = -1
+  let nameCol = -1
+
   for (const line of lines) {
     const trimmed = line.trim()
     if (trimmed.startsWith('Attr') && trimmed.includes('Name') && trimmed.includes('Size')) {
       inTable = true
+      attrCol = line.indexOf('Attr')
+      nameCol = line.indexOf('Name')
       continue
     }
     if (trimmed.startsWith('====')) continue
     if (trimmed.startsWith('Total is')) break
-    if (trimmed === '') {
-      if (inTable) continue
-      continue
-    }
     if (!inTable) continue
+    if (trimmed === '') continue
 
-    // Parse variable line: optional attr, name, size, bytes, class
-    // Format: "     x           1x1                          8  double"
-    const match = trimmed.match(/^([a-z]*)\s+(\S+)\s+(\S+)\s+(\d+)\s+(\S+)$/)
-    if (match) {
-      variables.push({
-        name: match[2],
-        size: match[3],
-        bytes: parseInt(match[4], 10),
-        class: match[5],
-        value: '',
-      })
+    // Use column positions to detect attrs, then split remaining by whitespace.
+    // The attr column width is (nameCol - attrCol). If the region before nameCol
+    // is all whitespace, there are no attributes for this row.
+    let rest = line
+    if (attrCol >= 0 && nameCol > attrCol && line.length >= nameCol) {
+      rest = line.substring(nameCol)
+    } else {
+      rest = trimmed
     }
+
+    const tokens = rest.trim().split(/\s+/)
+    // Expect at least: name, size, bytes, class
+    if (tokens.length < 4) continue
+    const name = tokens[0]
+    const size = tokens[1]
+    const bytesStr = tokens[2]
+    const cls = tokens.slice(3).join(' ')
+    const bytes = parseInt(bytesStr, 10)
+    if (isNaN(bytes)) continue
+
+    variables.push({
+      name,
+      size,
+      bytes,
+      class: cls,
+      value: '',
+    })
   }
 
   return variables
@@ -111,9 +126,13 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
   const [sortColumn, setSortColumn] = useState<'name' | 'size' | 'class'>('name')
   const [sortAsc, setSortAsc] = useState(true)
   const refreshingRef = useRef(false)
+  const engineStatusRef = useRef<OctaveEngineStatus>(engineStatus)
+  const onVariablesChangedRef = useRef(onVariablesChanged)
+  engineStatusRef.current = engineStatus
+  onVariablesChangedRef.current = onVariablesChanged
 
   const refreshWorkspace = useCallback(async () => {
-    if (engineStatus !== 'ready' || refreshingRef.current) return
+    if (engineStatusRef.current !== 'ready' || refreshingRef.current) return
     refreshingRef.current = true
 
     try {
@@ -142,28 +161,33 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
       )
 
       setVariables(varsWithValues)
-      onVariablesChanged?.(varsWithValues.map((v) => ({ name: v.name, size: v.size, class: v.class })))
+      onVariablesChangedRef.current?.(varsWithValues.map((v) => ({ name: v.name, size: v.size, class: v.class })))
     } catch {
       // ignore errors during refresh
     } finally {
       refreshingRef.current = false
     }
-  }, [engineStatus, onVariablesChanged])
+  }, [])
 
   // Refresh on trigger change (after commands execute)
+  const lastTriggerRef = useRef(refreshTrigger)
   useEffect(() => {
-    if (refreshTrigger > 0) {
+    if (refreshTrigger > lastTriggerRef.current) {
+      lastTriggerRef.current = refreshTrigger
       refreshWorkspace()
     }
   }, [refreshTrigger, refreshWorkspace])
 
-  // Refresh when engine becomes ready
+  // Refresh once when engine first connects, clear on disconnect
+  const prevStatusRef = useRef<OctaveEngineStatus>('disconnected')
   useEffect(() => {
-    if (engineStatus === 'ready') {
+    const wasDisconnected = prevStatusRef.current === 'disconnected'
+    prevStatusRef.current = engineStatus
+    if (engineStatus === 'ready' && wasDisconnected) {
       refreshWorkspace()
     } else if (engineStatus === 'disconnected') {
       setVariables([])
-      onVariablesChanged?.([])
+      onVariablesChangedRef.current?.([])
     }
   }, [engineStatus, refreshWorkspace])
 
@@ -194,7 +218,7 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
     sortColumn === col ? (sortAsc ? ' ▲' : ' ▼') : ''
 
   return (
-    <div className="panel workspace-panel">
+    <div className="panel workspace-panel" data-testid="workspace-panel">
       <PanelHeader title="Workspace" onCollapse={onCollapse} />
       <div className="panel-content ws-content">
         {variables.length === 0 ? (

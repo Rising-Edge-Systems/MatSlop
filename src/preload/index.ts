@@ -120,4 +120,7 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.invoke('recentFiles:add', filePath),
   recentFilesClear: (): Promise<string[]> =>
     ipcRenderer.invoke('recentFiles:clear'),
+  // Test-only helper
+  _testMenuAction: (action: string): Promise<void> =>
+    ipcRenderer.invoke('test:menuAction', action),
 })

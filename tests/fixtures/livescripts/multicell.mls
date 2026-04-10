@@ -1,0 +1,8 @@
+{
+  "cells": [
+    { "type": "markdown", "content": "# Multi-Cell Test", "output": "" },
+    { "type": "code", "content": "a = 10;\nb = 20;\nc = a + b", "output": "" },
+    { "type": "markdown", "content": "Now multiply them:", "output": "" },
+    { "type": "code", "content": "d = a * b", "output": "" }
+  ]
+}

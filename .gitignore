@@ -1,6 +1,12 @@
 node_modules/
 dist/
 release/
+resources/octave/
 *.log
 .DS_Store
 Thumbs.db
+
+# Personal scratch area for local test scripts — not committed
+scratch/
+test-results/
+playwright-report/

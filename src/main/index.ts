@@ -2,6 +2,12 @@ import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
+
+// Allow tests to override user data dir for isolation
+if (process.env.MATSLOP_USER_DATA_DIR) {
+  app.setPath('userData', process.env.MATSLOP_USER_DATA_DIR)
+}
+
 import { autoDetectOctavePath, validateOctavePath, getStoredOctavePath, setOctavePath } from './octaveConfig'
 import { OctaveProcessManager } from './octaveProcess'
 import { buildAppMenu } from './appMenu'
@@ -46,7 +52,8 @@ function createWindow(): void {
     minHeight: 600,
     title: 'MatSlop',
     webPreferences: {
-      preload: path.join(__dirname, '../preload/index.js'),
+      preload: path.join(__dirname, '../preload/index.mjs'),
+      sandbox: false,
       contextIsolation: true,
       nodeIntegration: false
     }
@@ -68,6 +75,7 @@ function createWindow(): void {
 ipcMain.handle('file:open', async () => {
   const result = await dialog.showOpenDialog({
     filters: [
+      { name: 'MATLAB & Live Scripts', extensions: ['m', 'mls'] },
       { name: 'MATLAB Files', extensions: ['m'] },
       { name: 'MatSlop Live Scripts', extensions: ['mls'] },
       { name: 'All Files', extensions: ['*'] }
@@ -440,6 +448,12 @@ ipcMain.handle('recentFiles:clear', () => {
   const updated = clearRecentFiles()
   rebuildMenu()
   return updated
+})
+
+// Test-only: programmatically trigger a menu action. Guarded by env var.
+ipcMain.handle('test:menuAction', (_event, action: string) => {
+  if (!process.env.MATSLOP_USER_DATA_DIR) return // only enabled during tests
+  mainWindow?.webContents.send('menu:action', action)
 })
 
 function rebuildMenu(): void {

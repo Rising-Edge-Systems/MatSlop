@@ -107,19 +107,34 @@ function App(): React.JSX.Element {
     }
   }, [])
 
+  const octaveInitRef = useRef(false)
   useEffect(() => {
+    // Guard against StrictMode double-invoke
+    if (octaveInitRef.current) return
+    octaveInitRef.current = true
+
     // Check if Octave is already configured on startup
     window.matslop.octaveGetPath().then(async (storedPath) => {
       if (storedPath) {
         const result = await window.matslop.octaveValidate(storedPath)
         if (result.valid) {
           setOctaveStatus({ path: storedPath, version: result.version ?? 'unknown', configured: true, engineStatus: 'disconnected' })
-          // Auto-start the Octave process
           startOctaveProcess(storedPath)
           return
         }
       }
-      // Not configured or invalid — show setup dialog
+      // Try auto-detect (finds bundled or system-installed Octave)
+      const detected = await window.matslop.octaveAutoDetect()
+      if (detected) {
+        const result = await window.matslop.octaveValidate(detected)
+        if (result.valid) {
+          await window.matslop.octaveSetPath(detected)
+          setOctaveStatus({ path: detected, version: result.version ?? 'unknown', configured: true, engineStatus: 'disconnected' })
+          startOctaveProcess(detected)
+          return
+        }
+      }
+      // Not configured and auto-detect failed — show setup dialog
       setShowOctaveSetup(true)
     })
   }, [startOctaveProcess])
@@ -262,16 +277,19 @@ function App(): React.JSX.Element {
     setPendingOpenPath(null)
   }, [])
 
+  const octaveEngineStatusRef = useRef<OctaveEngineStatus>('disconnected')
+  octaveEngineStatusRef.current = octaveStatus.engineStatus
+
   const handleCwdChange = useCallback((newCwd: string) => {
     setCwd(newCwd)
     // Sync Octave's working directory when FileBrowser changes
-    if (octaveStatus.engineStatus === 'ready') {
+    if (octaveEngineStatusRef.current === 'ready') {
       const escapedDir = newCwd.replace(/'/g, "''")
       window.matslop.octaveExecute(`cd('${escapedDir}')`).catch(() => {
         // ignore cd errors
       })
     }
-  }, [octaveStatus.engineStatus])
+  }, [])
 
   const handleCursorPositionChange = useCallback((line: number, column: number) => {
     setCursorPosition({ line, column })

@@ -2,8 +2,35 @@ import Store from 'electron-store'
 import { execFile } from 'child_process'
 import fs from 'fs'
 import path from 'path'
+import { app } from 'electron'
 
 const store = new Store<{ octavePath: string }>()
+
+function getBundledOctavePath(): string | null {
+  // In packaged app: resources are in process.resourcesPath
+  // In dev mode: __dirname is dist/main/, so project root is ../../
+  const searchPaths = app.isPackaged
+    ? [path.join(process.resourcesPath, 'octave')]
+    : [
+        path.join(app.getAppPath(), 'resources', 'octave'),
+        path.join(__dirname, '..', '..', 'resources', 'octave')
+      ]
+
+  for (const base of searchPaths) {
+    const candidates =
+      process.platform === 'win32'
+        ? [path.join(base, 'mingw64', 'bin', 'octave-cli.exe')]
+        : [
+            path.join(base, 'bin', 'octave-cli'),
+            path.join(base, 'bin', 'octave')
+          ]
+
+    for (const p of candidates) {
+      if (fs.existsSync(p)) return p
+    }
+  }
+  return null
+}
 
 const SEARCH_PATHS_UNIX = [
   '/usr/bin/octave-cli',
@@ -58,6 +85,10 @@ export function autoDetectOctavePath(): string | null {
   if (stored && fs.existsSync(stored)) {
     return stored
   }
+
+  // Check for bundled Octave
+  const bundled = getBundledOctavePath()
+  if (bundled) return bundled
 
   if (process.platform === 'win32') {
     // Check Windows-specific paths

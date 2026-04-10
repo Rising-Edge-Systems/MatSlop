@@ -68,9 +68,12 @@ function EditorPanel({
     () => tabs[0]?.id ?? null
   )
   const [welcomeTabId, setWelcomeTabId] = useState<string | null>(null)
+  const welcomeInitRef = useRef(false)
 
   // Show welcome tab on first launch
   useEffect(() => {
+    if (welcomeInitRef.current) return
+    welcomeInitRef.current = true
     window.matslop.configGetShowWelcome().then((show) => {
       if (show) {
         const welcomeTab = createTab('Welcome', '', null, 'welcome')

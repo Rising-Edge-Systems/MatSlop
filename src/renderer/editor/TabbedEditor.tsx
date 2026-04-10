@@ -157,11 +157,13 @@ function TabbedEditor({
   }
 
   return (
-    <div className="tabbed-editor">
-      <div className="editor-tabs">
+    <div className="tabbed-editor" data-testid="tabbed-editor">
+      <div className="editor-tabs" data-testid="editor-tabs">
         {tabs.map((tab) => (
           <div
             key={tab.id}
+            data-testid="editor-tab"
+            data-tab-filename={tab.filename}
             className={`editor-tab ${tab.id === activeTabId ? 'active' : ''}`}
             onClick={() => onTabSelect(tab.id)}
           >

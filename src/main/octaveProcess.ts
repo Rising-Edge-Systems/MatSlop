@@ -1,5 +1,6 @@
 import { ChildProcess, spawn } from 'child_process'
 import { EventEmitter } from 'events'
+import path from 'path'
 
 const DELIMITER = '___MATSLOP_CMD_DONE___'
 const DELIMITER_COMMAND = `disp('${DELIMITER}')\n`
@@ -34,10 +35,27 @@ export class OctaveProcessManager extends EventEmitter {
       return
     }
 
-    this.process = spawn(this.octavePath, ['--no-gui', '--interactive', '--no-history'], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, TERM: 'dumb' }
-    })
+    // For bundled/portable Octave, ensure its bin directory is in PATH
+    // so it can find its DLLs and dependencies
+    const octaveBinDir = path.dirname(this.octavePath)
+    const octaveRootDir = path.resolve(octaveBinDir, '..', '..')
+    const env = { ...process.env, TERM: 'dumb' }
+    // Prepend Octave's bin dir and usr/bin to PATH
+    const extraPaths = [
+      octaveBinDir,
+      path.join(octaveRootDir, 'usr', 'bin')
+    ].join(path.delimiter)
+    env.PATH = extraPaths + path.delimiter + (env.PATH ?? '')
+
+    this.process = spawn(
+      this.octavePath,
+      ['--no-gui', '--no-window-system', '--interactive', '--no-history'],
+      {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        cwd: octaveRootDir,
+        env
+      }
+    )
 
     this.process.stdout?.on('data', (data: Buffer) => {
       this.handleStdout(data.toString())
@@ -64,6 +82,11 @@ export class OctaveProcessManager extends EventEmitter {
         this.stdoutBuffer = ''
         this.stderrBuffer = ''
       }
+      // Reject any queued commands
+      const queued = this.commandQueue.splice(0)
+      for (const q of queued) {
+        q.reject(new Error('Octave process exited'))
+      }
     })
 
     this.process.on('error', (err) => {
@@ -72,8 +95,21 @@ export class OctaveProcessManager extends EventEmitter {
       this.emit('error', err)
     })
 
-    // Send initial delimiter to wait for Octave to be ready
+    // Send initial setup commands then delimiter to wait for Octave to be ready.
+    // - Set gnuplot as graphics toolkit (works headless with --no-window-system)
+    // - Suppress graphics toolkit warning messages
+    // - Disable pager
     this.setStatus('busy')
+    const initScript = [
+      "warning('off', 'Octave:gnuplot-graphics');",
+      "warning('off', 'all');",
+      "try; graphics_toolkit('gnuplot'); catch; end;",
+      // Force all figures to be invisible — we render them inline in the UI,
+      // not as external gnuplot windows.
+      "set(0, 'defaultfigurevisible', 'off');",
+      "more off;",
+    ].join(' ')
+    this.process.stdin?.write(initScript + '\n')
     this.process.stdin?.write(DELIMITER_COMMAND)
 
     // Wait for initial ready signal
@@ -121,7 +157,8 @@ export class OctaveProcessManager extends EventEmitter {
   }
 
   private handleStderr(data: string): void {
-    // Filter out Octave startup messages and prompt noise
+    // Filter out Octave startup messages, prompt noise, and third-party
+    // debug output (fontconfig via gnuplot writes DEBUG: FC_* lines).
     const lines = data.split('\n')
     const meaningful = lines.filter(
       (line) =>
@@ -130,6 +167,10 @@ export class OctaveProcessManager extends EventEmitter {
         !line.includes('warranty') &&
         !line.includes('Octave was configured') &&
         !line.startsWith('>>') &&
+        // Fontconfig debug noise (from gnuplot font matching on Windows)
+        !line.startsWith('DEBUG: FC_') &&
+        !line.startsWith('DEBUG:FC_') &&
+        !line.includes("didn't match") &&
         line.trim() !== ''
     )
     if (meaningful.length > 0) {
@@ -139,11 +180,32 @@ export class OctaveProcessManager extends EventEmitter {
 
   private cleanOutput(output: string): string {
     // Remove Octave prompt markers (>> and octave:N>)
-    return output
-      .split('\n')
-      .map((line) => line.replace(/^(octave:\d+> |>> )/, ''))
+    // Strip Octave prompts. Formats seen in the wild:
+    //   "octave:42> "  — normal prompt
+    //   ">> "          — secondary interactive prompt
+    //   "> "           — continuation prompt (multi-line input echoed back)
+    // Prompts can appear:
+    //   - at the start of a line (after a command echo / continuation)
+    //   - at the end of output from fprintf/printf without newlines
+    //     (the next prompt gets concatenated onto the same line)
+    // Strategy: strip leading prompt(s) per-line, then strip any remaining
+    // prompts that got concatenated without newlines.
+    const cleanedLines = output.split('\n').map((line) =>
+      // Repeatedly strip leading prompts to handle nested continuations
+      line.replace(/^(?:octave:\d+>\s*|>>\s*|>\s)+/, '')
+    )
+    return cleanedLines
       .join('\n')
+      // Strip prompts that got glued onto output without a newline boundary
+      .replace(/octave:\d+>\s?/g, '')
+      .replace(/>>\s?/g, '')
   }
+
+  private commandQueue: Array<{
+    command: string
+    resolve: (result: CommandResult) => void
+    reject: (err: Error) => void
+  }> = []
 
   executeCommand(command: string): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
@@ -152,21 +214,33 @@ export class OctaveProcessManager extends EventEmitter {
         return
       }
 
-      if (this.pendingResolve) {
-        reject(new Error('A command is already running'))
-        return
-      }
-
-      this.stdoutBuffer = ''
-      this.stderrBuffer = ''
-      this.setStatus('busy')
-
-      this.pendingResolve = resolve
-
-      // Send the command followed by the delimiter
-      this.process.stdin.write(command + '\n')
-      this.process.stdin.write(DELIMITER_COMMAND)
+      this.commandQueue.push({ command, resolve, reject })
+      this.processQueue()
     })
+  }
+
+  private processQueue(): void {
+    if (this.pendingResolve) return // command already in flight
+    const next = this.commandQueue.shift()
+    if (!next) return
+    if (!this.process || !this.process.stdin) {
+      next.reject(new Error('Octave process is not running'))
+      return
+    }
+
+    this.stdoutBuffer = ''
+    this.stderrBuffer = ''
+    this.setStatus('busy')
+
+    this.pendingResolve = (result: CommandResult): void => {
+      next.resolve(result)
+      // After this command resolves, dispatch the next queued one
+      // (handleStdout will null out pendingResolve before calling us)
+      setImmediate(() => this.processQueue())
+    }
+
+    this.process.stdin.write(next.command + '\n')
+    this.process.stdin.write(DELIMITER_COMMAND)
   }
 
   interrupt(): void {
@@ -177,6 +251,11 @@ export class OctaveProcessManager extends EventEmitter {
 
   stop(): void {
     if (this.process) {
+      // Reject any queued commands
+      const queued = this.commandQueue.splice(0)
+      for (const q of queued) {
+        q.reject(new Error('Octave process stopped'))
+      }
       this.pendingResolve = null
       this.stdoutBuffer = ''
       this.stderrBuffer = ''

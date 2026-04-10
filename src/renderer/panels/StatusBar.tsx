@@ -38,7 +38,7 @@ function StatusBar({ cwd, engineStatus, cursorPosition, errorCount = 0 }: Status
             {errorCount} {errorCount === 1 ? 'error' : 'errors'}
           </span>
         )}
-        <span className="status-bar-item">
+        <span className="status-bar-item" data-testid="engine-status">
           <span
             className="status-dot"
             style={{ backgroundColor: statusColors[engineStatus] }}

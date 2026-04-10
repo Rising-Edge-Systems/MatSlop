@@ -99,8 +99,11 @@ function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExec
     }
   }, [menuAction, onMenuActionConsumed])
 
-  // Focus input on click anywhere in the panel content
+  // Focus input on click anywhere in the panel content, but don't steal
+  // focus if the user is selecting text (so copy-from-output works).
   const handlePanelClick = useCallback(() => {
+    const selection = window.getSelection()
+    if (selection && selection.toString().length > 0) return
     inputRef.current?.focus()
   }, [])
 
@@ -228,9 +231,9 @@ function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExec
   const isDisabled = engineStatus === 'disconnected'
 
   return (
-    <div className="panel command-window" onClick={handlePanelClick}>
+    <div className="panel command-window" data-testid="command-window" onClick={handlePanelClick}>
       <PanelHeader title="Command Window" onCollapse={onCollapse} />
-      <div className="cw-output" ref={outputRef}>
+      <div className="cw-output" ref={outputRef} data-testid="command-output">
         {outputEntries.map((entry, i) => (
           <div key={i} className={`cw-line cw-${entry.type}`}>
             {entry.text}
@@ -242,6 +245,7 @@ function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExec
             ref={inputRef}
             type="text"
             className="cw-input"
+            data-testid="command-input"
             value={inputValue}
             onChange={(e) => {
               setInputValue(e.target.value)

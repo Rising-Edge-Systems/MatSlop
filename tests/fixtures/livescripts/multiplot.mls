@@ -1,0 +1,9 @@
+{
+  "cells": [
+    {
+      "type": "code",
+      "content": "x = linspace(0, 2*pi, 50);\nplot(x, sin(x));\ntitle('sine');\nplot(x, cos(x));\ntitle('cosine');\nplot(x, x.^2);\ntitle('square');\nplot(x, exp(x/5));\ntitle('exp');",
+      "output": ""
+    }
+  ]
+}

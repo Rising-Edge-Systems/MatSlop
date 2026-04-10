@@ -26,10 +26,10 @@ function FigurePanel({ figures, onCollapse, onSaveFigure }: FigurePanelProps): R
   }, [activeFigure, onSaveFigure])
 
   return (
-    <div className="panel figure-panel">
+    <div className="panel figure-panel" data-testid="figure-panel">
       <PanelHeader title="Figures" onCollapse={onCollapse} />
       {figures.length === 0 ? (
-        <div className="panel-content figure-empty">
+        <div className="panel-content figure-empty" data-testid="figure-empty">
           <span className="empty-text">No figures</span>
         </div>
       ) : (
@@ -63,6 +63,7 @@ function FigurePanel({ figures, onCollapse, onSaveFigure }: FigurePanelProps): R
                 src={activeFigure.imageDataUrl}
                 alt={`Figure ${activeFigure.handle}`}
                 className="figure-image"
+                data-testid="figure-image"
                 draggable={false}
               />
             )}

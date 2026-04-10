@@ -43,12 +43,15 @@ function FileBrowser({ onCollapse, onOpenFile, onCwdChange, externalCwd }: FileB
     return results
   }, [])
 
+  const onCwdChangeRef = useRef(onCwdChange)
+  onCwdChangeRef.current = onCwdChange
+
   const loadRoot = useCallback(async (dirPath: string) => {
     const results = await loadDir(dirPath)
     setEntries(results)
     setCwd(dirPath)
-    onCwdChange?.(dirPath)
-  }, [loadDir, onCwdChange])
+    onCwdChangeRef.current?.(dirPath)
+  }, [loadDir])
 
   // Initialize with home directory
   useEffect(() => {
@@ -277,7 +280,7 @@ function FileBrowser({ onCollapse, onOpenFile, onCwdChange, externalCwd }: FileB
   )
 
   return (
-    <div className="panel file-browser" onContextMenu={(e) => handleContextMenu(e, null)}>
+    <div className="panel file-browser" data-testid="file-browser" onContextMenu={(e) => handleContextMenu(e, null)}>
       <PanelHeader title="File Browser" onCollapse={onCollapse} />
       <div className="fb-path-bar">
         <span className="fb-path" title={cwd}>{cwd}</span>

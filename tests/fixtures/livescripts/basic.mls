@@ -1,0 +1,6 @@
+{
+  "cells": [
+    { "type": "markdown", "content": "# Basic Live Script\nThis is a test.", "output": "" },
+    { "type": "code", "content": "x = 42", "output": "" }
+  ]
+}
