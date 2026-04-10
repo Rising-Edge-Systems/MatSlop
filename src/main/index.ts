@@ -10,6 +10,11 @@ if (process.env.MATSLOP_USER_DATA_DIR) {
 
 import { autoDetectOctavePath, validateOctavePath, getStoredOctavePath, setOctavePath, getMatslopScriptsDir } from './octaveConfig'
 import { OctaveProcessManager } from './octaveProcess'
+import {
+  setBreakpoint as applySetBreakpoint,
+  clearBreakpoint as applyClearBreakpoint,
+  reapplyAllBreakpoints,
+} from './debugBridge'
 import { buildAppMenu } from './appMenu'
 import { getStoredTheme, setStoredTheme, getPreferences, setPreferences, getLayoutConfig, setLayoutConfig, getDefaultLayout, getRecentFiles, addRecentFile, clearRecentFiles, type ThemeMode, type AppPreferences, type LayoutConfig } from './appConfig'
 
@@ -281,6 +286,9 @@ ipcMain.handle('octave:start', async (_event, binaryPath: string) => {
       mainWindow?.webContents.send('octave:crashed', { code: null, signal: null, error: err.message })
     })
 
+    // US-015: reapply any previously-set breakpoints once Octave is ready.
+    attachBreakpointReapplier(octaveProcess)
+
     octaveProcess.start()
     return { success: true }
   } catch (err) {
@@ -320,6 +328,10 @@ ipcMain.handle('octave:restart', async (_event, binaryPath: string) => {
   octaveProcess.on('error', (err: Error) => {
     mainWindow?.webContents.send('octave:crashed', { code: null, signal: null, error: err.message })
   })
+
+  // US-015: reapply any previously-set breakpoints on restart so debug state
+  // survives Octave coming back up.
+  attachBreakpointReapplier(octaveProcess)
 
   octaveProcess.start()
   return { success: true }
@@ -478,44 +490,57 @@ ipcMain.handle('plot:_testDetachedCount', () => {
 // ---------------------------------------------------------------------------
 // Debugger bridge (US-014+)
 // ---------------------------------------------------------------------------
-// For now we only record the set of active breakpoints by file path. Wiring
-// these to `dbstop` / `dbclear` on the running Octave process lands in US-015,
-// but the IPC contract is established here so the renderer can call it and
-// the main process has a single source of truth.
+// Records the set of active breakpoints by file path and, as of US-015,
+// forwards `dbstop` / `dbclear` commands to the running Octave process so
+// breakpoints are honored at runtime. The map is also the single source of
+// truth used to reapply breakpoints after an Octave restart.
 const debugBreakpoints = new Map<string, Set<number>>()
 
-function breakpointKey(filePath: string | null): string {
-  // Unsaved tabs share one logical "<unsaved>" bucket. Renderer is the
-  // authoritative store for per-tab state; main only tracks path-addressable
-  // breakpoints so Octave integration can resolve them later.
-  return filePath && filePath.length > 0 ? filePath : '<unsaved>'
+/**
+ * Return the current Octave command executor if the process is running,
+ * otherwise null. Set/clear operations gracefully no-op the dbstop/dbclear
+ * side-effect when Octave is down; the in-memory registry still updates so
+ * the next start/restart can reapply them.
+ */
+function currentOctaveExecutor(): ((cmd: string) => Promise<unknown>) | null {
+  if (octaveProcess && octaveProcess.isRunning()) {
+    const proc = octaveProcess
+    return (cmd: string) => proc.executeCommand(cmd)
+  }
+  return null
 }
 
 ipcMain.handle(
   'debug:setBreakpoint',
   (_event, filePath: string | null, line: number) => {
-    if (!Number.isFinite(line) || line <= 0) return { success: false }
-    const key = breakpointKey(filePath)
-    const set = debugBreakpoints.get(key) ?? new Set<number>()
-    set.add(Math.floor(line))
-    debugBreakpoints.set(key, set)
-    return { success: true }
+    const ok = applySetBreakpoint(debugBreakpoints, filePath, line, currentOctaveExecutor())
+    return { success: ok }
   },
 )
 
 ipcMain.handle(
   'debug:clearBreakpoint',
   (_event, filePath: string | null, line: number) => {
-    if (!Number.isFinite(line) || line <= 0) return { success: false }
-    const key = breakpointKey(filePath)
-    const set = debugBreakpoints.get(key)
-    if (set) {
-      set.delete(Math.floor(line))
-      if (set.size === 0) debugBreakpoints.delete(key)
-    }
-    return { success: true }
+    const ok = applyClearBreakpoint(debugBreakpoints, filePath, line, currentOctaveExecutor())
+    return { success: ok }
   },
 )
+
+/**
+ * Wire an `OctaveProcessManager` instance so that when it first reaches the
+ * `ready` status (i.e. initial startup is done) we replay every remembered
+ * breakpoint via `dbstop`. This is what guarantees breakpoints survive an
+ * Octave restart: the map in this module outlives the process.
+ */
+function attachBreakpointReapplier(proc: OctaveProcessManager): void {
+  let replayed = false
+  proc.on('status', (status: string) => {
+    if (replayed) return
+    if (status !== 'ready') return
+    replayed = true
+    reapplyAllBreakpoints(debugBreakpoints, (cmd: string) => proc.executeCommand(cmd))
+  })
+}
 
 // IPC handlers for command history persistence
 ipcMain.handle('history:load', () => {

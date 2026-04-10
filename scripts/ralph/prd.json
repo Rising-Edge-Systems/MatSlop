@@ -254,8 +254,8 @@
         "Tests pass"
       ],
       "priority": 15,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added pure src/main/debugBridge.ts with formatDbstopCommand/formatDbclearCommand, setBreakpoint/clearBreakpoint, and reapplyAllBreakpoints helpers. src/main/index.ts wires these into debug:setBreakpoint/debug:clearBreakpoint IPCs so the running Octave process receives dbstop/dbclear commands in addition to the existing in-memory registry update. A new attachBreakpointReapplier() hook listens for the first status==ready event on each OctaveProcessManager (in both octave:start and octave:restart) and replays every remembered breakpoint, so breakpoints survive file save and Octave restart. Unsaved-tab bucket is skipped on reapply since Octave cant address it by name. Added tests/unit/debug-bridge.test.ts with 20 tests covering command string format (incl. quote escaping and fractional line flooring), unsaved-tab bucket behavior, executor-null mode, idempotent clear, and deterministic replay order with key/line sorting."
     },
     {
       "id": "US-016",
