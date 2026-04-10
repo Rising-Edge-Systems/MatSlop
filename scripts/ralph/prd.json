@@ -121,8 +121,8 @@
         "Tests pass"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added src/main/plotSchema.ts with PlotFigure/PlotAxes/PlotSeries TypeScript types covering plot, plot3, scatter, scatter3, surf, mesh, quiver, quiver3, bar, bar3, contour, contour3, imagesc; plus parsePlotFigure(input) that validates JSON strings or objects and downgrades unknown series to {type:'unknown'}. Added bundled Octave function resources/octave-scripts/matslop_export_fig.m that walks a figure handle via get()/findall() and emits a JSON string matching the schema (includes a minimal internal JSON encoder so it works without jsonencode). Added tests/unit/plot-schema.test.ts with 15 passing tests exercising line/line3/scatter/scatter3/surf/mesh/quiver3/bar/bar3/contour/contour3/image, multi-axes (subplot), legend, log scales, error paths, and unknown-type downgrade."
     },
     {
       "id": "US-008",
