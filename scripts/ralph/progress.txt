@@ -12,6 +12,7 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
 - For HTML5 drag/drop E2E: dispatch DragEvents manually via page.evaluate with a shared DataTransfer — Playwright's native drag is flaky
 - LiveScript cell data lives in LiveScriptEditor.tsx; serialized via parseLiveScript/serializeLiveScript in editorTypes.ts
 - `.ls-cells-grid` is a 2-column CSS grid; each code cell emits paired sibling grid items (code-side at col 1, output-side at col 2). Full-width rows (drop zones, add-cell rows, markdown cells) use `grid-column: 1 / -1`. Hover highlight is driven by a shared `hoveredCellId` React state that applies `.ls-cell-hover` to both halves.
+- Per-cell controls (gutter = drag handle + run button/spinner; actions = delete button) live inside `.ls-cell-code-side` (code column), not on the output side. `.ls-cell-actions` uses `opacity: 0` + hover to fade in, so Playwright clicks need `{ force: true }`.
 
 ## 2026-04-10 - US-001 Restructure main layout
 - Refactored src/renderer/App.tsx from vertical(top-horizontal+bottom) into 3 outer horizontal columns: FileBrowser | CenterColumn | RightColumn(Workspace+Figure)
@@ -67,4 +68,19 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
   - `data-testid="ls-cell"` must remain on ONE element per cell for the drag reorder test; put it on the code side (for code cells) or the single markdown wrapper (for markdown cells).
   - Hover-highlight across separated siblings is simpler via JS state than CSS `:has()`; React's event system handles enter/leave reliably.
   - Grid cell sizes can use `minmax(0, 1fr)` to prevent Monaco's min-content from blowing out the track width.
+---
+
+## 2026-04-10 - US-005 Preserve cell gutter (run button, grip, delete) in grid layout
+- No production code changes needed: the US-004 CSS-grid refactor already placed the full gutter (drag handle + run button / spinner) and per-cell actions (delete button) inside every `.ls-cell-code-side` grid item, and `.ls-cells-grid > .ls-add-cell-row { grid-column: 1 / -1 }` already spans add-cell rows across both tracks.
+- Added tests/e2e/livescript-gutter.spec.ts with 4 Playwright tests to regression-guard US-005:
+  1. Every code cell's run control, draggable drag-handle and delete button are scoped inside its `.ls-cell-code-side` container
+  2. Clicking a cell's delete button (force-click to bypass opacity:0 hover state) removes that cell from the grid
+  3. `.ls-cells-grid > .ls-add-cell-row` computed gridColumnStart=1 and spans both grid tracks
+  4. Drag handle still reorders cells in the grid layout via synthetic HTML5 DragEvents
+- Files changed: tests/e2e/livescript-gutter.spec.ts (new), scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Before writing new code for a "preserve X in Y" story, grep the current DOM structure — US-004's grid refactor intentionally kept the gutter+actions scoped inside `.ls-cell-code-side`, so US-005 reduced to writing regression tests.
+  - `.ls-cell-actions` uses `opacity: 0` by default (only visible on hover), so Playwright clicks on `.ls-cell-delete-btn` need `{ force: true }` to bypass visibility checks — the element is still in the DOM and functional.
+  - `.ls-cells-grid > .ls-add-cell-row, .ls-drop-zone, .ls-cell-md-full { grid-column: 1 / -1 }` is the single rule responsible for full-width rows in the live-script grid. Don't apply `grid-column` on the individual elements; let this selector handle it so new element types inherit the behaviour by adding the class to the selector list.
+  - Scoping per-cell controls inside `.ls-cell-code-side` (not the output-side) is the convention — search for controls inside that container when asserting gutter behaviour.
 ---

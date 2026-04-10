@@ -89,8 +89,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The US-004 grid refactor already placed the gutter (drag handle + run button/spinner) and per-cell actions (delete button) inside every .ls-cell-code-side grid item, and add-cell rows already span both columns via `.ls-cells-grid > .ls-add-cell-row { grid-column: 1 / -1 }`. Added tests/e2e/livescript-gutter.spec.ts with 4 Playwright tests that explicitly verify: (1) every code cell has a run control, draggable drag-handle and delete button scoped inside its .ls-cell-code-side container; (2) clicking a cell's delete button removes that cell from the grid; (3) add-cell rows resolve to gridColumnStart=1 and span both grid tracks; (4) the drag handle still reorders cells inside the grid layout (synthetic DragEvents with a shared DataTransfer move the last cell above the first). No production code changes needed — this story is covered by code written during US-004 and is now regression-guarded."
     },
     {
       "id": "US-006",
