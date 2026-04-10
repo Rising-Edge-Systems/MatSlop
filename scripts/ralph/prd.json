@@ -238,8 +238,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 14,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added Monaco glyph-margin breakpoint gutter. Added pure helpers toggleBreakpoint/clearBreakpointsForTab/getBreakpointsForTab + BreakpointStore type to editorTypes.ts with 12 vitest unit tests. TabbedEditor.tsx now: (1) holds a tab-id-keyed BreakpointStore in React state; (2) enables glyphMargin on the .m Editor; (3) wires editor.onMouseDown to detect GUTTER_GLYPH_MARGIN hits and toggle via toggleBreakpointForTab; (4) syncs red-dot decorations via deltaDecorations keyed on .matslop-breakpoint-glyph CSS; (5) forwards each toggle through new preload IPCs debugSetBreakpoint/debugClearBreakpoint, backed by main-side handlers that record breakpoints in a per-file Set. Exposes test hooks window.__matslopBreakpoints and window.__matslopToggleBreakpoint, plus data-tab-id on tab DOM. Added tests/e2e/breakpoints.spec.ts with 5 passing Playwright tests covering: glyph margin presence, toggle-on via test hook, IPC round-trip, decoration rendered, toggle-off clears decoration."
     },
     {
       "id": "US-015",

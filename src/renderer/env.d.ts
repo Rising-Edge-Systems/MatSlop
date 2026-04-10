@@ -123,6 +123,9 @@ interface Window {
     recentFilesClear: () => Promise<string[]>
     // Shell helpers
     openExternal: (url: string) => Promise<void>
+    // Debugger (US-014+)
+    debugSetBreakpoint: (filePath: string | null, line: number) => Promise<{ success: boolean }>
+    debugClearBreakpoint: (filePath: string | null, line: number) => Promise<{ success: boolean }>
     // Test-only
     _testMenuAction?: (action: string) => Promise<void>
   }

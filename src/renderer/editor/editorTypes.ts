@@ -207,6 +207,71 @@ export function serializeLiveScript(doc: LiveScriptDocument): string {
 }
 
 /**
+ * Per-tab breakpoint store keyed by tab id. Each value is the set of 1-based
+ * source line numbers that currently have a breakpoint. Kept as a plain
+ * Record<string, number[]> so it can be serialized and cheaply compared in
+ * React (Set instances don't diff well in state).
+ *
+ * Breakpoints are intentionally stored at the tab level (not by file path) so
+ * that an unsaved "untitled.m" tab can still hold breakpoints before it is
+ * written to disk, and so that two tabs pointing at the same path can diverge
+ * if we ever split-edit.
+ */
+export type BreakpointStore = Record<string, number[]>
+
+/**
+ * Toggle a breakpoint on the given line inside the tab's breakpoint list.
+ * Always returns a NEW store object (with a new inner array for the affected
+ * tab) so React state setters can rely on referential inequality to re-render.
+ *
+ * Pure and stateless so it can be unit-tested without a Monaco instance.
+ */
+export function toggleBreakpoint(
+  store: BreakpointStore,
+  tabId: string,
+  line: number,
+): BreakpointStore {
+  if (!Number.isFinite(line) || line <= 0) return store
+  const lineInt = Math.floor(line)
+  const existing = store[tabId] ?? []
+  const idx = existing.indexOf(lineInt)
+  let nextLines: number[]
+  if (idx === -1) {
+    // Add and keep sorted ascending so decorations / tests are deterministic.
+    nextLines = existing.concat(lineInt).sort((a, b) => a - b)
+  } else {
+    nextLines = existing.slice()
+    nextLines.splice(idx, 1)
+  }
+  return { ...store, [tabId]: nextLines }
+}
+
+/**
+ * Remove any breakpoint state associated with a tab (called when a tab is
+ * closed) so the store doesn't grow without bound.
+ */
+export function clearBreakpointsForTab(
+  store: BreakpointStore,
+  tabId: string,
+): BreakpointStore {
+  if (!(tabId in store)) return store
+  const next = { ...store }
+  delete next[tabId]
+  return next
+}
+
+/**
+ * Return the sorted list of breakpoint lines for a tab. Safe to call for
+ * unknown tab ids (returns an empty array).
+ */
+export function getBreakpointsForTab(
+  store: BreakpointStore,
+  tabId: string,
+): number[] {
+  return store[tabId] ?? []
+}
+
+/**
  * Move the cell at `sourceIndex` so that it lands at `targetIndex` in the
  * sequence of drop-zone slots. Drop-zone slots are the positions *between*
  * cells, numbered 0..cells.length (inclusive).

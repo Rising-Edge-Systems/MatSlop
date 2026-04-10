@@ -475,6 +475,48 @@ ipcMain.handle('plot:_testDetachedCount', () => {
   return detachedWindows.size
 })
 
+// ---------------------------------------------------------------------------
+// Debugger bridge (US-014+)
+// ---------------------------------------------------------------------------
+// For now we only record the set of active breakpoints by file path. Wiring
+// these to `dbstop` / `dbclear` on the running Octave process lands in US-015,
+// but the IPC contract is established here so the renderer can call it and
+// the main process has a single source of truth.
+const debugBreakpoints = new Map<string, Set<number>>()
+
+function breakpointKey(filePath: string | null): string {
+  // Unsaved tabs share one logical "<unsaved>" bucket. Renderer is the
+  // authoritative store for per-tab state; main only tracks path-addressable
+  // breakpoints so Octave integration can resolve them later.
+  return filePath && filePath.length > 0 ? filePath : '<unsaved>'
+}
+
+ipcMain.handle(
+  'debug:setBreakpoint',
+  (_event, filePath: string | null, line: number) => {
+    if (!Number.isFinite(line) || line <= 0) return { success: false }
+    const key = breakpointKey(filePath)
+    const set = debugBreakpoints.get(key) ?? new Set<number>()
+    set.add(Math.floor(line))
+    debugBreakpoints.set(key, set)
+    return { success: true }
+  },
+)
+
+ipcMain.handle(
+  'debug:clearBreakpoint',
+  (_event, filePath: string | null, line: number) => {
+    if (!Number.isFinite(line) || line <= 0) return { success: false }
+    const key = breakpointKey(filePath)
+    const set = debugBreakpoints.get(key)
+    if (set) {
+      set.delete(Math.floor(line))
+      if (set.size === 0) debugBreakpoints.delete(key)
+    }
+    return { success: true }
+  },
+)
+
 // IPC handlers for command history persistence
 ipcMain.handle('history:load', () => {
   return readCommandHistory()

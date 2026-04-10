@@ -138,6 +138,13 @@ contextBridge.exposeInMainWorld('matslop', {
   // Shell helpers
   openExternal: (url: string): Promise<void> =>
     ipcRenderer.invoke('shell:openExternal', url),
+  // Debugger: breakpoint bridge (US-014)
+  // filePath may be null for unsaved tabs; main-side handler accepts it and
+  // (for now) just records it so future stories can wire to Octave's dbstop.
+  debugSetBreakpoint: (filePath: string | null, line: number): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('debug:setBreakpoint', filePath, line),
+  debugClearBreakpoint: (filePath: string | null, line: number): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('debug:clearBreakpoint', filePath, line),
   // Test-only helper
   _testMenuAction: (action: string): Promise<void> =>
     ipcRenderer.invoke('test:menuAction', action),
