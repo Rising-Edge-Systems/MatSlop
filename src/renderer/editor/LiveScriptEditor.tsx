@@ -4,10 +4,11 @@ import type { editor as monacoEditor } from 'monaco-editor'
 import type Monaco from 'monaco-editor'
 import Markdown from 'react-markdown'
 import { registerMatlabLanguage, MATLAB_LANGUAGE_ID } from './matlabLanguage'
-import { Plus, Trash2, Code, FileText, GripVertical, Play, PlayCircle, Loader } from 'lucide-react'
+import { Plus, Trash2, Code, FileText, GripVertical, Play, PlayCircle, Loader, AlertTriangle } from 'lucide-react'
 import InteractivePlot from './InteractivePlot'
 import PlotRenderer from './PlotRenderer'
 import { parsePlotFigure, type PlotFigure } from '../../main/plotSchema'
+import { buildPlotWarning, PLOT_EXPORT_HELP_URL, type PlotWarning } from './plotWarnings'
 import {
   parseLiveScript,
   serializeLiveScript,
@@ -263,7 +264,7 @@ function LiveScriptEditor({
         `__mslp_snap_path__ = [tempdir() '__mslp_${runId}_snap_${snapId}.png'];`
       )
       scriptParts.push(
-        `try; if ~isempty(get(0,'children')); __mslp_fh__ = gcf(); print(__mslp_fh__, __mslp_snap_path__, '-dpng', '-r100'); disp(['__MSLP_FIG__:${lineToAnchor}:' __mslp_snap_path__]); try; if exist('matslop_export_fig', 'file'); __mslp_json_path__ = [tempdir() '__mslp_${runId}_snap_${snapId}.json']; __mslp_json__ = matslop_export_fig(__mslp_fh__); __mslp_jf__ = fopen(__mslp_json_path__, 'w'); if __mslp_jf__ >= 0; fwrite(__mslp_jf__, __mslp_json__); fclose(__mslp_jf__); disp(['__MSLP_FIG_JSON_FILE__:${lineToAnchor}:' __mslp_json_path__]); end; clear __mslp_jf__ __mslp_json__ __mslp_json_path__; end; catch; end; close(__mslp_fh__); clear __mslp_fh__; end; catch; end;`
+        `try; if ~isempty(get(0,'children')); __mslp_fh__ = gcf(); print(__mslp_fh__, __mslp_snap_path__, '-dpng', '-r100'); disp(['__MSLP_FIG__:${lineToAnchor}:' __mslp_snap_path__]); try; if exist('matslop_export_fig', 'file'); __mslp_json_path__ = [tempdir() '__mslp_${runId}_snap_${snapId}.json']; __mslp_json__ = matslop_export_fig(__mslp_fh__); __mslp_jf__ = fopen(__mslp_json_path__, 'w'); if __mslp_jf__ >= 0; fwrite(__mslp_jf__, __mslp_json__); fclose(__mslp_jf__); disp(['__MSLP_FIG_JSON_FILE__:${lineToAnchor}:' __mslp_json_path__]); end; clear __mslp_jf__ __mslp_json__ __mslp_json_path__; end; catch __mslp_export_err__; __mslp_err_msg__ = strrep(strrep(__mslp_export_err__.message, char(10), ' '), char(13), ' '); disp(['__MSLP_FIG_ERR__:${lineToAnchor}:' __mslp_err_msg__]); clear __mslp_export_err__ __mslp_err_msg__; end; close(__mslp_fh__); clear __mslp_fh__; end; catch; end;`
       )
     }
 
@@ -309,6 +310,7 @@ function LiveScriptEditor({
     //                                              is on the Octave path (US-009)
     const figMatches = [...stdoutText.matchAll(/__MSLP_FIG__:(\d+):(.+)/g)]
     const jsonFileMatches = [...stdoutText.matchAll(/__MSLP_FIG_JSON_FILE__:(\d+):(.+)/g)]
+    const figErrMatches = [...stdoutText.matchAll(/__MSLP_FIG_ERR__:(\d+):(.+)/g)]
     // Build a per-line queue of JSON file paths so we can pair each PNG with
     // the JSON emitted for the same anchor line (in emission order).
     const jsonPathsByLine: Map<number, string[]> = new Map()
@@ -319,11 +321,23 @@ function LiveScriptEditor({
       list.push(p)
       jsonPathsByLine.set(line, list)
     }
+    // Parallel queue of Octave-side export errors (US-013). When
+    // matslop_export_fig throws inside Octave we capture the message and
+    // attach it to the matching figure so the UI can show a warning banner.
+    const errorsByLine: Map<number, string[]> = new Map()
+    for (const m of figErrMatches) {
+      const line = parseInt(m[1], 10)
+      const msg = m[2].trim()
+      const list = errorsByLine.get(line) ?? []
+      list.push(msg)
+      errorsByLine.set(line, list)
+    }
 
-    // Clean the user-visible output: strip both marker kinds from stdout, combine with stderr
+    // Clean the user-visible output: strip all marker kinds from stdout, combine with stderr
     const cleanedStdout = stdoutText
       .replace(/__MSLP_FIG__:\d+:.+\n?/g, '')
       .replace(/__MSLP_FIG_JSON_FILE__:\d+:.+\n?/g, '')
+      .replace(/__MSLP_FIG_ERR__:\d+:.+\n?/g, '')
       .trim()
     const aggregateOutput = isError
       ? [cleanedStdout, stderrText].filter(Boolean).join('\n').trim()
@@ -350,9 +364,18 @@ function LiveScriptEditor({
             if (jsonText && jsonText.trim().length > 0) {
               fig.plotJson = jsonText
             }
-          } catch {
-            // ignore — fall back to PNG rendering
+          } catch (err) {
+            // Surface the read failure so the UI can explain why it's
+            // falling back to the PNG instead of silently degrading.
+            fig.plotWarning =
+              err instanceof Error ? err.message : String(err) || 'Failed to read exported figure JSON'
           }
+        }
+        // Pair with the next-in-line Octave export error, if any.
+        const errQueue = errorsByLine.get(line)
+        const octaveError = errQueue?.shift()
+        if (octaveError) {
+          fig.plotWarning = octaveError
         }
         const list = figuresByLine.get(line) ?? []
         list.push(fig)
@@ -697,29 +720,59 @@ function InlinePlots({ figures }: InlinePlotsProps): React.JSX.Element {
       {figures.map((fig, i) => {
         // Prefer the interactive Plotly renderer when Octave provided JSON
         // via matslop_export_fig (US-009). Fall back to the static PNG
-        // InteractivePlot if the JSON failed to parse or is missing.
+        // InteractivePlot when the JSON failed to parse, is missing, or
+        // when Octave emitted an export error (US-013). Non-fatal warnings
+        // (e.g. unknown series types) still render Plotly with an advisory.
         let parsed: PlotFigure | null = null
-        if (fig.plotJson) {
+        let parseError: string | null = null
+        if (fig.plotJson && !fig.plotWarning) {
           try {
             parsed = parsePlotFigure(fig.plotJson)
-          } catch {
+          } catch (err) {
             parsed = null
+            parseError = err instanceof Error ? err.message : String(err)
           }
         }
-        if (parsed) {
-          return (
-            <div key={i} className="ls-inline-plot-wrapper" data-testid="ls-inline-plot">
-              <PlotRenderer figure={parsed} />
-            </div>
-          )
-        }
+        const warning: PlotWarning | null = buildPlotWarning({
+          octaveError: fig.plotWarning,
+          parseError,
+          figure: parsed,
+        })
+        const canRenderPlotly = parsed !== null && (warning === null || warning.fatal === false)
         return (
-          <InteractivePlot
-            key={i}
-            src={fig.imageDataUrl}
-            alt={`Plot ${i + 1}`}
-            onSaveAs={() => handleSaveAs(fig)}
-          />
+          <div key={i} className="ls-inline-plot-wrapper" data-testid="ls-inline-plot">
+            {warning && (
+              <div
+                className={`ls-plot-warning ls-plot-warning-${warning.fatal ? 'fatal' : 'advisory'}`}
+                data-testid="ls-plot-warning"
+                role="alert"
+              >
+                <AlertTriangle size={14} className="ls-plot-warning-icon" />
+                <div className="ls-plot-warning-body">
+                  <strong>Plot export warning:</strong> {warning.message}{' '}
+                  <a
+                    href={PLOT_EXPORT_HELP_URL}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      void window.matslop.openExternal?.(PLOT_EXPORT_HELP_URL)
+                    }}
+                    data-testid="ls-plot-warning-help"
+                  >
+                    Learn more
+                  </a>
+                </div>
+              </div>
+            )}
+            {canRenderPlotly ? (
+              <PlotRenderer figure={parsed!} />
+            ) : (
+              <InteractivePlot
+                src={fig.imageDataUrl}
+                alt={`Plot ${i + 1}`}
+                onSaveAs={() => handleSaveAs(fig)}
+              />
+            )}
+          </div>
         )
       })}
     </div>

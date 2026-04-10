@@ -220,8 +220,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented plot export failure handling via Octave __MSLP_FIG_ERR__ marker + buildPlotWarning helper + warning banner in InlinePlots; falls back to PNG on fatal errors, shows advisory for unknown series types."
     },
     {
       "id": "US-014",

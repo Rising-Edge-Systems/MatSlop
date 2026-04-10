@@ -121,5 +121,9 @@ interface Window {
     recentFilesGet: () => Promise<string[]>
     recentFilesAdd: (filePath: string) => Promise<string[]>
     recentFilesClear: () => Promise<string[]>
+    // Shell helpers
+    openExternal: (url: string) => Promise<void>
+    // Test-only
+    _testMenuAction?: (action: string) => Promise<void>
   }
 }

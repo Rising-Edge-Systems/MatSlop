@@ -2013,6 +2013,57 @@ body {
   gap: 12px;
 }
 
+.ls-inline-plot-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Plot export warning banner (US-013) */
+.ls-plot-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(240, 173, 78, 0.5);
+  background: rgba(240, 173, 78, 0.12);
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
+.ls-plot-warning-fatal {
+  border-color: rgba(217, 83, 79, 0.55);
+  background: rgba(217, 83, 79, 0.12);
+}
+
+.ls-plot-warning-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #f0ad4e;
+}
+
+.ls-plot-warning-fatal .ls-plot-warning-icon {
+  color: #d9534f;
+}
+
+.ls-plot-warning-body {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.ls-plot-warning-body a {
+  color: var(--color-link, #4aa3ff);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ls-plot-warning-body a:hover {
+  text-decoration: none;
+}
+
 /* Interactive plot viewer with pan/zoom toolbar */
 .ls-interactive-plot {
   display: flex;

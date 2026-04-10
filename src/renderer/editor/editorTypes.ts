@@ -38,6 +38,13 @@ export interface LiveScriptCellFigure {
    * main-process imports; the renderer parses it via parsePlotFigure().
    */
   plotJson?: string
+  /**
+   * Human-readable error emitted by Octave when `matslop_export_fig(h)`
+   * threw while serializing this figure (US-013). When set, the renderer
+   * shows a warning banner and falls back to the static PNG snapshot.
+   * Kept as a plain string so editorTypes.ts stays renderer-agnostic.
+   */
+  plotWarning?: string
 }
 
 export interface LiveScriptStatementResult {

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
@@ -556,6 +556,14 @@ ipcMain.handle('recentFiles:clear', () => {
   const updated = clearRecentFiles()
   rebuildMenu()
   return updated
+})
+
+// Open a URL in the user's default browser (used for plot-export help links).
+ipcMain.handle('shell:openExternal', async (_event, url: string) => {
+  // Guard against opening non-http(s) URLs — this bridge is for help docs only.
+  if (typeof url !== 'string') return
+  if (!/^https?:\/\//i.test(url)) return
+  await shell.openExternal(url)
 })
 
 // Test-only: programmatically trigger a menu action. Guarded by env var.
