@@ -1,0 +1,23 @@
+# Ralph Progress Log
+Started: Fri Apr 10 04:09:20 AM EDT 2026
+---
+
+## Codebase Patterns
+- Layout uses Allotment panes; panel sizes persisted via window.matslop.layoutSet
+- Panels use data-testid attributes for Playwright selectors
+- Run `npm run build` to verify Vite/electron-vite production build
+- Pre-existing typecheck errors in src/main/octaveProcess.ts (env.PATH) are baseline noise
+- Integration/unit tests that need bundled Octave fail in dev envs without resources/octave
+
+## 2026-04-10 - US-001 Restructure main layout
+- Refactored src/renderer/App.tsx from vertical(top-horizontal+bottom) into 3 outer horizontal columns: FileBrowser | CenterColumn | RightColumn(Workspace+Figure)
+- CenterColumn uses a vertical Allotment so Editor sits above CommandWindow+CommandHistory
+- Command Window is now horizontally contained within the editor column only
+- Added data-testid='editor-column' on the wrapper div and data-testid='editor-panel' on EditorPanel
+- Created tests/e2e/layout.spec.ts with 4 bounding-box assertions
+- Files changed: src/renderer/App.tsx, src/renderer/panels/EditorPanel.tsx, tests/e2e/layout.spec.ts, scripts/ralph/prd.json
+- **Learnings:**
+  - Allotment handler signatures: sizes array corresponds to pane order; use sizes[0] for first, sizes[sizes.length-1] for last to survive middle pane hiding
+  - `layoutGet` schema has fileBrowserWidth/workspaceWidth/bottomHeight/commandHistoryWidth — repurposed workspaceWidth for right column in new layout
+  - electron-vite builds main+preload+renderer; bundle size ~785KB for renderer
+---

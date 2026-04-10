@@ -1,0 +1,708 @@
+{
+  "project": "MatSlop",
+  "branchName": "ralph/matslop-roadmap",
+  "description": "MatSlop MATLAB Feature-Parity Roadmap — 7 phases from layout fixes through cross-platform packaging, bringing MatSlop to production-ready MATLAB alternative.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Restructure main layout so Command Window is below the Editor only",
+      "description": "As a user, I want the Command Window to sit directly beneath the editor so it doesn't compete with the Workspace or File Browser for horizontal space.",
+      "acceptanceCriteria": [
+        "Default layout: File Browser (left), Editor (center-top) with Command Window (center-bottom), Workspace (right)",
+        "Command Window does NOT extend under the File Browser or Workspace columns",
+        "Resizing the editor vertically shrinks/grows the Command Window",
+        "Layout persistence still works after this restructure",
+        "Existing layout regression tests pass",
+        "Playwright E2E test verifies Command Window bounding box is horizontally contained within the editor column",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Restructured App.tsx layout into 3 outer columns (FileBrowser | CenterColumn | RightColumn). Center column has Editor on top and Command Window beneath. Added data-testid='editor-column' and data-testid='editor-panel'. Added tests/e2e/layout.spec.ts with bounding box assertions."
+    },
+    {
+      "id": "US-002",
+      "title": "Fix live-script cell drag-and-drop reordering",
+      "description": "As a user, I want to drag cells by their grip handle to reorder them in a live script.",
+      "acceptanceCriteria": [
+        "Grabbing the grip handle and dragging a cell moves it above/below other cells",
+        "Drop zones highlight during drag",
+        "Cell order change persists to the .mls file on save",
+        "Playwright test: drag cell 2 above cell 1 and assert DOM order changed",
+        "Outputs follow their cells (no orphaned results after reorder)",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Apply MATLAB-default layout preset on first launch",
+      "description": "As a new user, I want the initial layout to match MATLAB's defaults so I feel at home.",
+      "acceptanceCriteria": [
+        "First-run layout: File Browser left, Editor + Command Window center, Workspace right",
+        "'Reset Layout' menu item restores this default",
+        "Playwright snapshot verifies main-window bounding boxes",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Refactor live script to CSS grid with global code and output tracks",
+      "description": "As a user, I want outputs to flow continuously in a single right-side column across all cells, like MATLAB's Live Editor.",
+      "acceptanceCriteria": [
+        "Live script renders as a 2-column CSS grid: code on left, outputs on right",
+        "All cells stack vertically in both columns",
+        "Each cell's output pairs align with its code row using grid-row",
+        "Outputs no longer nested inside the cell container",
+        "Hovering a cell highlights both its code and its output region",
+        "Existing fixtures (multiplot.mls, quiver3.mls) still render correctly",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Preserve cell gutter (run button, grip, delete) in grid layout",
+      "description": "As a user, I want the per-cell controls (run, drag, delete) still attached to each code section in the new grid layout.",
+      "acceptanceCriteria": [
+        "Run button appears in the code column at the cell header",
+        "Drag handle remains functional across the grid layout",
+        "Delete button accessible per cell",
+        "'Add cell' buttons appear between rows, spanning both columns",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Continuous output column scrolls with code column",
+      "description": "As a user, when I scroll the live script, both the code and output columns scroll together.",
+      "acceptanceCriteria": [
+        "Vertical scroll is at the grid-container level, not per-cell",
+        "Outputs wider than their code row do not push neighbors out of alignment",
+        "Very tall outputs cause the row to expand, not overflow",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Extract plot data from Octave as JSON",
+      "description": "As a developer, I need to convert Octave figure state into a serialized JSON representation so a JavaScript library can re-render it interactively.",
+      "acceptanceCriteria": [
+        "Implement bundled Octave function matslop_export_fig(h) that walks figure handle and emits JSON describing axes, lines, surfaces, meshes, labels, colors, view angles, limits",
+        "Supports: plot, plot3, scatter, scatter3, surf, mesh, quiver, quiver3, bar, bar3, contour, contour3, imagesc",
+        "JSON schema documented in src/main/plotSchema.ts",
+        "Unit tests feed sample figures and verify JSON structure",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Integrate Plotly.js as JS 3D plotting library",
+      "description": "As a developer, I need a JS library that can render the extracted plot data as an interactive 3D canvas.",
+      "acceptanceCriteria": [
+        "Short ADR comparing Plotly.js and Three.js written to docs/adr/",
+        "Recommendation: Plotly.js (covers 2D + 3D, rotate/zoom/pan built-in)",
+        "Plotly.js dependency added, bundle size impact documented",
+        "PlotRenderer React component accepts JSON schema and renders a Plotly figure",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Replace static PNG plots with interactive renderer in live scripts",
+      "description": "As a user, I want to rotate, zoom, and pan plots with my mouse directly in the live script output.",
+      "acceptanceCriteria": [
+        "Live script cells use PlotRenderer instead of PNG InteractivePlot",
+        "3D plots are rotatable by mouse drag",
+        "2D and 3D plots are zoomable with scroll wheel",
+        "Panning with Shift+drag (or middle-click drag)",
+        "Home button resets view",
+        "Playwright test: open quiver3.mls, verify a Plotly canvas renders with interactive controls",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Data cursor / tooltip on plot points",
+      "description": "As a user, I want to click a point on a plot and see its (x, y, z) value, like MATLAB's data cursor mode.",
+      "acceptanceCriteria": [
+        "Hovering a data point shows a tooltip with coordinates",
+        "Clicking pins the tooltip until clicked away",
+        "Works for 2D and 3D plots",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Export current plot view as PNG/SVG",
+      "description": "As a user, I want to save the interactive plot as it currently looks (including my rotation) to a file.",
+      "acceptanceCriteria": [
+        "Save button exports current Plotly canvas as PNG and SVG",
+        "Default filename derived from figure title",
+        "Dialog lets user pick format",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Detached plot window",
+      "description": "As a user, I want to pop a plot out into its own OS window for larger-screen interaction.",
+      "acceptanceCriteria": [
+        "Button on plot toolbar opens plot in a new BrowserWindow",
+        "Detached window is fully interactive (same controls)",
+        "Closing the detached window returns focus to main window",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Handle plot export failures gracefully",
+      "description": "As a user, if Octave can't serialize a figure (unsupported type), I want to see a clear message instead of a broken UI.",
+      "acceptanceCriteria": [
+        "If matslop_export_fig fails, fall back to PNG rendering with a warning banner",
+        "Warning explains which plot type is unsupported and links to a help doc",
+        "No crash, no empty canvas",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Add breakpoint gutter to Monaco editor",
+      "description": "As a user, I want to click in the margin beside a line number to set a breakpoint.",
+      "acceptanceCriteria": [
+        "Monaco glyph margin enabled on .m files",
+        "Click in margin toggles a red breakpoint dot",
+        "Breakpoint state persists in a tab-level store",
+        "IPC debug:setBreakpoint(filePath, line) called on toggle",
+        "Visual feedback: breakpoint dot appears/disappears immediately",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Translate breakpoint actions to Octave dbstop commands",
+      "description": "As a developer, I need the main process to translate UI breakpoint state into Octave dbstop commands.",
+      "acceptanceCriteria": [
+        "debug:setBreakpoint(file, line) sends dbstop in \"file.m\" at LINE",
+        "debug:clearBreakpoint(file, line) sends dbclear in \"file.m\" at LINE",
+        "Breakpoints survive file save and Octave restart (reapplied on reconnect)",
+        "Unit test with mocked process manager verifies correct command strings",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Detect and surface execution-paused events",
+      "description": "As a user, when my script hits a breakpoint, I want the UI to show I'm in debug mode and highlight the paused line.",
+      "acceptanceCriteria": [
+        "OctaveProcessManager parses stderr/stdout for Octave's 'stopped in ... at line N' markers",
+        "Emits a 'paused' event with file path + line number",
+        "Editor scrolls to the paused line and highlights it with a green arrow",
+        "Status bar changes to indicate 'Debug: paused'",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Debug toolbar (continue, step over, step in, step out, stop)",
+      "description": "As a user, when execution is paused, I want buttons to continue, step, step into, step out, or stop the debugger.",
+      "acceptanceCriteria": [
+        "Toolbar appears when paused, hidden otherwise",
+        "Buttons map to Octave commands: dbcont, dbstep, dbstep in, dbstep out, dbquit",
+        "Each button sends the corresponding command",
+        "Keyboard shortcuts: F5 continue, F10 step over, F11 step in, Shift+F11 step out, Shift+F5 stop",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Call stack panel",
+      "description": "As a user, I want to see the call stack when paused so I can understand how my code got to the current line.",
+      "acceptanceCriteria": [
+        "New dockable panel 'Call Stack' that shows frames from dbstack",
+        "Each frame shows: function name, file, line",
+        "Clicking a frame navigates the editor to that file/line",
+        "Panel auto-updates on each step/continue/pause",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Variables at current scope shown in Workspace panel",
+      "description": "As a user, when paused, I want the Workspace panel to show variables of the current stack frame.",
+      "acceptanceCriteria": [
+        "While paused, Workspace panel queries whos in current frame context",
+        "Variable values reflect the paused-scope values",
+        "Resumes showing top scope once debugging ends",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Pause running execution (Ctrl+C equivalent for debugger)",
+      "description": "As a user, I want to interrupt a running script and drop into the debugger at the current line.",
+      "acceptanceCriteria": [
+        "'Pause' button in toolbar while script is running",
+        "Sends SIGINT + dbstop at the line Octave was executing",
+        "UI transitions to debug mode showing the current line",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Conditional breakpoints",
+      "description": "As a user, I want breakpoints that only trigger when a condition is true.",
+      "acceptanceCriteria": [
+        "Right-click on breakpoint opens 'Edit condition'",
+        "Dialog accepts an expression, e.g. i > 10",
+        "Translates to dbstop in \"file.m\" at LINE if \"i > 10\"",
+        "Conditional breakpoints render with a different color/shape",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Watch expressions panel",
+      "description": "As a user, I want a panel where I can pin arbitrary expressions and see their values update as I step.",
+      "acceptanceCriteria": [
+        "New dockable panel 'Watches'",
+        "User can add expressions; each row shows expression = value",
+        "Values update on every pause/step via disp(expression) queries",
+        "Remove/edit watches via row controls",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Edit-and-continue (best effort)",
+      "description": "As a user, I want to edit my code while paused and continue execution with the change.",
+      "acceptanceCriteria": [
+        "On file save while paused: re-apply breakpoints, continue from current line if possible",
+        "Document limitations clearly: approximation by re-running from current function entry",
+        "Warning banner: 'Changes will take effect when this function is re-entered'",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Evaluate and integrate rc-dock",
+      "description": "As a developer, I need to choose a React dock layout library and set it up in the codebase.",
+      "acceptanceCriteria": [
+        "Short ADR comparing rc-dock, flexlayout-react, dockview written to docs/adr/",
+        "Recommendation: rc-dock (MIT, active maintenance, MATLAB-like feel)",
+        "rc-dock dependency added",
+        "Create a minimal DockLayout wrapping existing panels as dock panes",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "Migrate all panels to dock panes",
+      "description": "As a user, I want every panel to be a dock pane I can rearrange.",
+      "acceptanceCriteria": [
+        "Each panel (Editor, Command Window, File Browser, Workspace, Figure, Call Stack, Watches, History) is a dock pane with a tab header",
+        "Default layout matches Phase 1 design",
+        "Allotment dependency removed",
+        "All existing E2E tests still pass (test IDs preserved)",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "Drag tabs between docks",
+      "description": "As a user, I want to drag a panel's tab to another dock location.",
+      "acceptanceCriteria": [
+        "Dragging a tab shows drop indicators",
+        "Dropping merges the panel into the target dock",
+        "Layout persists via existing layout IPC",
+        "Playwright test: drag Workspace tab next to Command Window, assert new position",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Detach panel to separate OS window",
+      "description": "As a user, I want to pop a panel out into its own Electron window.",
+      "acceptanceCriteria": [
+        "'Detach' option in tab context menu",
+        "New BrowserWindow opens containing just that panel",
+        "Panel remains functional (shares Octave state via IPC)",
+        "Closing the detached window redocks to the previous location",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Layout presets",
+      "description": "As a user, I want to save the current layout as a preset and switch between presets.",
+      "acceptanceCriteria": [
+        "View → Layouts menu with: Default, Debugger, Two-Column, Code-Only",
+        "'Save Current as Preset...' prompts for a name",
+        "Custom presets persist and appear in the menu",
+        "'Reset Layout' returns to Default preset",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-029",
+      "title": "Code sections (%%) in .m files with run-section button",
+      "description": "As a user, I want to split a regular .m script into sections with %% and run just the current section.",
+      "acceptanceCriteria": [
+        "Monaco highlights %% section breaks with a divider",
+        "'Run Section' button and Ctrl+Enter shortcut runs only the section at cursor",
+        "'Run and Advance' moves cursor to next section",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-030",
+      "title": "Publish to HTML",
+      "description": "As a user, I want to export a .m or .mls file with its outputs rendered to a shareable HTML document.",
+      "acceptanceCriteria": [
+        "File → Publish → HTML... generates a static HTML file with code, text output, and embedded images",
+        "Live scripts preserve cell layout",
+        "Syntax highlighting in output",
+        "No JS required in output (for portability)",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-031",
+      "title": "Help browser (doc command)",
+      "description": "As a user, I want to type doc sin in the command window and see rendered documentation.",
+      "acceptanceCriteria": [
+        "doc <name> opens a Help panel (new dock pane)",
+        "Panel shows Octave's help text for the function, rendered with basic formatting",
+        "Clickable cross-references (See also: cos, tan) navigate the help panel",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-032",
+      "title": "Find in Files",
+      "description": "As a user, I want to search for a string across all files in the current directory.",
+      "acceptanceCriteria": [
+        "Ctrl+Shift+F opens Find-in-Files panel",
+        "Input for search string, optional glob pattern for file filter",
+        "Results list shows file + line + context",
+        "Clicking a result opens the file at that line",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 32,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-033",
+      "title": "Profiler integration",
+      "description": "As a user, I want to profile my script's execution to find bottlenecks.",
+      "acceptanceCriteria": [
+        "Profiler panel with Start/Stop/Report buttons",
+        "'Start' sends profile on; 'Stop' sends profile off",
+        "'Report' parses profile('info') output and shows function × time table",
+        "Clicking a function navigates to its definition",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 33,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-034",
+      "title": "Session save/restore",
+      "description": "As a user, I want the app to reopen my last session on launch.",
+      "acceptanceCriteria": [
+        "On quit, serialize open tabs + active tab + cursor + layout to session.json",
+        "On launch, restore if session file exists",
+        "Preference to disable session restore",
+        "Unsaved changes are saved to a recovery file, not lost",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 34,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-035",
+      "title": "Keyboard shortcut editor",
+      "description": "As a user, I want to customize keyboard shortcuts via a settings UI.",
+      "acceptanceCriteria": [
+        "Preferences → Keyboard tab shows all commands with current bindings",
+        "Click a binding → 'Press a key combination...' capture",
+        "Conflicts flagged",
+        "Customizations persist",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 35,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-036",
+      "title": "Variable editor polish",
+      "description": "As a user, I want to edit arrays and matrices in a spreadsheet-like grid.",
+      "acceptanceCriteria": [
+        "Double-click a variable in Workspace opens an inline grid editor",
+        "Edits update Octave via assign",
+        "Supports 2D matrices; 3D+ shows slice selector",
+        "Undo stack per variable",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 36,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-037",
+      "title": "Git integration (status + diff + commit)",
+      "description": "As a user, I want to see git status in the file browser and commit from within the IDE.",
+      "acceptanceCriteria": [
+        "File browser shows git status badges (M/A/?) on files",
+        "New Source Control panel with staged/unstaged lists",
+        "Click a file → diff viewer",
+        "Commit button with message field",
+        "Uses system git binary via child_process",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 37,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-038",
+      "title": "Extend download-octave.js for macOS",
+      "description": "As a developer, I need the pre-build script to download Octave for macOS so we can bundle it.",
+      "acceptanceCriteria": [
+        "Script downloads Octave.app for macOS",
+        "Extracts to resources/octave/ with mac-specific layout",
+        "getBundledOctavePath in octaveConfig.ts handles mac paths",
+        "build:mac script includes the Octave bundle",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 38,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-039",
+      "title": "Extend download-octave.js for Linux",
+      "description": "As a developer, I need the pre-build script to download or build Octave for Linux for bundling.",
+      "acceptanceCriteria": [
+        "Script downloads a Linux Octave distribution (AppImage or tarball)",
+        "Extracts to resources/octave/ with linux layout",
+        "getBundledOctavePath handles linux paths",
+        "build:linux script includes the Octave bundle",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 39,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-040",
+      "title": "Windows code signing",
+      "description": "As a user, I want the Windows installer to be signed so Windows SmartScreen doesn't warn me.",
+      "acceptanceCriteria": [
+        "Electron-builder configured to sign with a provided cert (env-var credentials)",
+        "Build docs explain how to supply signing cert",
+        "CI signs automatically if cert env vars are set",
+        "Unsigned fallback still works for local dev",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 40,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-041",
+      "title": "Auto-update channel",
+      "description": "As a user, I want the app to offer updates when a new version is available.",
+      "acceptanceCriteria": [
+        "electron-updater integrated",
+        "Update check on launch, configurable interval",
+        "Notification banner offers 'Install now' / 'Later'",
+        "Update server points to GitHub Releases",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 41,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-042",
+      "title": "macOS notarization",
+      "description": "As a macOS user, I want the app to be notarized so it opens without Gatekeeper warnings.",
+      "acceptanceCriteria": [
+        "Notarization step added to build:mac via electron-builder",
+        "Docs explain Apple Developer ID setup",
+        "Skipped gracefully if credentials missing",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 42,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

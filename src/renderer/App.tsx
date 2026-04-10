@@ -230,19 +230,12 @@ function App(): React.JSX.Element {
 
   // Allotment size change handlers
   const handleOuterHorizontalChange = useCallback((sizes: number[]) => {
-    if (sizes.length >= 2 && sizes[0] > 0) {
+    // Panes: [FileBrowser, CenterColumn, RightColumn]
+    if (sizes.length >= 3) {
       setPanelSizes((prev) => {
-        const next = { ...prev, fileBrowserWidth: Math.round(sizes[0]) }
-        setVisibility((vis) => { saveLayout(vis, next); return vis })
-        return next
-      })
-    }
-  }, [saveLayout])
-
-  const handleTopHorizontalChange = useCallback((sizes: number[]) => {
-    if (sizes.length >= 2 && sizes[sizes.length - 1] > 0) {
-      setPanelSizes((prev) => {
-        const next = { ...prev, workspaceWidth: Math.round(sizes[sizes.length - 1]) }
+        const next = { ...prev }
+        if (sizes[0] > 0) next.fileBrowserWidth = Math.round(sizes[0])
+        if (sizes[sizes.length - 1] > 0) next.workspaceWidth = Math.round(sizes[sizes.length - 1])
         setVisibility((vis) => { saveLayout(vis, next); return vis })
         return next
       })
@@ -522,7 +515,9 @@ function App(): React.JSX.Element {
         />
       )}
       <div className="app-main">
-      {/* Outer horizontal split: File Browser | Main Area */}
+      {/* Outer horizontal split: File Browser | Center Column | Right Column
+          This ensures the Command Window sits directly beneath the Editor
+          and does NOT extend under the File Browser or Workspace. */}
       {layoutLoaded && <Allotment onChange={handleOuterHorizontalChange}>
         <Allotment.Pane
           minSize={150}
@@ -533,77 +528,74 @@ function App(): React.JSX.Element {
           <FileBrowser onCollapse={() => togglePanel('fileBrowser')} onOpenFile={handleFileBrowserOpen} onCwdChange={handleCwdChange} externalCwd={cwd} />
         </Allotment.Pane>
 
-        {/* Main area: vertical split of top and bottom */}
-        <Allotment.Pane minSize={200}>
-          <Allotment vertical onChange={handleVerticalChange}>
-            {/* Top area: horizontal split of Editor | Workspace */}
-            <Allotment.Pane minSize={200}>
-              <Allotment onChange={handleTopHorizontalChange}>
-                <Allotment.Pane minSize={300}>
-                  <EditorPanel
-                    panelVisibility={visibility}
-                    onTogglePanel={togglePanel}
-                    openFilePath={pendingOpenPath}
-                    onFileOpened={handleFileOpened}
-                    onCursorPositionChange={handleCursorPositionChange}
-                    onErrorCountChange={handleErrorCountChange}
-                    engineStatus={octaveStatus.engineStatus}
-                    onRun={handleRunScript}
-                    onStop={handleStop}
-                    onRunSection={handleRunSection}
-                    menuAction={menuAction}
-                    onMenuActionConsumed={handleMenuActionConsumed}
-                    editorTheme={resolvedTheme === 'light' ? 'vs-light' : 'vs-dark'}
-                    editorSettings={editorSettings}
-                  />
-                </Allotment.Pane>
-                <Allotment.Pane
-                  minSize={150}
-                  preferredSize={panelSizes.workspaceWidth}
-                  snap
-                  visible={visibility.workspace || figures.length > 0}
-                >
-                  <Allotment vertical>
-                    <Allotment.Pane minSize={100} visible={visibility.workspace}>
-                      <WorkspacePanel onCollapse={() => togglePanel('workspace')} engineStatus={octaveStatus.engineStatus} refreshTrigger={workspaceRefreshTrigger} onInspectVariable={handleInspectVariable} onVariablesChanged={handleVariablesChanged} />
-                    </Allotment.Pane>
-                    <Allotment.Pane minSize={100} visible={figures.length > 0}>
-                      <FigurePanel figures={figures} onSaveFigure={handleSaveFigure} />
-                    </Allotment.Pane>
-                  </Allotment>
-                </Allotment.Pane>
-              </Allotment>
-            </Allotment.Pane>
+        {/* Center column: Editor on top, Command Window beneath Editor only */}
+        <Allotment.Pane minSize={300}>
+          <div className="editor-column" data-testid="editor-column" style={{ width: '100%', height: '100%' }}>
+            <Allotment vertical onChange={handleVerticalChange}>
+              <Allotment.Pane minSize={200}>
+                <EditorPanel
+                  panelVisibility={visibility}
+                  onTogglePanel={togglePanel}
+                  openFilePath={pendingOpenPath}
+                  onFileOpened={handleFileOpened}
+                  onCursorPositionChange={handleCursorPositionChange}
+                  onErrorCountChange={handleErrorCountChange}
+                  engineStatus={octaveStatus.engineStatus}
+                  onRun={handleRunScript}
+                  onStop={handleStop}
+                  onRunSection={handleRunSection}
+                  menuAction={menuAction}
+                  onMenuActionConsumed={handleMenuActionConsumed}
+                  editorTheme={resolvedTheme === 'light' ? 'vs-light' : 'vs-dark'}
+                  editorSettings={editorSettings}
+                />
+              </Allotment.Pane>
+              <Allotment.Pane
+                minSize={100}
+                preferredSize={panelSizes.bottomHeight}
+                snap
+                visible={visibility.commandWindow || visibility.commandHistory}
+              >
+                <Allotment onChange={handleBottomHorizontalChange}>
+                  <Allotment.Pane minSize={200} visible={visibility.commandWindow}>
+                    <CommandWindow
+                      onCollapse={() => togglePanel('commandWindow')}
+                      engineStatus={octaveStatus.engineStatus}
+                      pendingCommand={pendingCommand}
+                      onCommandExecuted={handleCommandExecuted}
+                      onHistoryChanged={handleHistoryChanged}
+                      pasteCommand={pasteCommand}
+                      onPasteConsumed={handlePasteConsumed}
+                      menuAction={menuAction}
+                      onMenuActionConsumed={handleMenuActionConsumed}
+                    />
+                  </Allotment.Pane>
+                  <Allotment.Pane minSize={150} preferredSize={panelSizes.commandHistoryWidth} snap visible={visibility.commandHistory}>
+                    <CommandHistoryPanel
+                      onCollapse={() => togglePanel('commandHistory')}
+                      onExecuteCommand={handleHistoryExecute}
+                      historyVersion={historyVersion}
+                    />
+                  </Allotment.Pane>
+                </Allotment>
+              </Allotment.Pane>
+            </Allotment>
+          </div>
+        </Allotment.Pane>
 
-            {/* Bottom: Command Window + Command History */}
-            <Allotment.Pane
-              minSize={100}
-              preferredSize={panelSizes.bottomHeight}
-              snap
-              visible={visibility.commandWindow || visibility.commandHistory}
-            >
-              <Allotment onChange={handleBottomHorizontalChange}>
-                <Allotment.Pane minSize={200} visible={visibility.commandWindow}>
-                  <CommandWindow
-                    onCollapse={() => togglePanel('commandWindow')}
-                    engineStatus={octaveStatus.engineStatus}
-                    pendingCommand={pendingCommand}
-                    onCommandExecuted={handleCommandExecuted}
-                    onHistoryChanged={handleHistoryChanged}
-                    pasteCommand={pasteCommand}
-                    onPasteConsumed={handlePasteConsumed}
-                    menuAction={menuAction}
-                    onMenuActionConsumed={handleMenuActionConsumed}
-                  />
-                </Allotment.Pane>
-                <Allotment.Pane minSize={150} preferredSize={panelSizes.commandHistoryWidth} snap visible={visibility.commandHistory}>
-                  <CommandHistoryPanel
-                    onCollapse={() => togglePanel('commandHistory')}
-                    onExecuteCommand={handleHistoryExecute}
-                    historyVersion={historyVersion}
-                  />
-                </Allotment.Pane>
-              </Allotment>
+        {/* Right column: Workspace + Figure */}
+        <Allotment.Pane
+          minSize={150}
+          preferredSize={panelSizes.workspaceWidth}
+          snap
+          visible={visibility.workspace || figures.length > 0}
+        >
+          <Allotment vertical>
+            <Allotment.Pane minSize={100} visible={visibility.workspace}>
+              <WorkspacePanel onCollapse={() => togglePanel('workspace')} engineStatus={octaveStatus.engineStatus} refreshTrigger={workspaceRefreshTrigger} onInspectVariable={handleInspectVariable} onVariablesChanged={handleVariablesChanged} />
+            </Allotment.Pane>
+            <Allotment.Pane minSize={100} visible={figures.length > 0}>
+              <FigurePanel figures={figures} onSaveFigure={handleSaveFigure} />
             </Allotment.Pane>
           </Allotment>
         </Allotment.Pane>

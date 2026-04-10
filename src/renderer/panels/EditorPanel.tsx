@@ -541,6 +541,7 @@ function EditorPanel({
   return (
     <div
       className="panel editor-panel"
+      data-testid="editor-panel"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
