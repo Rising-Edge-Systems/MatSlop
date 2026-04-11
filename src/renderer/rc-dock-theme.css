@@ -246,7 +246,15 @@
   background: transparent;
 }
 
-.dock-tab {
+/* US-Q04 hotfix: upstream rc-dock.css ships `.dock-panel.dock-style-main
+ * .dock-tab { background: #fff }` (and similar for card/headless), which
+ * beats bare `.dock-tab` on specificity and turned every tab into an
+ * invisible white-on-white rectangle. Mirror the panel-scoped selectors
+ * here so our theme wins the cascade. */
+.dock-tab,
+.dock-panel.dock-style-main .dock-tab,
+.dock-panel.dock-style-card .dock-tab,
+.dock-panel.dock-style-headless .dock-tab {
   background: var(--bg-header);
   color: var(--text-secondary);
   border: none;
@@ -259,25 +267,34 @@
   transition: background 0.1s ease, color 0.1s ease;
 }
 
-.dock-tab:hover {
+.dock-tab:hover,
+.dock-panel.dock-style-main .dock-tab:hover,
+.dock-panel.dock-style-card .dock-tab:hover,
+.dock-panel.dock-style-headless .dock-tab:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
 }
 
 /* Active tab: bright text + accent underline. Because of CSS specificity
  * and rule order, the .dock-tab-active rule MUST come after .dock-tab:hover
- * so that an active tab being hovered keeps the active styling. */
+ * so that an active tab being hovered keeps the active styling. The
+ * panel-scoped selectors are needed to beat upstream
+ * `.dock-panel.dock-style-main .dock-tab` (same fix as above). */
 .dock-tab.dock-tab-active,
-.dock-tab-active {
+.dock-tab-active,
+.dock-panel.dock-style-main .dock-tab.dock-tab-active,
+.dock-panel.dock-style-card .dock-tab.dock-tab-active,
+.dock-panel.dock-style-headless .dock-tab.dock-tab-active {
   background: var(--bg-panel);
   color: var(--text-bright);
-  /* Belt-and-braces underline in case the dock-ink-bar is hidden by
-   * an ancestor overflow. The ink-bar still wins when visible. */
   box-shadow: inset 0 -2px 0 0 var(--accent-color);
 }
 
 .dock-tab.dock-tab-active:hover,
-.dock-tab-active:hover {
+.dock-tab-active:hover,
+.dock-panel.dock-style-main .dock-tab.dock-tab-active:hover,
+.dock-panel.dock-style-card .dock-tab.dock-tab-active:hover,
+.dock-panel.dock-style-headless .dock-tab.dock-tab-active:hover {
   background: var(--bg-panel);
   color: var(--text-bright);
 }
