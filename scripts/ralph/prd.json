@@ -48,8 +48,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already satisfied by US-Q03 CSS fix (.cw-output flex-column + .cw-input-line margin-top:auto). E2E test tests/e2e/visual-polish.spec.ts:164 passes, verifying the prompt bottom sits within 16px of the cw-output bottom. No xterm/FitAddon is used — CommandWindow is a simple input+div implementation, so the FitAddon clause is N/A."
     },
     {
       "id": "US-R04",

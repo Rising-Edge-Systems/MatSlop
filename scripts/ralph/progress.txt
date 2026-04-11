@@ -268,3 +268,15 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
   - When bumping dock pane minWidth floors, update BOTH the BoxData (right column) AND the PanelData (leaf pane) — rc-dock honours the stricter of the two during drag-resize.
   - Don't introduce `white-space: nowrap + text-overflow: ellipsis` on `.placeholder-text` — it hides the message entirely when it clips. Keep the wrap + min-width approach.
 ---
+
+## 2026-04-11 - US-R03
+- Verified US-R03 (Command Window output area fills pane vertically) was already satisfied by earlier US-Q03 work.
+- CSS already contains `.cw-output { flex: 1 1 auto; display: flex; flex-direction: column; ... }` plus `.cw-output > .cw-input-line { margin-top: auto }` in src/renderer/styles.css (lines 994-1018).
+- E2E test `tests/e2e/visual-polish.spec.ts:164` ("US-Q03: panel content fills its parent and the command prompt anchors at bottom") passes — it asserts `cwBox.outBottom - cwBox.lineBottom ≤ 16`, which is exactly US-R03's acceptance criterion.
+- No code changes required. Marked US-R03 passes:true in prd.json with explanatory note.
+- Files changed: scripts/ralph/prd.json (passes flag), scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - CommandWindow is NOT an xterm/FitAddon component; it's a plain `<input>` + `<div>` scrollback region. PRD acceptance criteria mentioning FitAddon should be treated as N/A for this file.
+  - When a new polish story duplicates an earlier fixed story's acceptance criteria, confirm with the matching e2e assertion rather than re-implementing. Look for tests tagged with the earlier story ID (e.g. `US-Q03:`) in visual-polish.spec.ts before touching CSS.
+  - `tests/e2e/command-window.spec.ts` requires a working Octave engine and fails locally without it — unrelated baseline, don't conflate with polish work.
+---
