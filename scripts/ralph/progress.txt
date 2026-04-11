@@ -7,7 +7,8 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
 - Pre-existing test failures exist for Octave-bundle integration tests when binary is not present. Not related to polish work.
 - tsconfig has strict but no noUnusedParameters; unused destructured props are OK.
 - DOCK_TAB_TITLES in MatslopDockLayout.tsx provides per-pane title rendered by rc-dock's tab strip.
-- BUILD BROKEN BASELINE: rc-dock, electron-updater, plotly.js-dist-min are listed in package.json dependencies but MISSING from node_modules. `npm run build` fails. dist/renderer on disk predates the polish branch. E2E tests therefore exercise the pre-polish renderer, NOT current source. Do not claim "e2e tests pass" without first reinstalling those packages and rebuilding.
+- BUILD BROKEN BASELINE (UPDATED 2026-04-11 US-Q06): rc-dock IS NOW present in node_modules; tests/unit/dock-layout.test.ts runs cleanly (28 tests passing). electron-updater / plotly.js-dist-min may still be missing — verify before claiming `npm run build` works. dist/renderer on disk may predate the polish branch; e2e tests still need a fresh build to exercise current source. Remaining baseline typecheck error: src/main/octaveProcess.ts(51) PATH typing.
+- rc-dock supports `minWidth`/`minHeight` on every BoxData AND PanelData (DockData.d.ts:81 — DockDataBase). Set both on a column-box and its leaf pane to prevent drag-resize from collapsing a pane below a usable width.
 - To resize the Electron window inside a Playwright test: `await app.evaluate(async ({BrowserWindow}) => { const w = BrowserWindow.getAllWindows().find(x => x.getTitle() === 'MatSlop'); w.unmaximize(); w.setBounds({x:50,y:50,width:1600,height:1000}) })`. `Page.setViewportSize` is a no-op for Electron windows.
 - rc-dock `.dock-content` is transparent — every panel's `*-content` child must explicitly set `background: var(--bg-panel)` or scrollbar gutters / sub-pixel gaps leak gray. Theme `::-webkit-scrollbar*` globally with `--scrollbar-thumb` (already defined per theme).
 - To anchor a child to the bottom of a flex-column scroll container: parent `display: flex; flex-direction: column`, child `margin-top: auto`. Works WITH `overflow-y: auto` because auto-margin collapses to 0 once content overflows.
@@ -205,4 +206,16 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
   - rc-dock's upstream stylesheet has per-panel-style overrides (`.dock-panel.dock-style-main .dock-bar`, `.dock-panel.dock-style-card .dock-bar`) that are MORE specific than a bare `.dock-bar` selector. When theming dock chrome, always match that specificity (or prefix with `.dock-panel.dock-style-*`) — otherwise main/card panels silently fall through to upstream backgrounds.
   - The "filler" right of the last tab is composed of `.dock-nav-wrap` (the scroll viewport for tabs) plus `.dock-nav-operations` (overflow + extra-content area). Both must be themed for the strip to look continuous.
   - rc-dock paints inset shadows on overflow scroll indicators (`.dock-nav-more::after`, `.rc-tabs-nav-wrap-ping-*::before/::after`). They render as dark vertical seams against a dark theme — null them out with `box-shadow: none !important`.
+---
+
+## 2026-04-11 - US-Q06
+- Added `minWidth: 180` to the right column (vertical box) AND to the workspace `PanelData` in `buildDockLayoutFromVisibility` so the workspace pane cannot collapse to a width that hard-clips the "No variables in workspace" placeholder.
+- Updated `.placeholder-text` in styles.css with `padding: 8px 12px; margin: 0; white-space: normal; overflow-wrap: anywhere; word-break: break-word` so long placeholder strings wrap inside narrow panes instead of hard-clipping.
+- `.ws-content` already had `overflow: auto` from US-P08; verified.
+- Added unit test asserting both right-column box and workspace pane declare `minWidth ≥ 180`. All 28 dock-layout tests pass.
+- Files changed: src/renderer/panels/MatslopDockLayout.tsx, src/renderer/styles.css, tests/unit/dock-layout.test.ts.
+- **Learnings for future iterations:**
+  - rc-dock IS now in node_modules (the previous "rc-dock not installed" baseline note in Codebase Patterns is stale — dock-layout unit tests now run cleanly, 28 passing). The only remaining baseline typecheck errors are `octaveProcess.ts(51)` PATH-typing issues, unrelated to renderer/polish.
+  - rc-dock supports `minWidth`/`minHeight` on every box and panel via `DockDataBase` (see node_modules/rc-dock/lib/DockData.d.ts:81-84). Both `BoxData` and `PanelData` extend it through `BoxChild`, so you can set `minWidth` on either the column box or the leaf pane — set on both to defend against drag-resize squeezing the parent box around the pane.
+  - rc-dock's `Divider.minSize` is computed from the children's `minWidth`/`minHeight`, so once a child declares minWidth the user physically cannot drag the divider past it.
 ---
