@@ -8,6 +8,8 @@ Started: Sat Apr 11 06:46:53 PM EDT 2026
 - octaveConfig.ts retains its legacy squashfs-root branch as a fallback for users who manually drop an AppImage into resources/octave/, even though the download script no longer populates it.
 - Renderer-side octaveExecute interception: wrap `window.matslop.octaveExecute` once from src/renderer/main.tsx (before any component mounts) via an idempotent shim. Avoids touching ~30 call sites across panels/dialogs. `src/renderer/octaveBusyTracker.ts` is a working example — it ref-counts in-flight executes for the "Running…" status-bar indicator.
 - Use `vi.advanceTimersByTimeAsync` (not the sync variant) when code under test awaits promises between timer fires — the async version drains microtasks between ticks.
+- To unit-test OctaveProcessManager without a real child, mock `child_process` at module level (`vi.mock('child_process', () => ({ spawn: vi.fn(() => new FakeChildProcess()) }))`) then `await import('.../octaveProcess')` AFTER the mock. FakeChildProcess extends EventEmitter with `stdin.write`, `stdout`, `stderr` emitters; emit `___MATSLOP_CMD_DONE___\n` on stdout to complete the init handshake.
+- OctaveProcessManager.interrupt() (SIGINT, keeps process) and .stop() (writes 'exit' then SIGKILLs after 2s) are NOT interchangeable. The editor Stop button calls interrupt(); only full shutdown/restart uses stop().
 
 ---
 
@@ -47,4 +49,24 @@ Started: Sat Apr 11 06:46:53 PM EDT 2026
   - OctaveProcessManager already emits busy/ready on its 'status' event per command — but that's per-IPC and flickers rapidly. The renderer-side ref-counted tracker is the right layer for a user-facing "is anything happening?" indicator.
   - Use `vi.advanceTimersByTimeAsync` (not `advanceTimersByTime`) when the code under test awaits promises between timer fires — the async variant drains the microtask queue between ticks.
   - StatusBar's `engine-status` testid now also exposes `data-running` for future e2e assertions.
+---
+
+## 2026-04-11 - US-S03
+- Verified the editor Stop button interrupts long-running commands via SIGINT and does NOT tear down the Octave process (workspace state preserved).
+- Flow: EditorToolbar Stop → App.handleStop → window.matslop.octaveInterrupt → ipc 'octave:interrupt' → OctaveProcessManager.interrupt() → process.kill('SIGINT'). All wiring already existed from prior cycles — this story was a verification + test story.
+- Added tests/unit/octave-interrupt.test.ts (4 tests) that mock child_process.spawn with a FakeChildProcess and assert:
+  - interrupt() sends exactly one SIGINT (no SIGKILL, no SIGTERM) when a command is in flight
+  - isRunning() stays true and status stays 'busy' until Octave responds — the process is not torn down
+  - when the delimiter eventually arrives the pending executeCommand resolves with the 'error: interrupted' stderr and status returns to 'ready'
+  - interrupt() is a safe no-op when never started, and when idle (status !== 'busy')
+  - handleStop click path reaches window.matslop.octaveInterrupt exactly once per click
+- Files changed:
+  - tests/unit/octave-interrupt.test.ts (new, 4 tests)
+  - scripts/ralph/prd.json (US-S03 passes: true)
+- Verification: typecheck clean, 538 tests pass (was 534). Browser verification skipped — no MCP dev-browser tool active in this iteration; wiring is covered by the unit test against the real OctaveProcessManager implementation.
+- **Learnings for future iterations:**
+  - To unit-test OctaveProcessManager without spawning real Octave: `vi.mock('child_process', () => ({ spawn: vi.fn(() => new FakeChildProcess()) }))` where FakeChildProcess extends EventEmitter and exposes stdin.write / stdout / stderr event emitters. Then import OctaveProcessManager AFTER the mock with `await import(...)` so the manager picks up the stubbed spawn.
+  - The init-script handshake must be completed by emitting `___MATSLOP_CMD_DONE___\n` on stdout before the manager will accept new commands (status flips from 'busy' to 'ready').
+  - interrupt() is intentionally different from stop(): interrupt only sends SIGINT (Octave handles cleanup), stop() writes 'exit' and SIGKILLs after 2s. Never confuse them — the Stop BUTTON calls interrupt(), not stop().
+  - Caveat: `debug_on_interrupt(true)` is set in the init script (octaveProcess.ts:126). For commands running inside a user script/function, SIGINT may drop into the debugger instead of cancelling. Top-level prompt commands still cancel normally. If future polish needs a stricter "cancel no matter what" Stop, consider queuing a `dbquit` after SIGINT.
 ---

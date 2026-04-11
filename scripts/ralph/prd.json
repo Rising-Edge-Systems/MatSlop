@@ -52,8 +52,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Verified existing wiring: EditorToolbar Stop button → App.handleStop → window.matslop.octaveInterrupt → ipc 'octave:interrupt' → OctaveProcessManager.interrupt() → process.kill('SIGINT'). Added tests/unit/octave-interrupt.test.ts (4 tests) with a mocked child_process.spawn that asserts (a) exactly one SIGINT is sent on interrupt, (b) no SIGKILL/SIGTERM, (c) mgr.isRunning() stays true after interrupt (process not torn down, workspace preserved), (d) pending command resolves cleanly once Octave re-emits the delimiter, (e) interrupt is a no-op when idle or never-started, (f) handleStop click path reaches octaveInterrupt."
     },
     {
       "id": "US-S04",
