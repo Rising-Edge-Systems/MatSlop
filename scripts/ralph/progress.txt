@@ -87,3 +87,21 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
   - The dock-layout.test.ts suite still fails to import at runtime (rc-dock not in node_modules), same baseline as US-P02/P05/P06. New assertions there protect against regression at the source level and will run automatically once rc-dock is reinstalled.
   - The "dead space on wide windows" symptom from the PRD was actually a US-P02 issue (panels not filling their pane), not a sizing-weights issue — but cleaning the weights to round percentages still satisfies the "no unused space" AC and makes intent obvious.
 ---
+
+## 2026-04-11 - US-P08
+- Audited every panel root + content child for full width/height + min-* propagation in styles.css.
+- `.panel-content`: added `width: 100%; min-width: 0; min-height: 0` (already had `flex: 1; overflow: auto`).
+- `.editor-panel-content`: added `width/min-* 0` so the Monaco column propagates full width through the flex column.
+- `.editor-content`: added `width: 100%; min-width: 0; position: relative` and a `.editor-content > section, .monaco-editor, .overflow-guard { width: 100% !important; height: 100% !important }` rule so the @monaco-editor/react `<section>` wrapper (which by default sets a fixed pixel size before Monaco's automaticLayout kicks in) fills the pane on first paint.
+- `.tabbed-editor`: added min-width/min-height 0.
+- `.cw-output` (CommandWindow scroll region): added `width: 100%; min-* 0`.
+- `.ws-content` (WorkspacePanel): added `width: 100%; min-* 0`. `.ws-table` already had `width: 100%; table-layout: fixed`.
+- `.fb-content` (FileBrowser): added `width: 100%; min-* 0`.
+- Note on PRD wording: CommandWindow does NOT use xterm in this codebase — it's a plain DOM `<input>` inside `.cw-output`. There is no FitAddon to trigger; sizing is pure CSS. Monaco's `automaticLayout: true` is already on in TabbedEditor so resize is handled.
+- Files changed: src/renderer/styles.css.
+- Typecheck: same baseline errors as before (rc-dock module not found, octaveProcess.ts PATH typing, electron-updater missing). Tests: same baseline (octave-bundle integration + dock-layout import). No new failures introduced.
+- **Learnings for future iterations:**
+  - `@monaco-editor/react` wraps `<Editor>` in a `<section>` that gets an inline pixel `width`/`height` before Monaco settles. Forcing `.editor-content > section { width: 100% !important; height: 100% !important }` is the cheapest way to ensure the editor fills its container even before automaticLayout converges, and avoids passing explicit width/height props on every Editor usage.
+  - The chain that has to be 100% for Monaco to fill: `.panel` → `.editor-panel-content` (panel-content variant) → `.tabbed-editor` → `.editor-content` → `<section>` wrapper → `.monaco-editor` → `.overflow-guard`. Break any link with a missing `min-width: 0` and the column collapses inside the rc-dock pane.
+  - There is NO xterm in this codebase even though older PRD copy mentions one. The Command Window is a plain DOM input + scrollback `<div>`, sized purely via flex.
+---
