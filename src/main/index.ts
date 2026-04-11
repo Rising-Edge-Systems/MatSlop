@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
@@ -56,6 +56,11 @@ import {
   clearSession,
   type SessionState,
 } from './sessionStore'
+import {
+  readWindowState,
+  writeWindowState,
+  type WindowStateSnapshot,
+} from './windowStateStore'
 import {
   getUpdateCheckEnabled,
   getUpdateCheckIntervalHours,
@@ -118,10 +123,79 @@ let detachedCounter = 0
 // so the panel can be restored to the dock layout.
 const detachedPanelWindows = new Map<string, BrowserWindow>()
 
+/**
+ * US-P05: Compute the initial BrowserWindow bounds for the main window.
+ *
+ * Priority:
+ *   1. Persisted bounds from `window-state.json` (last user-resized state)
+ *   2. The primary display's work area, capped at 1920x1200
+ *   3. A small legacy default (1400x900) when running under E2E tests
+ *      so test viewport assertions stay deterministic.
+ *
+ * The E2E guard piggybacks on `MATSLOP_USER_DATA_DIR`, which the
+ * Playwright launcher already sets to isolate userData per run.
+ */
+function computeInitialWindowState(): {
+  bounds: { width: number; height: number; x?: number; y?: number }
+  maximized: boolean
+} {
+  const persisted = readWindowState()
+  if (persisted) {
+    return {
+      bounds: {
+        width: persisted.width,
+        height: persisted.height,
+        x: persisted.x,
+        y: persisted.y,
+      },
+      maximized: persisted.maximized === true,
+    }
+  }
+  // E2E guard: when an isolated userData dir is set (Playwright launcher),
+  // fall back to the legacy fixed default so tests don't get a screen-sized
+  // window depending on the host display.
+  if (process.env.MATSLOP_USER_DATA_DIR) {
+    return { bounds: { width: 1400, height: 900 }, maximized: false }
+  }
+  try {
+    const work = screen.getPrimaryDisplay().workAreaSize
+    return {
+      bounds: {
+        width: Math.min(work.width, 1920),
+        height: Math.min(work.height, 1200),
+      },
+      maximized: false,
+    }
+  } catch {
+    return { bounds: { width: 1400, height: 900 }, maximized: false }
+  }
+}
+
+function persistMainWindowState(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  try {
+    const isMax = mainWindow.isMaximized()
+    const bounds = isMax ? mainWindow.getNormalBounds() : mainWindow.getBounds()
+    const snapshot: WindowStateSnapshot = {
+      width: bounds.width,
+      height: bounds.height,
+      x: bounds.x,
+      y: bounds.y,
+      maximized: isMax,
+    }
+    writeWindowState(snapshot)
+  } catch {
+    // ignore — non-fatal
+  }
+}
+
 function createWindow(): void {
+  const initial = computeInitialWindowState()
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: initial.bounds.width,
+    height: initial.bounds.height,
+    x: initial.bounds.x,
+    y: initial.bounds.y,
     minWidth: 800,
     minHeight: 600,
     title: 'MatSlop',
@@ -131,6 +205,30 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false
     }
+  })
+
+  if (initial.maximized) {
+    mainWindow.maximize()
+  }
+
+  // US-P05: Persist window bounds on resize/move/close so the next launch
+  // restores the user's chosen size and position.
+  const schedulePersist = (() => {
+    let t: NodeJS.Timeout | null = null
+    return () => {
+      if (t) clearTimeout(t)
+      t = setTimeout(() => {
+        t = null
+        persistMainWindowState()
+      }, 300)
+    }
+  })()
+  mainWindow.on('resize', schedulePersist)
+  mainWindow.on('move', schedulePersist)
+  mainWindow.on('maximize', schedulePersist)
+  mainWindow.on('unmaximize', schedulePersist)
+  mainWindow.on('close', () => {
+    persistMainWindowState()
   })
 
   // Build and set the application menu
