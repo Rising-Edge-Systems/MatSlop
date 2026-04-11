@@ -1,15 +1,18 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildDefaultDockLayout,
+  buildDockLayoutFromVisibility,
+  DEFAULT_DOCK_VISIBILITY,
   DOCK_TAB_IDS,
   DOCK_TAB_TITLES,
+  type DockVisibility,
 } from '../../src/renderer/panels/MatslopDockLayout'
 import type { BoxData, PanelData } from 'rc-dock'
 
 /**
- * Unit tests for the pure `buildDefaultDockLayout` helper that backs the
- * US-024 rc-dock integration. Keeps the dock-layout shape contract
- * testable without mounting React or rc-dock itself.
+ * Unit tests for the pure dock-layout helpers that back the US-025
+ * rc-dock migration. Keeps the dock-layout shape contract testable
+ * without mounting React or rc-dock itself.
  */
 
 function isPanel(node: BoxData | PanelData): node is PanelData {
@@ -36,6 +39,7 @@ describe('buildDefaultDockLayout', () => {
     expect(layout.dockbox).toBeDefined()
     expect(layout.dockbox.mode).toBe('horizontal')
     expect(Array.isArray(layout.dockbox.children)).toBe(true)
+    // File Browser | Center(Editor/CommandWindow) | Workspace column
     expect(layout.dockbox.children.length).toBe(3)
   })
 
@@ -56,15 +60,26 @@ describe('buildDefaultDockLayout', () => {
       expect(collectTabIds(center.children[1])).toEqual([DOCK_TAB_IDS.commandWindow])
     }
 
-    // Right: workspace panel
-    expect(isPanel(right)).toBe(true)
-    expect(collectTabIds(right)).toEqual([DOCK_TAB_IDS.workspace])
+    // Right: vertical box wrapping just the workspace at first launch
+    expect(isBox(right)).toBe(true)
+    if (isBox(right)) {
+      expect(right.mode).toBe('vertical')
+      expect(right.children.length).toBe(1)
+      expect(collectTabIds(right.children[0])).toEqual([DOCK_TAB_IDS.workspace])
+    }
   })
 
-  it('contains every well-known tab id exactly once', () => {
+  it('only contains the panels that are visible at first launch', () => {
     const layout = buildDefaultDockLayout()
     const ids = collectTabIds(layout.dockbox).sort()
-    const expected = Object.values(DOCK_TAB_IDS).sort()
+    // Default visibility: fileBrowser, editor, commandWindow, workspace.
+    // commandHistory / callStack / watches / figure are off at first launch.
+    const expected = [
+      DOCK_TAB_IDS.commandWindow,
+      DOCK_TAB_IDS.editor,
+      DOCK_TAB_IDS.fileBrowser,
+      DOCK_TAB_IDS.workspace,
+    ].sort()
     expect(ids).toEqual(expected)
   })
 
@@ -88,6 +103,91 @@ describe('buildDefaultDockLayout', () => {
     const b = buildDefaultDockLayout()
     expect(a).not.toBe(b)
     expect(a.dockbox).not.toBe(b.dockbox)
+  })
+})
+
+describe('buildDockLayoutFromVisibility', () => {
+  it('omits file browser when hidden', () => {
+    const layout = buildDockLayoutFromVisibility({
+      ...DEFAULT_DOCK_VISIBILITY,
+      fileBrowser: false,
+    })
+    const ids = collectTabIds(layout.dockbox)
+    expect(ids).not.toContain(DOCK_TAB_IDS.fileBrowser)
+    expect(ids).toContain(DOCK_TAB_IDS.editor)
+  })
+
+  it('omits command window when hidden but keeps the editor', () => {
+    const layout = buildDockLayoutFromVisibility({
+      ...DEFAULT_DOCK_VISIBILITY,
+      commandWindow: false,
+    })
+    const ids = collectTabIds(layout.dockbox)
+    expect(ids).not.toContain(DOCK_TAB_IDS.commandWindow)
+    expect(ids).toContain(DOCK_TAB_IDS.editor)
+  })
+
+  it('groups command window and history as tabs in the same panel', () => {
+    const layout = buildDockLayoutFromVisibility({
+      ...DEFAULT_DOCK_VISIBILITY,
+      commandWindow: true,
+      commandHistory: true,
+    })
+    // Find the panel with both ids
+    const stack: (BoxData | PanelData)[] = [layout.dockbox]
+    let found: PanelData | null = null
+    while (stack.length > 0) {
+      const node = stack.pop() as BoxData | PanelData
+      if (isPanel(node)) {
+        const tabIds = node.tabs.map((t) => String(t.id))
+        if (tabIds.includes(DOCK_TAB_IDS.commandWindow)) {
+          found = node
+          break
+        }
+      } else if (isBox(node)) {
+        stack.push(...node.children)
+      }
+    }
+    expect(found).not.toBeNull()
+    if (found) {
+      const tabIds = found.tabs.map((t) => String(t.id))
+      expect(tabIds).toContain(DOCK_TAB_IDS.commandWindow)
+      expect(tabIds).toContain(DOCK_TAB_IDS.commandHistory)
+    }
+  })
+
+  it('adds call stack / watches / figure to the right column when visible', () => {
+    const fullVis: DockVisibility = {
+      fileBrowser: true,
+      commandWindow: true,
+      commandHistory: false,
+      workspace: true,
+      callStack: true,
+      watches: true,
+      figure: true,
+    }
+    const layout = buildDockLayoutFromVisibility(fullVis)
+    const ids = collectTabIds(layout.dockbox).sort()
+    expect(ids).toEqual(
+      [
+        DOCK_TAB_IDS.fileBrowser,
+        DOCK_TAB_IDS.editor,
+        DOCK_TAB_IDS.commandWindow,
+        DOCK_TAB_IDS.workspace,
+        DOCK_TAB_IDS.callStack,
+        DOCK_TAB_IDS.watches,
+        DOCK_TAB_IDS.figure,
+      ].sort(),
+    )
+  })
+
+  it('drops the right column entirely when no right-side panel is visible', () => {
+    const layout = buildDockLayoutFromVisibility({
+      ...DEFAULT_DOCK_VISIBILITY,
+      workspace: false,
+    })
+    // Only file browser + center column remain
+    expect(layout.dockbox.children.length).toBe(2)
   })
 })
 

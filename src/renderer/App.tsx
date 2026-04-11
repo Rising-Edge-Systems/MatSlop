@@ -1,6 +1,5 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { Allotment } from 'allotment'
-import 'allotment/dist/style.css'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import MatslopDockLayout, { type DockVisibility } from './panels/MatslopDockLayout'
 import FileBrowser from './panels/FileBrowser'
 import EditorPanel from './panels/EditorPanel'
 import WorkspacePanel from './panels/WorkspacePanel'
@@ -600,39 +599,10 @@ function App(): React.JSX.Element {
     })
   }, [saveLayout])
 
-  // Allotment size change handlers
-  const handleOuterHorizontalChange = useCallback((sizes: number[]) => {
-    // Panes: [FileBrowser, CenterColumn, RightColumn]
-    if (sizes.length >= 3) {
-      setPanelSizes((prev) => {
-        const next = { ...prev }
-        if (sizes[0] > 0) next.fileBrowserWidth = Math.round(sizes[0])
-        if (sizes[sizes.length - 1] > 0) next.workspaceWidth = Math.round(sizes[sizes.length - 1])
-        setVisibility((vis) => { saveLayout(vis, next); return vis })
-        return next
-      })
-    }
-  }, [saveLayout])
-
-  const handleVerticalChange = useCallback((sizes: number[]) => {
-    if (sizes.length >= 2 && sizes[1] > 0) {
-      setPanelSizes((prev) => {
-        const next = { ...prev, bottomHeight: Math.round(sizes[1]) }
-        setVisibility((vis) => { saveLayout(vis, next); return vis })
-        return next
-      })
-    }
-  }, [saveLayout])
-
-  const handleBottomHorizontalChange = useCallback((sizes: number[]) => {
-    if (sizes.length >= 2 && sizes[sizes.length - 1] > 0) {
-      setPanelSizes((prev) => {
-        const next = { ...prev, commandHistoryWidth: Math.round(sizes[sizes.length - 1]) }
-        setVisibility((vis) => { saveLayout(vis, next); return vis })
-        return next
-      })
-    }
-  }, [saveLayout])
+  // US-025: rc-dock owns the layout tree now. Splitter resizes are handled
+  // internally by rc-dock via `onLayoutChange` in MatslopDockLayout — we no
+  // longer need per-splitter pixel-tracking callbacks. `panelSizes` state
+  // is retained for preferences persistence, but the values are advisory.
 
   const handleFileBrowserOpen = useCallback((filePath: string) => {
     setPendingOpenPath(filePath)
@@ -927,6 +897,31 @@ function App(): React.JSX.Element {
     setPasteCommand(null)
   }, [])
 
+  // US-025: derive dock visibility from app state. Optional panels
+  // (Call Stack, Watches, Figure) are auto-shown based on state
+  // transitions — they match the conditional-mount rules that the old
+  // Allotment layout enforced via `visible={...}`.
+  const dockVisibility: DockVisibility = useMemo(
+    () => ({
+      fileBrowser: visibility.fileBrowser,
+      commandWindow: visibility.commandWindow,
+      commandHistory: visibility.commandHistory,
+      workspace: visibility.workspace,
+      callStack: pausedLocation !== null,
+      watches: watches.length > 0 || pausedLocation !== null,
+      figure: figures.length > 0,
+    }),
+    [
+      visibility.fileBrowser,
+      visibility.commandWindow,
+      visibility.commandHistory,
+      visibility.workspace,
+      pausedLocation,
+      watches.length,
+      figures.length,
+    ],
+  )
+
   return (
     <div className="app">
       {showOctaveSetup && <OctaveSetupDialog onConfigured={handleOctaveConfigured} />}
@@ -954,128 +949,110 @@ function App(): React.JSX.Element {
         />
       )}
       <div className="app-main">
-      {/* Outer horizontal split: File Browser | Center Column | Right Column
-          This ensures the Command Window sits directly beneath the Editor
-          and does NOT extend under the File Browser or Workspace. */}
-      {layoutLoaded && <Allotment onChange={handleOuterHorizontalChange}>
-        <Allotment.Pane
-          minSize={150}
-          preferredSize={panelSizes.fileBrowserWidth}
-          snap
-          visible={visibility.fileBrowser}
-        >
-          <FileBrowser onCollapse={() => togglePanel('fileBrowser')} onOpenFile={handleFileBrowserOpen} onCwdChange={handleCwdChange} externalCwd={cwd} />
-        </Allotment.Pane>
-
-        {/* Center column: Editor on top, Command Window beneath Editor only */}
-        <Allotment.Pane minSize={300}>
-          <div className="editor-column" data-testid="editor-column" style={{ width: '100%', height: '100%' }}>
-            <Allotment vertical onChange={handleVerticalChange}>
-              <Allotment.Pane minSize={200}>
-                <EditorPanel
-                  panelVisibility={visibility}
-                  onTogglePanel={togglePanel}
-                  openFilePath={pendingOpenPath}
-                  onFileOpened={handleFileOpened}
-                  onCursorPositionChange={handleCursorPositionChange}
-                  onErrorCountChange={handleErrorCountChange}
-                  engineStatus={octaveStatus.engineStatus}
-                  onRun={handleRunScript}
-                  onStop={handleStop}
-                  onPauseForDebug={handlePauseForDebug}
-                  onRunSection={handleRunSection}
-                  menuAction={menuAction}
-                  onMenuActionConsumed={handleMenuActionConsumed}
-                  editorTheme={resolvedTheme === 'light' ? 'vs-light' : 'vs-dark'}
-                  editorSettings={editorSettings}
-                  pausedLocation={pausedLocation}
-                  onFileSavedWhilePaused={handleFileSavedWhilePaused}
-                />
-              </Allotment.Pane>
-              <Allotment.Pane
-                minSize={100}
-                preferredSize={panelSizes.bottomHeight}
-                snap
-                visible={visibility.commandWindow || visibility.commandHistory}
-              >
-                <Allotment onChange={handleBottomHorizontalChange}>
-                  <Allotment.Pane minSize={200} visible={visibility.commandWindow}>
-                    <CommandWindow
-                      onCollapse={() => togglePanel('commandWindow')}
-                      engineStatus={octaveStatus.engineStatus}
-                      pendingCommand={pendingCommand}
-                      onCommandExecuted={handleCommandExecuted}
-                      onHistoryChanged={handleHistoryChanged}
-                      pasteCommand={pasteCommand}
-                      onPasteConsumed={handlePasteConsumed}
-                      menuAction={menuAction}
-                      onMenuActionConsumed={handleMenuActionConsumed}
-                    />
-                  </Allotment.Pane>
-                  <Allotment.Pane minSize={150} preferredSize={panelSizes.commandHistoryWidth} snap visible={visibility.commandHistory}>
-                    <CommandHistoryPanel
-                      onCollapse={() => togglePanel('commandHistory')}
-                      onExecuteCommand={handleHistoryExecute}
-                      historyVersion={historyVersion}
-                    />
-                  </Allotment.Pane>
-                </Allotment>
-              </Allotment.Pane>
-            </Allotment>
-          </div>
-        </Allotment.Pane>
-
-        {/* Right column: Workspace + Figure */}
-        <Allotment.Pane
-          minSize={150}
-          preferredSize={panelSizes.workspaceWidth}
-          snap
-          visible={visibility.workspace || figures.length > 0 || pausedLocation !== null || watches.length > 0}
-        >
-          <Allotment vertical>
-            <Allotment.Pane minSize={100} visible={visibility.workspace}>
-              <WorkspacePanel onCollapse={() => togglePanel('workspace')} engineStatus={octaveStatus.engineStatus} refreshTrigger={workspaceRefreshTrigger} onInspectVariable={handleInspectVariable} onVariablesChanged={handleVariablesChanged} debugPaused={pausedLocation !== null} debugFrameName={pausedLocation ? (callStack[callStackSelected]?.name ?? null) : null} />
-            </Allotment.Pane>
-            {/* US-018: Call Stack panel — auto-shown when execution is paused.
-                We conditionally mount the panel so the `call-stack-panel`
-                data-testid only exists in the DOM while the debugger is
-                paused — Allotment keeps hidden panes' children mounted, which
-                would otherwise leak the testid into the non-paused state. */}
-            <Allotment.Pane minSize={120} preferredSize={180} visible={pausedLocation !== null}>
-              {pausedLocation !== null && (
-                <CallStackPanel
-                  frames={callStack}
-                  selectedIndex={callStackSelected}
-                  onSelectFrame={handleCallStackSelect}
-                />
-              )}
-            </Allotment.Pane>
-            {/* US-022: Watches panel — mounted whenever the user has pinned
-                at least one expression OR the debugger is paused (so they
-                can start adding watches inside a pause without having to
-                hunt for a toggle). Conditionally rendered to keep the
-                `watches-panel` testid out of the DOM when inactive. */}
-            <Allotment.Pane
-              minSize={120}
-              preferredSize={180}
-              visible={watches.length > 0 || pausedLocation !== null}
-            >
-              {(watches.length > 0 || pausedLocation !== null) && (
-                <WatchesPanel
-                  watches={watches}
-                  onAddWatch={handleAddWatch}
-                  onRemoveWatch={handleRemoveWatch}
-                  onUpdateWatch={handleUpdateWatch}
-                  onRefresh={refreshAllWatches}
-                />
-              )}
-            </Allotment.Pane>
-            <Allotment.Pane minSize={100} visible={figures.length > 0}>
+      {/* US-025: Every panel is now a dock pane inside MatslopDockLayout,
+          which wraps rc-dock. The layout tree is computed from the
+          visibility flags below — panels whose flag is `false` are
+          omitted from the layout entirely, so their data-testids vanish
+          from the DOM (matching the conditional-mount behavior existing
+          tests assumed from Allotment.Pane{visible}). */}
+      {layoutLoaded && (
+        <MatslopDockLayout
+          visibility={dockVisibility}
+          fileBrowser={
+            dockVisibility.fileBrowser ? (
+              <FileBrowser
+                onCollapse={() => togglePanel('fileBrowser')}
+                onOpenFile={handleFileBrowserOpen}
+                onCwdChange={handleCwdChange}
+                externalCwd={cwd}
+              />
+            ) : null
+          }
+          editor={
+            <EditorPanel
+              panelVisibility={visibility}
+              onTogglePanel={togglePanel}
+              openFilePath={pendingOpenPath}
+              onFileOpened={handleFileOpened}
+              onCursorPositionChange={handleCursorPositionChange}
+              onErrorCountChange={handleErrorCountChange}
+              engineStatus={octaveStatus.engineStatus}
+              onRun={handleRunScript}
+              onStop={handleStop}
+              onPauseForDebug={handlePauseForDebug}
+              onRunSection={handleRunSection}
+              menuAction={menuAction}
+              onMenuActionConsumed={handleMenuActionConsumed}
+              editorTheme={resolvedTheme === 'light' ? 'vs-light' : 'vs-dark'}
+              editorSettings={editorSettings}
+              pausedLocation={pausedLocation}
+              onFileSavedWhilePaused={handleFileSavedWhilePaused}
+            />
+          }
+          commandWindow={
+            dockVisibility.commandWindow ? (
+              <CommandWindow
+                onCollapse={() => togglePanel('commandWindow')}
+                engineStatus={octaveStatus.engineStatus}
+                pendingCommand={pendingCommand}
+                onCommandExecuted={handleCommandExecuted}
+                onHistoryChanged={handleHistoryChanged}
+                pasteCommand={pasteCommand}
+                onPasteConsumed={handlePasteConsumed}
+                menuAction={menuAction}
+                onMenuActionConsumed={handleMenuActionConsumed}
+              />
+            ) : null
+          }
+          commandHistory={
+            dockVisibility.commandHistory ? (
+              <CommandHistoryPanel
+                onCollapse={() => togglePanel('commandHistory')}
+                onExecuteCommand={handleHistoryExecute}
+                historyVersion={historyVersion}
+              />
+            ) : null
+          }
+          workspace={
+            dockVisibility.workspace ? (
+              <WorkspacePanel
+                onCollapse={() => togglePanel('workspace')}
+                engineStatus={octaveStatus.engineStatus}
+                refreshTrigger={workspaceRefreshTrigger}
+                onInspectVariable={handleInspectVariable}
+                onVariablesChanged={handleVariablesChanged}
+                debugPaused={pausedLocation !== null}
+                debugFrameName={pausedLocation ? (callStack[callStackSelected]?.name ?? null) : null}
+              />
+            ) : null
+          }
+          callStack={
+            dockVisibility.callStack ? (
+              <CallStackPanel
+                frames={callStack}
+                selectedIndex={callStackSelected}
+                onSelectFrame={handleCallStackSelect}
+              />
+            ) : null
+          }
+          watches={
+            dockVisibility.watches ? (
+              <WatchesPanel
+                watches={watches}
+                onAddWatch={handleAddWatch}
+                onRemoveWatch={handleRemoveWatch}
+                onUpdateWatch={handleUpdateWatch}
+                onRefresh={refreshAllWatches}
+              />
+            ) : null
+          }
+          figure={
+            dockVisibility.figure ? (
               <FigurePanel figures={figures} onSaveFigure={handleSaveFigure} />
-            </Allotment.Pane>
-          </Allotment>
-        </Allotment.Pane>
-      </Allotment>}
+            ) : null
+          }
+        />
+      )}
       </div>
       {/* US-023: edit-and-continue warning banner. Shown whenever the user
           saved a .m file while paused. Auto-dismisses on resume (see effect

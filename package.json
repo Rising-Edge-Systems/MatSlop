@@ -73,7 +73,6 @@
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@types/plotly.js": "^3.0.10",
-    "allotment": "^1.20.5",
     "electron-store": "^11.0.2",
     "lucide-react": "^1.8.0",
     "monaco-editor": "^0.55.1",

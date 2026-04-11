@@ -54,9 +54,13 @@ test('First launch: MATLAB-default layout puts File Browser | Editor/Command | W
   // Editor sits above the Command Window within the center column
   expect(edBox.y + edBox.height).toBeLessThanOrEqual(cmdBox.y + tol)
 
-  // All three top-level columns are roughly the same height (main work area)
-  expect(Math.abs(fbBox.height - colBox.height)).toBeLessThan(20)
-  expect(Math.abs(wsBox.height - colBox.height)).toBeLessThan(20)
+  // All three top-level columns are roughly the same height (main work area).
+  // Tolerance is larger (60px) because US-025 migrated the layout to rc-dock:
+  // file-browser / workspace measurements exclude their tab-header bar, while
+  // the editor column is a dock-vbox with no tab header, so a ~30px tab-bar
+  // delta is expected.
+  expect(Math.abs(fbBox.height - colBox.height)).toBeLessThan(60)
+  expect(Math.abs(wsBox.height - colBox.height)).toBeLessThan(60)
 
   // Sanity: File Browser width roughly matches MATLAB-like default (~220px, allow wide range)
   expect(fbBox.width).toBeGreaterThan(120)
