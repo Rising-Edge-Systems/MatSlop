@@ -114,15 +114,23 @@ const WRAPPED_MARKER = '__matslopBusyTrackerWrapped'
 
 /**
  * Idempotently wrap `bridge.octaveExecute` so that every call increments /
- * decrements the shared tracker. Safe to call repeatedly (e.g. from tests
- * or HMR reloads); the second call is a no-op.
+ * decrements the shared tracker.
+ *
+ * `bridge` is the object exposed by `contextBridge.exposeInMainWorld` —
+ * its properties are frozen (strict-mode read-only) so we cannot mutate
+ * `bridge.octaveExecute` directly. Instead, we return a Proxy that
+ * intercepts the `octaveExecute` property and returns a tracked wrapper,
+ * falling through to the original bridge for every other property. The
+ * caller is responsible for reassigning `window.matslop = wrapped(...)`.
+ * `window.matslop` itself is a regular property of `window` and IS
+ * writable, so replacing it is safe.
  */
-export function wrapOctaveExecute(bridge: ExecuteBridge | undefined | null): void {
-  if (!bridge || typeof bridge.octaveExecute !== 'function') return
-  const maybeMarked = bridge as ExecuteBridge & { [WRAPPED_MARKER]?: boolean }
-  if (maybeMarked[WRAPPED_MARKER]) return
+export function wrapOctaveExecute<T extends ExecuteBridge>(bridge: T | undefined | null): T | null {
+  if (!bridge || typeof bridge.octaveExecute !== 'function') return bridge ?? null
+  const maybeMarked = bridge as T & { [WRAPPED_MARKER]?: boolean }
+  if (maybeMarked[WRAPPED_MARKER]) return bridge
   const original = bridge.octaveExecute.bind(bridge)
-  bridge.octaveExecute = async (command: string) => {
+  const tracked = async (command: string) => {
     octaveBusyTracker.begin()
     try {
       return await original(command)
@@ -130,5 +138,15 @@ export function wrapOctaveExecute(bridge: ExecuteBridge | undefined | null): voi
       octaveBusyTracker.end()
     }
   }
-  maybeMarked[WRAPPED_MARKER] = true
+  const proxied = new Proxy(bridge, {
+    get(target, prop, receiver) {
+      if (prop === 'octaveExecute') return tracked
+      if (prop === WRAPPED_MARKER) return true
+      const value = Reflect.get(target, prop, receiver)
+      // Bind methods back to the original target so `this` resolves
+      // correctly when the caller invokes them via the proxy.
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  }) as T
+  return proxied
 }

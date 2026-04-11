@@ -2,13 +2,16 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import DetachedPlot from './DetachedPlot'
 import DetachedPanel from './DetachedPanel'
-import { wrapOctaveExecute } from './octaveBusyTracker'
 import './styles.css'
 
-// US-S02: install the ref-counted in-flight tracker around
-// `window.matslop.octaveExecute` before any component has a chance to call
-// it. Idempotent — safe during HMR.
-wrapOctaveExecute((window as unknown as { matslop?: Parameters<typeof wrapOctaveExecute>[0] }).matslop ?? null)
+// US-S02 note: the busy-indicator ref-counted tracker used to be installed
+// here by monkey-patching `window.matslop.octaveExecute`. Electron's
+// contextBridge freezes that property, which turned the original patch
+// into either a no-op or (worse) an infinite recursion through the Proxy
+// after HMR reloads. The tracker itself still exists in octaveBusyTracker.ts
+// as a module-level singleton — callers that want to drive it can import
+// `octaveBusyTracker.begin/end` directly, without trying to rewrite the
+// contextBridge object.
 
 // Note: StrictMode intentionally disabled — this is an Electron app (no SSR/hydration)
 // and StrictMode's double-invocation causes spurious side effects with IPC handlers

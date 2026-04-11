@@ -231,6 +231,15 @@ function App(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
+    // Sync current status once on mount — after a renderer reload the main
+    // process may already have a running Octave but will not re-emit the
+    // status unless it actually changes, so the onOctaveStatusChanged
+    // listener alone would leave React stuck at 'disconnected'.
+    window.matslop.octaveGetStatus?.().then?.((status) => {
+      if (status) {
+        setOctaveStatus((prev) => ({ ...prev, engineStatus: status }))
+      }
+    }).catch(() => {})
     // Listen for Octave engine status changes
     const unsubStatus = window.matslop.onOctaveStatusChanged((status) => {
       setOctaveStatus((prev) => ({ ...prev, engineStatus: status }))

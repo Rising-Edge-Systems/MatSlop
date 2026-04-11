@@ -141,8 +141,8 @@ describe('wrapOctaveExecute', () => {
     const seen: string[] = []
     octaveBusyTracker.subscribe((s) => seen.push(s))
 
-    wrapOctaveExecute(bridge)
-    const pending = bridge.octaveExecute('long_op')
+    const wrapped = wrapOctaveExecute(bridge)!
+    const pending = wrapped.octaveExecute('long_op')
 
     // At t=200ms we're still idle (under the 250ms threshold).
     await vi.advanceTimersByTimeAsync(200)
@@ -168,9 +168,9 @@ describe('wrapOctaveExecute', () => {
           setTimeout(() => reject(new Error('boom')), 10)
         }),
     }
-    wrapOctaveExecute(bridge)
+    const wrapped = wrapOctaveExecute(bridge)!
 
-    const p = bridge.octaveExecute('bad').catch(() => 'caught')
+    const p = wrapped.octaveExecute('bad').catch(() => 'caught')
     await vi.advanceTimersByTimeAsync(50)
     await p
     expect(octaveBusyTracker.getPendingCount()).toBe(0)
@@ -182,9 +182,11 @@ describe('wrapOctaveExecute', () => {
       octaveExecute: (_cmd: string) =>
         Promise.resolve({ output: '', error: '', isComplete: true }),
     }
-    wrapOctaveExecute(bridge)
-    wrapOctaveExecute(bridge) // second call should be a no-op
-    await bridge.octaveExecute('x')
+    const wrapped1 = wrapOctaveExecute(bridge)!
+    const wrapped2 = wrapOctaveExecute(wrapped1)!
+    // Second call sees the WRAPPED_MARKER and returns the same proxy.
+    expect(wrapped2).toBe(wrapped1)
+    await wrapped2.octaveExecute('x')
     // If double-wrapping had happened, pendingCount would go to 2 then
     // only decrement once via the outer try/finally — it would leak.
     expect(octaveBusyTracker.getPendingCount()).toBe(0)

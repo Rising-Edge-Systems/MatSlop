@@ -219,15 +219,45 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
   // get silently dropped and the panel shows stale state from the first
   // completed refresh — e.g. only `ans` after `clear all; x=1; y=2;`.
   const refreshWorkspace = useCallback(async () => {
-    if (engineStatusRef.current !== 'ready') return
+    // Fall back to the live IPC status if the ref has not caught up yet —
+    // on a fast mount the first refreshTrigger effect can fire before
+    // App.tsx's octaveStatus has propagated down into props.
+    if (engineStatusRef.current !== 'ready') {
+      try {
+        const live = await window.matslop.octaveGetStatus()
+        if (live === 'ready') {
+          engineStatusRef.current = 'ready'
+        } else {
+          return
+        }
+      } catch {
+        return
+      }
+    }
     if (refreshingRef.current) {
       pendingRefreshRef.current = true
       return
     }
     refreshingRef.current = true
 
+    // Watchdog: if the first whos call never resolves (the process
+    // manager has been observed to hang on the very first command after
+    // a renderer reload), force-unlock and bail so the next refresh
+    // triggered by a user command can run cleanly.
+    const watchdog = setTimeout(() => {
+      refreshingRef.current = false
+      pendingRefreshRef.current = false
+    }, 5000)
+
     try {
-      const result = await window.matslop.octaveExecute('whos')
+      // Retry whos up to 3x when the process manager is returning empty
+      // output because another execute is in-flight or its buffer has
+      // just been consumed.
+      let result = await window.matslop.octaveExecute('whos')
+      for (let attempt = 0; attempt < 3 && (!result.output || result.output.trim() === ''); attempt++) {
+        await new Promise<void>((r) => setTimeout(r, 120))
+        result = await window.matslop.octaveExecute('whos')
+      }
       if (!result.output || result.output.trim() === '') {
         setVariables([])
         onVariablesChangedRef.current?.([])
@@ -256,6 +286,7 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
     } catch {
       // ignore errors during refresh
     } finally {
+      clearTimeout(watchdog)
       refreshingRef.current = false
       if (pendingRefreshRef.current) {
         pendingRefreshRef.current = false
@@ -265,14 +296,51 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
     }
   }, [])
 
-  // Refresh on trigger change (after commands execute)
-  const lastTriggerRef = useRef(refreshTrigger)
+  // Refresh on any trigger change (after commands execute). Previously
+  // guarded on `refreshTrigger > lastTriggerRef.current`, which dropped
+  // refreshes whenever React batched several rapid setWorkspaceRefreshTrigger
+  // calls into a single re-render — the useEffect saw a multi-step jump but
+  // only ran once, and the in-flight guard ate the coalesced re-run.
   useEffect(() => {
-    if (refreshTrigger > lastTriggerRef.current) {
-      lastTriggerRef.current = refreshTrigger
+    if (refreshTrigger > 0) {
       refreshWorkspace()
     }
   }, [refreshTrigger, refreshWorkspace])
+
+  // Test hook: expose a direct refresh call so Playwright and hand-testing
+  // can sync the panel to Octave state without waiting for a command cycle.
+  useEffect(() => {
+    const w = window as unknown as {
+      __matslopRefreshWorkspace?: () => Promise<void>
+      __matslopResetWsGuard?: () => void
+      __matslopWsRefs?: { refreshing: boolean; pending: boolean }
+    }
+    w.__matslopRefreshWorkspace = async () => {
+      await refreshWorkspace()
+    }
+    w.__matslopResetWsGuard = () => {
+      refreshingRef.current = false
+      pendingRefreshRef.current = false
+    }
+    w.__matslopWsRefs = {
+      get refreshing() {
+        return refreshingRef.current
+      },
+      get pending() {
+        return pendingRefreshRef.current
+      },
+    } as { refreshing: boolean; pending: boolean }
+    return () => {
+      const ww = window as unknown as {
+        __matslopRefreshWorkspace?: unknown
+        __matslopResetWsGuard?: unknown
+        __matslopWsRefs?: unknown
+      }
+      ww.__matslopRefreshWorkspace = undefined
+      ww.__matslopResetWsGuard = undefined
+      ww.__matslopWsRefs = undefined
+    }
+  }, [refreshWorkspace])
 
   // Refresh once when engine first connects, clear on disconnect
   const prevStatusRef = useRef<OctaveEngineStatus>('disconnected')
