@@ -219,3 +219,16 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
   - rc-dock supports `minWidth`/`minHeight` on every box and panel via `DockDataBase` (see node_modules/rc-dock/lib/DockData.d.ts:81-84). Both `BoxData` and `PanelData` extend it through `BoxChild`, so you can set `minWidth` on either the column box or the leaf pane — set on both to defend against drag-resize squeezing the parent box around the pane.
   - rc-dock's `Divider.minSize` is computed from the children's `minWidth`/`minHeight`, so once a child declares minWidth the user physically cannot drag the divider past it.
 ---
+
+## 2026-04-11 - US-Q07
+- Added LAYOUT_SCHEMA_VERSION = 2 constant (bumped from implicit 1) and a `version?: number` field on LayoutConfig in src/main/appConfig.ts.
+- New pure helper `migrateLayoutConfig(raw)` discards `dockLayout` when `raw.version` is missing or older than the current constant, preserves panelVisibility + panelSizes, and stamps the current version. Defaults applied to malformed/null input.
+- `getLayoutConfig()` now runs the migration on every read AND persists the migrated config back to the store the first time it sees a stale layout (so the bump only fires once). `setLayoutConfig()` always stamps the current version.
+- New unit suite tests/unit/layout-schema-version.test.ts (6 tests) covers: stale-version drops dockLayout, current-version passes through, malformed input → defaults, getLayoutConfig rewrites stale store entry, setLayoutConfig stamps version. All passing.
+- Files changed: src/main/appConfig.ts, tests/unit/layout-schema-version.test.ts.
+- **Learnings for future iterations:**
+  - Layout persistence is in `electron-store` (key `'layout'`) via src/main/appConfig.ts — NOT in session.json (sessionStore.ts handles editor tabs only). When changing default layout shape that would be visually masked by an old persisted dockLayout, bump LAYOUT_SCHEMA_VERSION.
+  - The renderer-side App.tsx already runs sanitizeSavedDockLayout on `layoutGet`, so a `dockLayout: undefined` returned by main is the cleanest "use defaults" signal — no extra renderer plumbing required.
+  - electron-store mock pattern from tests/unit/theme-default.test.ts is the template: define a per-test `storeData` object captured in a closure and mock the default export with a class that reads/writes that object. `beforeEach` clears it.
+  - `migrateLayoutConfig` is exported PURELY (no electron / fs imports inside the function) so it stays vitest-importable; keep all new appConfig helpers that way.
+---
