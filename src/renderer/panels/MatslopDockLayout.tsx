@@ -214,6 +214,9 @@ export function buildDockLayoutFromVisibility(
   if (vis.workspace && !isDetached(DOCK_TAB_IDS.workspace)) {
     rightChildren.push({
       size: 300,
+      // US-Q06: ensure the workspace pane never collapses below a width
+      // that would clip its placeholder/header text.
+      minWidth: 180,
       tabs: [idOnly(DOCK_TAB_IDS.workspace)],
     } as PanelData)
   }
@@ -239,6 +242,9 @@ export function buildDockLayoutFromVisibility(
     dockboxChildren.push({
       mode: 'vertical',
       size: 200,
+      // US-Q06: keep the right column from collapsing so the Workspace
+      // header text "No variables in workspace" cannot be hard-clipped.
+      minWidth: 180,
       children: rightChildren,
     } as BoxData)
   }

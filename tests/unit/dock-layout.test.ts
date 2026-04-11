@@ -125,6 +125,22 @@ describe('buildDefaultDockLayout', () => {
     expect(ratios[2]).toBeGreaterThanOrEqual(0.17)
     expect(ratios[2]).toBeLessThanOrEqual(0.23)
   })
+
+  it('US-Q06: workspace column and pane both declare a minWidth ≥ 180px', () => {
+    // Prevents the right column from collapsing so narrow that the
+    // "No variables in workspace" placeholder hard-clips.
+    const layout = buildDefaultDockLayout()
+    const rightCol = layout.dockbox.children[2] as {
+      minWidth?: number
+      children: Array<{ minWidth?: number; tabs?: Array<{ id?: string }> }>
+    }
+    expect(rightCol.minWidth ?? 0).toBeGreaterThanOrEqual(180)
+    const wsPane = rightCol.children.find((p) =>
+      p.tabs?.some((t) => t.id === DOCK_TAB_IDS.workspace),
+    )
+    expect(wsPane).toBeDefined()
+    expect(wsPane!.minWidth ?? 0).toBeGreaterThanOrEqual(180)
+  })
 })
 
 describe('buildDockLayoutFromVisibility', () => {

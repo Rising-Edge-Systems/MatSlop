@@ -462,6 +462,14 @@ body {
 .placeholder-text {
   color: var(--text-disabled);
   font-size: 13px;
+  /* US-Q06: allow long placeholder strings (e.g. "No variables in workspace")
+     to wrap or break inside narrow panes instead of hard-clipping at the
+     right edge of the dock pane. */
+  padding: 8px 12px;
+  margin: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Editor Toolbar */
