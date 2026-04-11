@@ -178,3 +178,19 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
   - `.cw-output` already auto-scrolls to bottom on new entries via a useEffect in CommandWindow.tsx, so the flex layout above doesn't conflict with the existing scroll-on-new-output behavior.
   - rc-dock's `.dock-content` does NOT paint a background. Children must paint their own bg explicitly (via `--bg-panel`) — if a content area is transparent, scrollbar gutter / sub-pixel gaps will leak through as gray.
 ---
+
+## 2026-04-11 - US-Q04
+- Discovered the root cause of the "every tab looks active" symptom: rc-dock embeds rc-tabs with `prefixCls="dock"` (verified at node_modules/.vite/deps/rc-dock.js:16264 — `React95.createElement(es_default9, { prefixCls: "dock", ... })`). The actual rendered tab classes are `.dock-tab`, `.dock-tab-active`, `.dock-tab-btn`, `.dock-tabpane`, `.dock-nav`, `.dock-ink-bar` — NOT `.rc-tabs-*`. Every `.rc-tabs-*` rule added by US-P09 was dead code.
+- Added `.dock-tab` selectors in src/renderer/rc-dock-theme.css covering: idle (`--bg-header`/`--text-secondary`), `:hover` (`--bg-hover`/`--text-primary`), and `.dock-tab.dock-tab-active` (`--bg-panel`/`--text-bright`/inset accent box-shadow). Also added `.dock-nav`, `.dock-nav-wrap`, `.dock-nav-list`, `.dock-tab-btn`, `.dock-ink-bar`, `.dock-tabpane` to cover the rest of the rc-tabs-via-dock-prefix surface. Kept the legacy `.rc-tabs-*` rules as a defensive fallback per the AC wording.
+- Added tests/e2e/dock-active-tab.spec.ts: pre-seeds config.json with a fixture layout that has commandWindow + commandHistory in the same pane, boots the app, walks from `[data-testid="dock-tab-title-matslop-command-window"]` up to its `.dock-tab` ancestor, enumerates sibling `.dock-tab` elements, and asserts exactly one carries `dock-tab-active` and an inset box-shadow while the others have neither.
+- Files changed: src/renderer/rc-dock-theme.css, tests/e2e/dock-active-tab.spec.ts (new).
+- Typecheck: same 2 baseline octaveProcess.ts PATH errors only. Vitest dock-layout + theme-default suites: 30/30 green.
+- **Learnings for future iterations:**
+  - rc-dock 4.0.0-alpha.2 calls `<Tabs prefixCls="dock" ... />` in DockTabs.render. So inside rc-dock, the rc-tabs internal classes are `dock-tab`, `dock-tab-active`, `dock-tab-btn`, `dock-tab-with-remove`, `dock-tab-disabled`, `dock-tab-focus`, `dock-tabpane`, `dock-tabpane-active`, `dock-nav`, `dock-nav-wrap`, `dock-nav-list`, `dock-nav-add`, `dock-nav-more`, `dock-nav-operations`, `dock-ink-bar`, `dock-extra-content`, `dock-dropdown*`. Theming the `rc-tabs-*` namespace inside MatSlop is a no-op — always use the `dock-` prefixed names.
+  - Yet ANOTHER class collision: rc-dock ALSO has `.dock-content` (its panel content area) which is independent of rc-tabs' `.dock-tabpane`. The visual-polish.spec "tab fills its parent" assertion walks up to `.dock-content` — that's the rc-dock pane, not the rc-tabs tabpane.
+  - To force a multi-tab pane in an e2e test, pre-seed config.json with `panelVisibility.commandHistory: true` AND a `dockLayout.dockbox` whose bottom panel `tabs` array lists both `matslop-command-window` and `matslop-command-history`. The sanitizer will NOT strip them because both are now visible.
+---
+
+## Codebase Patterns (additions)
+- rc-dock embeds rc-tabs with `prefixCls="dock"`. Style the `.dock-tab*`, `.dock-nav*`, `.dock-ink-bar`, `.dock-tabpane*` selectors — NOT `.rc-tabs-*`. Verified via `grep -n 'prefixCls' node_modules/.vite/deps/rc-dock.js`.
+- In rc-dock 4.0.0-alpha.2, `.dock-content` is the rc-dock pane content area; `.dock-tabpane` is the rc-tabs (prefixed) inner tab body. They are different elements — both exist in the rendered DOM.
