@@ -24,13 +24,23 @@
   border-color: var(--border-color);
 }
 
-/* Box containers (vertical / horizontal / float / max / window) */
+/* Box containers. Only the primary dockbox gets a solid background —
+ * fbox (float), mbox (maximize), wbox (window) are overlay containers
+ * stacked above the dockbox at z-index 200+. Giving them a solid bg
+ * makes them opaque covers over the real layout, which is how the
+ * first iteration of this theme hid the entire UI. Keep them transparent
+ * and let their contents (floating panels, maximized panel) supply
+ * their own background via `.dock-panel`. */
 .dock-box,
-.dock-fbox,
-.dock-mbox,
-.dock-wbox,
 .dockbox {
   background: var(--bg-main);
+  color: var(--text-primary);
+}
+
+.dock-fbox,
+.dock-mbox,
+.dock-wbox {
+  background: transparent;
   color: var(--text-primary);
 }
 
