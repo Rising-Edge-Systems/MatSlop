@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest'
 import { OctaveProcessManager } from '../../src/main/octaveProcess'
-import { getBundledOctaveBinary } from '../helpers/octaveBinary'
+import { getBundledOctaveBinaryPath, hasBundledOctaveBinary } from '../helpers/octaveBinary'
 
-const OCTAVE_PATH = getBundledOctaveBinary()
+// Skip the entire integration suite when the bundled Octave binary is not
+// present (clean dev checkouts without `npm run download:octave`). CI and
+// packaging runs that download the bundle still exercise the full suite.
+const HAS_OCTAVE = hasBundledOctaveBinary()
+const OCTAVE_PATH = getBundledOctaveBinaryPath()
 
 function waitForReady(mgr: OctaveProcessManager, timeoutMs = 20000): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -25,7 +29,7 @@ function waitForReady(mgr: OctaveProcessManager, timeoutMs = 20000): Promise<voi
   })
 }
 
-describe('Octave headless integration', () => {
+describe.skipIf(!HAS_OCTAVE)('Octave headless integration', () => {
   let mgr: OctaveProcessManager
 
   beforeEach(async () => {
@@ -157,7 +161,7 @@ describe('Octave headless integration', () => {
   })
 })
 
-describe('OctaveProcessManager lifecycle', () => {
+describe.skipIf(!HAS_OCTAVE)('OctaveProcessManager lifecycle', () => {
   it('can be stopped and recreated', async () => {
     const mgr1 = new OctaveProcessManager(OCTAVE_PATH)
     mgr1.start()

@@ -243,3 +243,15 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
   - `dist/renderer/` may be stale relative to the current source tree; **always** `npm run build` before running e2e specs in this repo or you'll be testing yesterday's bundle.
   - The polish-v2 cycle (US-P01..P10 + US-Q01..Q08) is complete; visual-polish is the cycle exit gate and is now green.
 ---
+
+## 2026-04-11 - US-R01
+- Gated Octave-bundle tests to skip when the Windows bundle is absent on clean dev checkouts.
+- Rewrote tests/helpers/octaveBinary.ts to export `hasBundledOctaveBinary()` + `getBundledOctaveBinaryPath()` alongside the throwing `getBundledOctaveBinary()` helper.
+- tests/unit/octave-config.test.ts: split into two suites; path-existence assertion wrapped in `describe.skipIf(!HAS_BUNDLED_OCTAVE_WIN)`. The package.json extraResources check always runs.
+- tests/integration/octave-commands.test.ts + tests/integration/octave-plot.test.ts: switched to `getBundledOctaveBinaryPath()` and `describe.skipIf(!HAS_OCTAVE)` so no top-level throw at import time.
+- Result: `npm test` now 519 passed | 24 skipped (was 4 failed | 519 passed). Typecheck clean.
+- Files changed: tests/helpers/octaveBinary.ts, tests/unit/octave-config.test.ts, tests/integration/octave-commands.test.ts, tests/integration/octave-plot.test.ts.
+- **Learnings for future iterations:**
+  - Vitest supports `describe.skipIf(condition)` for runtime-gated test suites — use it for platform- or binary-dependent integration tests instead of top-level throws which abort module load.
+  - Top-level `throw` in a test helper imported by a test file causes Vitest to report the test file as a failed *suite* (not a failed test). Always return `null`/boolean from helpers and let the suite skip.
+  - tests/helpers/octaveBinary.ts is the shared binary-discovery helper — three tests import it, keep its exported API stable or update all three call sites.

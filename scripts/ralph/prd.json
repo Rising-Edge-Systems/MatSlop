@@ -1,135 +1,68 @@
 {
   "project": "MatSlop",
   "branchName": "ralph/matslop-polish-v2",
-  "description": "Polish cycle 3 on top of cycle 2. Remaining issues after manual rc-dock overlay hotfix (5f4e08d): dark theme not default, Command History ghost tab still renders from persisted layouts, panel content voids inside panes, active-tab state unclear, tab bar filler looks disconnected, workspace clipping. See tasks/prd-matslop-polish-3.md for narrative with reference screenshot /tmp/polish-cdp-03.png.",
+  "description": "Polish cycle 4: final pass. Three hotfixes already landed on this branch (342ceff, a413e3a, 5f4e08d). Remaining: pre-existing octave-bundle unit tests fail in dev environments without the bundled Windows binary, workspace column can clip on narrow widths, command window bottom fill, and a final sweep for any remaining cosmetic rough edges. Reference screenshot /tmp/polish-cdp-06.png.",
   "userStories": [
     {
-      "id": "US-Q01",
-      "title": "Change default theme mode from system to dark",
-      "description": "As a user, I want the app to open in dark mode by default even if my OS is set to light mode, matching the project's design baseline. First-launch inspection showed data-theme='light' applied because prefers-color-scheme returned light.",
+      "id": "US-R01",
+      "title": "Gate octave-bundle tests to skip when the bundle is absent",
+      "description": "Four unit tests in tests/unit/octave-config.test.ts and tests/unit/download-octave*.test.ts fail in dev environments because they assert the presence of resources/octave/mingw64/bin/octave-cli.exe (only downloaded by the packaging scripts). They should gracefully skip when the file is missing instead of hard-failing, so `npm test` returns green on clean checkouts.",
       "acceptanceCriteria": [
-        "The seeded default for users with no stored preference is 'dark' (not 'system')",
-        "First launch with no config does not set data-theme='light' even when OS prefers-color-scheme is light",
-        "Users who previously picked light or system keep their stored preference",
-        "A unit or Playwright test documents the seeded default",
+        "Each assertion that requires a bundled Octave binary is wrapped in `describe.skipIf(...)` or equivalent so it skips when the binary is absent",
+        "The test intent (verifying path correctness) is preserved: run the assertion when the bundle is present, skip with a clear reason when it isn't",
+        "`npm test` exits with code 0 on a clean checkout with no bundled Octave",
+        "Running `npm run download:octave` on Windows still satisfies the tests",
         "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
+        "Tests pass"
       ],
       "priority": 1,
       "passes": true,
       "notes": ""
     },
     {
-      "id": "US-Q02",
-      "title": "Actually kill the Command History ghost tab for persisted layouts",
-      "description": "US-P06 added sanitizeSavedDockLayout but the ghost tab still renders. Either the sanitizer is not applied on the load path, or only during visibility-driven rebuilds that skip the first render.",
+      "id": "US-R02",
+      "title": "Workspace column minSize and header ellipsis",
+      "description": "The Workspace pane's 'No variables in workspace' header still clips horizontally at narrow column widths. Set a hard minSize on the workspace column in the rc-dock layout and add text-overflow ellipsis on the header.",
       "acceptanceCriteria": [
-        "sanitizeSavedDockLayout is applied to savedDockLayout in the useState initializer of MatslopDockLayout (first render) AND on every later rebuild",
-        "Migration: if an existing session.json or layout persistence file contains a tab id whose visibility is currently false, strip it on load and write the sanitized layout back",
-        "Playwright: load a fixture layout that includes matslop-command-history and assert the rendered DOM has zero [data-testid='dock-tab-matslop-command-history'] when commandHistory is false",
+        "buildDockLayoutFromVisibility sets minSize: 200 (or similar) on the right (workspace) column panel",
+        ".ws-content header text uses white-space: nowrap + text-overflow: ellipsis OR wraps cleanly to a second line",
+        "Playwright: workspace header text is fully visible at 1600x900 viewport",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-Q03",
-      "title": "Fill panel content to pane edges (no gray voids inside panes)",
-      "description": "Cycle 2 made .panel fill the pane but inner containers still leave visible gaps. Screenshot /tmp/polish-cdp-03.png shows thin gray strips on the right edge of File Browser and Workspace and dead space below the Command Window prompt.",
+      "id": "US-R03",
+      "title": "Command Window output area fills pane vertically",
+      "description": "The Command Window shows the >> prompt at the top-left and leaves a large empty area below. The output area should anchor the prompt to the bottom (or stretch a scrollable history region to fill the pane).",
       "acceptanceCriteria": [
-        ".fb-content fills its pane horizontally with no gray strip on the right",
-        ".ws-content fills its pane horizontally",
-        ".cw-output fills its pane vertically; the >> prompt anchors at the bottom with scrollable history above",
-        "Any padding/margin comes from the theme, not from a visible background mismatch",
-        "Playwright screenshot in dark mode: no contiguous rectangle larger than 4x4 inside any dock pane that is NOT part of the intended content background",
+        "When the Command Window pane is tall and no commands have run yet, the visible content fills the pane (no gray void beneath the prompt)",
+        "History scrolls naturally as new output arrives; prompt stays visible",
+        "FitAddon still triggers on pane resize",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-Q04",
-      "title": "Distinguish active dock tabs visually",
-      "description": "Every tab in every strip currently looks underlined (all appear active). rc-dock exposes both .dock-tab.dock-tab-active AND .rc-tabs-tab-active; US-P09 only targeted rc-tabs.",
+      "id": "US-R04",
+      "title": "Final visual-polish baseline refresh",
+      "description": "After the final fixes, refresh the visual-polish Playwright baseline screenshot so CI has a valid comparison target.",
       "acceptanceCriteria": [
-        "Only the active tab has the accent-color underline and bright text (both .dock-tab.dock-tab-active and .rc-tabs-tab.rc-tabs-tab-active selectors covered)",
-        "Inactive tabs use --text-secondary with no underline",
-        "Hover on an inactive tab uses --bg-hover + --text-primary",
-        "Playwright: in a pane with 2+ tabs, exactly one has dock-tab-active and exactly one has the inset box-shadow",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 4,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-Q05",
-      "title": "Dock bar filler blends into tab strip",
-      "description": "The empty area to the right of the last tab currently looks like a disconnected gray box because the filler has a different background from the tab bar.",
-      "acceptanceCriteria": [
-        "The area after the last tab in every dock-bar uses the same background as .dock-bar (visual continuation of the strip)",
-        "The rc-tabs overflow button (.rc-tabs-nav-more / .dock-extra-content) is themed to match",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 5,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-Q06",
-      "title": "Workspace column min-width and overflow",
-      "description": "The Workspace header text 'No variables in workspace' is partially clipped at the right edge when the column is narrow.",
-      "acceptanceCriteria": [
-        ".ws-content has overflow: auto so long text can scroll instead of hard-clipping",
-        "Workspace column has a minSize in the rc-dock layout so it cannot shrink below ~180px",
-        "Header text wraps or truncates with an ellipsis rather than hard-clipping",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 6,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-Q07",
-      "title": "Clear stale persisted layout on version bump",
-      "description": "As a user upgrading from a pre-polish build, I don't want a stale persisted layout to override the new polished defaults.",
-      "acceptanceCriteria": [
-        "The layout persistence file stores a schema version field",
-        "On load, if the stored version is older than the current constant, the layout is discarded and defaults are applied (visibility preferences preserved where possible)",
-        "The constant is bumped by 1 in this story",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 7,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-Q08",
-      "title": "Run visual-polish E2E spec as exit gate",
-      "description": "The visual-polish spec from US-P10 must pass as the exit gate for this cycle.",
-      "acceptanceCriteria": [
-        "npm run test:e2e -- visual-polish passes on the polish-v2 branch after the cycle-3 fixes",
-        "Baseline screenshot updated to match the dark-theme polished state",
+        "tests/e2e/visual-polish.spec.ts runs against the current polished dark layout and passes",
+        "Baseline snapshot updated and committed",
         "Typecheck passes",
         "Tests pass"
       ],
-      "priority": 8,
-      "passes": true,
+      "priority": 4,
+      "passes": false,
       "notes": ""
     }
   ]

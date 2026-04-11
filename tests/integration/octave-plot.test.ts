@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { OctaveProcessManager } from '../../src/main/octaveProcess'
-import { getBundledOctaveBinary } from '../helpers/octaveBinary'
+import { getBundledOctaveBinaryPath, hasBundledOctaveBinary } from '../helpers/octaveBinary'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+
+// Skip plotting integration tests when the bundled Octave binary is absent.
+const HAS_OCTAVE = hasBundledOctaveBinary()
 
 function waitForReady(mgr: OctaveProcessManager, timeoutMs = 20000): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -20,11 +23,11 @@ function waitForReady(mgr: OctaveProcessManager, timeoutMs = 20000): Promise<voi
   })
 }
 
-describe('Octave plotting', () => {
+describe.skipIf(!HAS_OCTAVE)('Octave plotting', () => {
   let mgr: OctaveProcessManager
 
   beforeEach(async () => {
-    mgr = new OctaveProcessManager(getBundledOctaveBinary())
+    mgr = new OctaveProcessManager(getBundledOctaveBinaryPath())
     mgr.start()
     await waitForReady(mgr)
   })
