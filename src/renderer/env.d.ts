@@ -267,7 +267,26 @@ interface Window {
     }>
     gitStageFile: (cwd: string, filePath: string, stage: boolean) => Promise<{ success: boolean; error?: string }>
     gitCommit: (cwd: string, message: string) => Promise<{ success: boolean; commit?: string; error?: string }>
+    // US-041: Auto-update channel
+    updateCheckNow: () => Promise<UpdateStatus>
+    updateCheckIfDue: () => Promise<UpdateStatus>
+    updateInstall: () => Promise<void>
+    updateGetState: () => Promise<UpdateStatus>
+    updateGetIntervalHours: () => Promise<number>
+    updateSetIntervalHours: (hours: number) => Promise<number>
+    updateGetEnabled: () => Promise<boolean>
+    updateSetEnabled: (enabled: boolean) => Promise<void>
+    onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void
     // Test-only
     _testMenuAction?: (action: string) => Promise<void>
   }
 }
+
+type UpdateStatus =
+  | { kind: 'idle' }
+  | { kind: 'checking' }
+  | { kind: 'available'; version: string; releaseNotes?: string; releaseName?: string }
+  | { kind: 'not-available'; version: string }
+  | { kind: 'downloading'; percent: number; transferred: number; total: number }
+  | { kind: 'downloaded'; version: string; releaseNotes?: string; releaseName?: string }
+  | { kind: 'error'; message: string }

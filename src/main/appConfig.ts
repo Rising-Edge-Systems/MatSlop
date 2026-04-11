@@ -12,6 +12,10 @@ export interface AppPreferences {
   showWelcome: boolean
   /** US-034: Restore last session (tabs + cursor + layout) on launch. */
   sessionRestore: boolean
+  /** US-041: Hours between auto-update checks (minimum 1h, maximum 720h). */
+  updateCheckIntervalHours: number
+  /** US-041: Enable background update checks on launch and on interval. */
+  updateCheckEnabled: boolean
 }
 
 export interface PanelVisibilityConfig {
@@ -102,6 +106,8 @@ const defaults: AppPreferences = {
   defaultWorkingDirectory: '',
   showWelcome: true,
   sessionRestore: true,
+  updateCheckIntervalHours: 24,
+  updateCheckEnabled: true,
 }
 
 // Lazily create the electron-store instance. Creating it at module load
@@ -145,7 +151,42 @@ export function getPreferences(): AppPreferences {
     defaultWorkingDirectory: store.get('defaultWorkingDirectory', defaults.defaultWorkingDirectory) as string,
     showWelcome: store.get('showWelcome', defaults.showWelcome) as boolean,
     sessionRestore: store.get('sessionRestore', defaults.sessionRestore) as boolean,
+    updateCheckIntervalHours: store.get(
+      'updateCheckIntervalHours',
+      defaults.updateCheckIntervalHours,
+    ) as number,
+    updateCheckEnabled: store.get('updateCheckEnabled', defaults.updateCheckEnabled) as boolean,
   }
+}
+
+// ---------------------------------------------------------------------------
+// US-041: Auto-update state (last-check timestamp lives in the store so it
+// survives restarts; the interval lives in preferences above).
+// ---------------------------------------------------------------------------
+
+export function getUpdateLastCheckMs(): number | null {
+  const v = store.get('updateLastCheckMs', 0) as number
+  return typeof v === 'number' && v > 0 ? v : null
+}
+
+export function setUpdateLastCheckMs(ms: number): void {
+  store.set('updateLastCheckMs', ms)
+}
+
+export function getUpdateCheckIntervalHours(): number {
+  return store.get('updateCheckIntervalHours', defaults.updateCheckIntervalHours) as number
+}
+
+export function setUpdateCheckIntervalHours(hours: number): void {
+  store.set('updateCheckIntervalHours', hours)
+}
+
+export function getUpdateCheckEnabled(): boolean {
+  return store.get('updateCheckEnabled', defaults.updateCheckEnabled) as boolean
+}
+
+export function setUpdateCheckEnabled(enabled: boolean): void {
+  store.set('updateCheckEnabled', enabled)
 }
 
 export function setPreferences(prefs: Partial<AppPreferences>): void {

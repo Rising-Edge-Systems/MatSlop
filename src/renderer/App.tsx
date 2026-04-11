@@ -7,6 +7,7 @@ import CommandWindow, { type PendingCommand } from './panels/CommandWindow'
 import CommandHistoryPanel from './panels/CommandHistoryPanel'
 import FigurePanel, { type FigureData } from './panels/FigurePanel'
 import StatusBar from './panels/StatusBar'
+import UpdateBanner from './panels/UpdateBanner'
 import type { CursorPosition } from './panels/StatusBar'
 import DebugToolbar from './editor/DebugToolbar'
 import CallStackPanel, { type CallStackFrame } from './panels/CallStackPanel'
@@ -1547,6 +1548,9 @@ function App(): React.JSX.Element {
           onClose={() => setInspectedVariable(null)}
         />
       )}
+      {/* US-041: Auto-update notification banner. Renders null when idle,
+          so it consumes no layout space until an update is available. */}
+      <UpdateBanner />
       <div className="app-main">
       {/* US-025: Every panel is now a dock pane inside MatslopDockLayout,
           which wraps rc-dock. The layout tree is computed from the

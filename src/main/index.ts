@@ -56,6 +56,21 @@ import {
   clearSession,
   type SessionState,
 } from './sessionStore'
+import {
+  getUpdateCheckEnabled,
+  getUpdateCheckIntervalHours,
+  getUpdateLastCheckMs,
+  setUpdateCheckEnabled,
+  setUpdateCheckIntervalHours,
+  setUpdateLastCheckMs,
+} from './appConfig'
+import {
+  createUpdateBridge,
+  makeWindowSender,
+  normalizeUpdateCheckIntervalHours,
+  type UpdateBridge,
+  type UpdateStatus,
+} from './updateBridge'
 
 // Command history file path
 function getHistoryFilePath(): string {
@@ -1061,6 +1076,58 @@ ipcMain.handle('session:setRestoreEnabled', (_event, enabled: boolean) => {
   setPreferences({ sessionRestore: !!enabled })
 })
 
+// ---------------------------------------------------------------------------
+// US-041: Auto-update channel — IPC handlers and bridge lifecycle.
+// ---------------------------------------------------------------------------
+let updateBridge: UpdateBridge | null = null
+
+function getUpdateBridge(): UpdateBridge {
+  if (!updateBridge) {
+    updateBridge = createUpdateBridge({
+      getAppVersion: () => app.getVersion(),
+      sendStatus: makeWindowSender(() => mainWindow),
+      setLastCheckMs: setUpdateLastCheckMs,
+      getLastCheckMs: getUpdateLastCheckMs,
+      getIntervalHours: () => normalizeUpdateCheckIntervalHours(getUpdateCheckIntervalHours()),
+    })
+  }
+  return updateBridge
+}
+
+ipcMain.handle('update:checkNow', async (): Promise<UpdateStatus> => {
+  return getUpdateBridge().checkNow()
+})
+
+ipcMain.handle('update:checkIfDue', async (): Promise<UpdateStatus> => {
+  return getUpdateBridge().checkIfDue()
+})
+
+ipcMain.handle('update:install', () => {
+  getUpdateBridge().quitAndInstall()
+})
+
+ipcMain.handle('update:getState', (): UpdateStatus => {
+  return getUpdateBridge().getState()
+})
+
+ipcMain.handle('update:getIntervalHours', (): number => {
+  return normalizeUpdateCheckIntervalHours(getUpdateCheckIntervalHours())
+})
+
+ipcMain.handle('update:setIntervalHours', (_event, hours: number) => {
+  const normalized = normalizeUpdateCheckIntervalHours(hours)
+  setUpdateCheckIntervalHours(normalized)
+  return normalized
+})
+
+ipcMain.handle('update:getEnabled', (): boolean => {
+  return getUpdateCheckEnabled()
+})
+
+ipcMain.handle('update:setEnabled', (_event, enabled: boolean) => {
+  setUpdateCheckEnabled(!!enabled)
+})
+
 ipcMain.handle('test:menuAction', (_event, action: string) => {
   if (!process.env.MATSLOP_USER_DATA_DIR) return // only enabled during tests
   mainWindow?.webContents.send('menu:action', action)
@@ -1082,6 +1149,26 @@ app.whenReady().then(() => {
       createWindow()
     }
   })
+
+  // US-041: kick off an auto-update check shortly after launch if enabled
+  // AND the scheduled interval has elapsed. We delay briefly so the
+  // renderer has a chance to mount and subscribe to 'update:status'
+  // events. Skipped in test/dev e2e envs (MATSLOP_USER_DATA_DIR is set
+  // there) so we don't reach out to GitHub during CI.
+  if (
+    !process.env.MATSLOP_USER_DATA_DIR &&
+    !process.env.MATSLOP_SKIP_AUTO_UPDATE &&
+    app.isPackaged &&
+    getUpdateCheckEnabled()
+  ) {
+    setTimeout(() => {
+      getUpdateBridge()
+        .checkIfDue()
+        .catch(() => {
+          /* errors are surfaced via the update:status event */
+        })
+    }, 3000)
+  }
 })
 
 app.on('window-all-closed', () => {

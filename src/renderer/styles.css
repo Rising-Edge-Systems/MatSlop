@@ -3544,3 +3544,47 @@ body {
 .fb-git-badge-R { color: #61afef; }
 .fb-git-badge-U { color: #c678dd; }
 .fb-git-badge-\? { color: #888; }
+
+/* US-041: Auto-update notification banner */
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--color-banner-bg, #264f78);
+  color: var(--color-banner-text, #fff);
+  font-size: 13px;
+  border-bottom: 1px solid var(--color-border, #333);
+  flex: 0 0 auto;
+}
+.update-banner-error {
+  background: var(--color-banner-error-bg, #7a1f1f);
+}
+.update-banner-message {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.update-banner-actions {
+  display: flex;
+  gap: 6px;
+}
+.update-banner-btn {
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.update-banner-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.update-banner-btn-primary {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.8);
+  font-weight: 600;
+}

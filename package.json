@@ -73,12 +73,20 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "matslop",
+        "repo": "matslop"
+      }
+    ]
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@types/plotly.js": "^3.0.10",
     "electron-store": "^11.0.2",
+    "electron-updater": "^6.8.3",
     "lucide-react": "^1.8.0",
     "monaco-editor": "^0.55.1",
     "plotly.js-dist-min": "^3.5.0",

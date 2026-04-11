@@ -285,6 +285,23 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.invoke('git:stageFile', cwd, filePath, stage),
   gitCommit: (cwd: string, message: string) =>
     ipcRenderer.invoke('git:commit', cwd, message),
+  // US-041: Auto-update channel
+  updateCheckNow: (): Promise<unknown> => ipcRenderer.invoke('update:checkNow'),
+  updateCheckIfDue: (): Promise<unknown> => ipcRenderer.invoke('update:checkIfDue'),
+  updateInstall: (): Promise<void> => ipcRenderer.invoke('update:install'),
+  updateGetState: (): Promise<unknown> => ipcRenderer.invoke('update:getState'),
+  updateGetIntervalHours: (): Promise<number> =>
+    ipcRenderer.invoke('update:getIntervalHours'),
+  updateSetIntervalHours: (hours: number): Promise<number> =>
+    ipcRenderer.invoke('update:setIntervalHours', hours),
+  updateGetEnabled: (): Promise<boolean> => ipcRenderer.invoke('update:getEnabled'),
+  updateSetEnabled: (enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke('update:setEnabled', enabled),
+  onUpdateStatus: (callback: (status: unknown) => void): (() => void) => {
+    const handler = (_event: IpcRendererEvent, status: unknown): void => callback(status)
+    ipcRenderer.on('update:status', handler)
+    return () => ipcRenderer.removeListener('update:status', handler)
+  },
   // Test-only helper
   _testMenuAction: (action: string): Promise<void> =>
     ipcRenderer.invoke('test:menuAction', action),

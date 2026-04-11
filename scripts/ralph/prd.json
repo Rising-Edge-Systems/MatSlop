@@ -686,8 +686,8 @@
         "Tests pass"
       ],
       "priority": 41,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Integrated electron-updater as runtime dep with lazy dynamic import so tests/dev without it still run. Pure helpers (normalizeUpdateCheckIntervalHours, shouldCheckForUpdateNow, compareVersions, buildUpdateAvailableStatus, buildDownloadProgressStatus, buildUpdateDownloadedStatus) live in src/main/updateBridge.ts alongside a createUpdateBridge() wrapper that wires electron-updater events to a sendStatus callback and persists lastCheckMs through injected deps. main/index.ts registers IPC handlers (update:checkNow, update:checkIfDue, update:install, update:getState, update:getIntervalHours, update:setIntervalHours, update:getEnabled, update:setEnabled), exposes them via preload, and schedules a checkIfDue() 3s after app.whenReady() when packaged + enabled + not in MATSLOP_USER_DATA_DIR/MATSLOP_SKIP_AUTO_UPDATE. appConfig.ts gained updateCheckIntervalHours + updateCheckEnabled preferences plus getter/setter for updateLastCheckMs. New UpdateBanner React component in src/renderer/panels/UpdateBanner.tsx subscribes to window.matslop.onUpdateStatus, offers Download / Install now / Later / Dismiss buttons depending on UpdateStatus kind, and exposes window.__matslopSimulateUpdateStatus for Playwright. package.json now has build.publish=[{provider:github,owner:matslop,repo:matslop}] pointing updates at GitHub Releases. 20 new unit tests in tests/unit/update-bridge.test.ts cover interval normalization, scheduling, version compare, status builders, createUpdateBridge behavior, and package.json config."
     },
     {
       "id": "US-042",
