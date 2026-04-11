@@ -1,0 +1,260 @@
+/*
+ * US-P03: rc-dock theme override.
+ *
+ * rc-dock ships with a light-theme stylesheet (rc-dock/dist/rc-dock.css)
+ * that hard-codes white/grey backgrounds, dark text, and light borders.
+ * Inside MatSlop's dark UI those defaults punch a contiguous bright void
+ * in the middle of the window.
+ *
+ * Rather than fork the upstream CSS, this file is loaded *after*
+ * `rc-dock/dist/rc-dock.css` from MatslopDockLayout.tsx and re-skins every
+ * rc-dock / rc-tabs selector by mapping it to the project's CSS custom
+ * properties (defined in src/renderer/styles.css). This means switching
+ * the document's `data-theme` between dark (default) and light Just Works
+ * for the dock chrome too — no rc-dock import swap required.
+ *
+ * If a selector is missing here, the upstream light styles bleed through:
+ * add it below using vars from styles.css, never raw colors.
+ */
+
+/* Root layout container */
+.dock-layout {
+  background: var(--bg-main);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+/* Box containers (vertical / horizontal / float / max / window) */
+.dock-box,
+.dock-fbox,
+.dock-mbox,
+.dock-wbox,
+.dockbox {
+  background: var(--bg-main);
+  color: var(--text-primary);
+}
+
+/* A single dock pane (the box that holds a tab strip + content) */
+.dock-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+.dock-panel.dragging {
+  opacity: 0.7;
+}
+
+.dock-panel.dock-style-headless {
+  background: var(--bg-panel);
+}
+
+/* Dividers between panes */
+.dock-divider {
+  background: var(--bg-main);
+  flex-basis: 4px;
+}
+
+.dock-divider::before {
+  background: var(--border-color);
+}
+
+.dock-divider:hover::before,
+.dock-vbox > .dock-divider:hover::before,
+.dock-hbox > .dock-divider:hover::before {
+  background: var(--accent-color);
+}
+
+/* Tab bar (rc-dock wrapper around rc-tabs) */
+.dock-bar {
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+/* Per-tab buttons rendered by rc-dock (close, max/min, dropdown) */
+.dock-tab-close-btn,
+.dock-panel-max-btn,
+.dock-panel-min-btn {
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+}
+
+.dock-tab-close-btn:hover,
+.dock-panel-max-btn:hover,
+.dock-panel-min-btn:hover {
+  color: var(--text-bright);
+  background: var(--bg-hover);
+}
+
+.dock-extra-content {
+  background: var(--bg-header);
+  color: var(--text-secondary);
+}
+
+.dock-nav-more {
+  color: var(--text-secondary);
+  background: transparent;
+}
+
+.dock-nav-more:hover {
+  color: var(--text-bright);
+  background: var(--bg-hover);
+}
+
+/* Drop indicators while dragging tabs */
+.dock-drop-indicator {
+  background: rgba(0, 122, 204, 0.25);
+  border: 1px solid var(--accent-color);
+}
+
+.dock-drop-layer {
+  background: transparent;
+}
+
+.dock-drop-square,
+.dock-drop-square-box {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.dock-drop-square-dropping {
+  background: var(--accent-color);
+  border-color: var(--accent-hover);
+}
+
+.dock-drop-edge {
+  background: transparent;
+}
+
+/* Dropdown menu (overflow tab list, context menu) */
+.dock-dropdown,
+.dock-dropdown-menu {
+  background: var(--context-menu-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  box-shadow: 0 4px 12px var(--context-menu-shadow);
+}
+
+.dock-dropdown-menu .dock-dropdown-menu-item:hover {
+  background: var(--context-menu-hover);
+  color: var(--text-bright);
+}
+
+/* rc-tabs internals (rc-dock embeds rc-tabs with prefixCls "rc-tabs") */
+.rc-tabs {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+}
+
+.rc-tabs-nav {
+  background: var(--bg-header);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  margin: 0;
+}
+
+.rc-tabs-nav::before {
+  border-bottom-color: var(--border-color);
+}
+
+.rc-tabs-nav-wrap {
+  background: var(--bg-header);
+}
+
+.rc-tabs-nav-list {
+  background: transparent;
+}
+
+.rc-tabs-tab {
+  background: var(--bg-header);
+  color: var(--text-secondary);
+  border: none;
+  border-right: 1px solid var(--border-subtle);
+  padding: 4px 12px;
+  margin: 0;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+
+.rc-tabs-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.rc-tabs-tab-active,
+.rc-tabs-tab.rc-tabs-tab-active {
+  background: var(--bg-panel);
+  color: var(--text-bright);
+}
+
+.rc-tabs-tab-btn {
+  color: inherit;
+  background: transparent;
+  outline: none;
+}
+
+.rc-tabs-tab-btn:focus,
+.rc-tabs-tab-btn:focus-visible {
+  outline: none;
+  color: var(--text-bright);
+}
+
+.rc-tabs-ink-bar {
+  background: var(--accent-color);
+  height: 2px;
+}
+
+.rc-tabs-content,
+.rc-tabs-content-holder,
+.rc-tabs-tabpane {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+}
+
+.rc-tabs-nav-operations,
+.rc-tabs-nav-more {
+  background: var(--bg-header);
+  color: var(--text-secondary);
+  border: none;
+}
+
+.rc-tabs-nav-operations-hidden {
+  display: none;
+}
+
+.rc-tabs-dropdown {
+  background: var(--context-menu-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  box-shadow: 0 4px 12px var(--context-menu-shadow);
+}
+
+.rc-tabs-dropdown-menu {
+  background: var(--context-menu-bg);
+  color: var(--text-primary);
+}
+
+.rc-tabs-dropdown-menu-item {
+  color: var(--text-primary);
+  background: transparent;
+}
+
+.rc-tabs-dropdown-menu-item:hover,
+.rc-tabs-dropdown-menu-item-active {
+  background: var(--context-menu-hover);
+  color: var(--text-bright);
+}
+
+/* Drag-resize handles on floating panels */
+.dock-panel-drag-size {
+  background: transparent;
+}
+
+.dock-panel-drag-size:hover {
+  background: var(--accent-color);
+  opacity: 0.4;
+}

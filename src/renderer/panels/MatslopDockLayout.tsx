@@ -8,6 +8,11 @@ import DockLayout, {
   type TabData,
 } from 'rc-dock'
 import 'rc-dock/dist/rc-dock.css'
+// US-P03: re-skin rc-dock / rc-tabs to MatSlop's CSS variables so the
+// dock chrome follows the project's dark (and light) theme instead of
+// the upstream light defaults. Must be imported AFTER rc-dock.css so
+// the overrides win the cascade.
+import '../rc-dock-theme.css'
 
 /**
  * US-024 / US-025: full rc-dock integration for MatSlop.
