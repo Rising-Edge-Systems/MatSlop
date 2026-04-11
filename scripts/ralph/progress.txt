@@ -232,3 +232,14 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
   - electron-store mock pattern from tests/unit/theme-default.test.ts is the template: define a per-test `storeData` object captured in a closure and mock the default export with a class that reads/writes that object. `beforeEach` clears it.
   - `migrateLayoutConfig` is exported PURELY (no electron / fs imports inside the function) so it stays vitest-importable; keep all new appConfig helpers that way.
 ---
+
+## 2026-04-11 - US-Q08
+- Ran `npm run build` (clean) and then `npx playwright test visual-polish` against the polish-v2 branch with all US-Q01..Q07 fixes integrated. All 3 specs in tests/e2e/visual-polish.spec.ts passed: light-theme leak scan, US-Q03 fill assertions, dock-tab fills parent .dock-content.
+- Generated/committed the dark-theme baseline screenshot tests/e2e/__screenshots__/visual-polish/default-layout-1600x1000.png (the spec writes the baseline on first run when missing; since the file was previously untracked, this run produces the canonical polished baseline).
+- Unit tests (tests/unit/dock-layout.test.ts, 28 cases) still green. Pre-existing typecheck error in src/main/octaveProcess.ts is unchanged baseline.
+- Files changed: scripts/ralph/prd.json (US-Q08 passes:true), tests/e2e/__screenshots__/visual-polish/default-layout-1600x1000.png (new baseline).
+- **Learnings for future iterations:**
+  - The visual-polish spec auto-creates the baseline PNG when missing (`if (!fs.existsSync(BASELINE_PATH)) fs.writeFileSync(...)`) — to refresh the baseline after a deliberate visual change, delete the file and re-run the spec.
+  - `dist/renderer/` may be stale relative to the current source tree; **always** `npm run build` before running e2e specs in this repo or you'll be testing yesterday's bundle.
+  - The polish-v2 cycle (US-P01..P10 + US-Q01..Q08) is complete; visual-polish is the cycle exit gate and is now green.
+---
