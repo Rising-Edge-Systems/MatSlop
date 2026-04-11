@@ -20,12 +20,23 @@ const OCTAVE_DIR = path.join(ROOT, 'resources', 'octave')
 
 const OCTAVE_VERSION = '9.4.0'
 
+// NOTE: macOS doesn't have a "portable" Octave archive the way Windows does,
+// but the octave-app project ships a notarized Octave.app bundle as a .dmg
+// (https://github.com/octave-app/octave-app/releases). We download that .dmg
+// and extract Octave.app into resources/octave/ so packaging ends up with
+// resources/octave/Octave.app/Contents/Resources/usr/bin/octave-cli.
 const DOWNLOADS = {
   win32: {
     url: `https://ftpmirror.gnu.org/octave/windows/octave-${OCTAVE_VERSION}-w64.zip`,
     filename: `octave-${OCTAVE_VERSION}-w64.zip`,
     extractedDir: `octave-${OCTAVE_VERSION}`,
     binary: 'mingw64/bin/octave-cli.exe'
+  },
+  darwin: {
+    url: `https://github.com/octave-app/octave-app/releases/download/v${OCTAVE_VERSION}/Octave-${OCTAVE_VERSION}.dmg`,
+    filename: `Octave-${OCTAVE_VERSION}.dmg`,
+    // Relative to OCTAVE_DIR, this is the binary we expect after extraction.
+    binary: 'Octave.app/Contents/Resources/usr/bin/octave-cli'
   }
 }
 
@@ -114,7 +125,47 @@ async function main() {
 
   // Extract
   console.log('  Extracting (this may take a few minutes)...')
-  if (platform === 'win32') {
+  if (platform === 'darwin') {
+    // Attach the .dmg to a temporary mount point, copy Octave.app out, detach.
+    const mountPoint = path.join(OCTAVE_DIR, `.mount-${Date.now()}`)
+    fs.mkdirSync(mountPoint, { recursive: true })
+    try {
+      execSync(
+        `hdiutil attach -nobrowse -readonly -mountpoint "${mountPoint}" "${archivePath}"`,
+        { stdio: 'inherit', timeout: 600000 }
+      )
+      // Find Octave.app inside the mounted volume (it's usually at the root).
+      const appSrcCandidates = [
+        path.join(mountPoint, 'Octave.app'),
+        path.join(mountPoint, `Octave-${OCTAVE_VERSION}.app`)
+      ]
+      const appSrc = appSrcCandidates.find((p) => fs.existsSync(p))
+      if (!appSrc) {
+        throw new Error(
+          `Octave.app not found in DMG. Volume contents: ${fs.readdirSync(mountPoint).join(', ')}`
+        )
+      }
+      const appDest = path.join(OCTAVE_DIR, 'Octave.app')
+      // Preserve symlinks + permissions via `cp -R` (ditto is also fine).
+      execSync(`cp -R "${appSrc}" "${appDest}"`, { stdio: 'inherit', timeout: 1200000 })
+    } finally {
+      try {
+        execSync(`hdiutil detach "${mountPoint}" -force`, {
+          stdio: 'inherit',
+          timeout: 60000
+        })
+      } catch {
+        // ignore detach errors
+      }
+      if (fs.existsSync(mountPoint)) {
+        try {
+          fs.rmdirSync(mountPoint)
+        } catch {
+          // may not be empty if detach failed; leave it for the user to clean up
+        }
+      }
+    }
+  } else if (platform === 'win32') {
     // Use PowerShell to extract on Windows
     execSync(
       `powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${OCTAVE_DIR}' -Force"`,

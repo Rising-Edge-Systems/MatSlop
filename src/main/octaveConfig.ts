@@ -17,13 +17,23 @@ function getBundledOctavePath(): string | null {
       ]
 
   for (const base of searchPaths) {
-    const candidates =
-      process.platform === 'win32'
-        ? [path.join(base, 'mingw64', 'bin', 'octave-cli.exe')]
-        : [
-            path.join(base, 'bin', 'octave-cli'),
-            path.join(base, 'bin', 'octave')
-          ]
+    let candidates: string[]
+    if (process.platform === 'win32') {
+      candidates = [path.join(base, 'mingw64', 'bin', 'octave-cli.exe')]
+    } else if (process.platform === 'darwin') {
+      // download-octave.js places Octave.app at resources/octave/Octave.app
+      candidates = [
+        path.join(base, 'Octave.app', 'Contents', 'Resources', 'usr', 'bin', 'octave-cli'),
+        path.join(base, 'Octave.app', 'Contents', 'Resources', 'usr', 'bin', 'octave'),
+        path.join(base, 'bin', 'octave-cli'),
+        path.join(base, 'bin', 'octave')
+      ]
+    } else {
+      candidates = [
+        path.join(base, 'bin', 'octave-cli'),
+        path.join(base, 'bin', 'octave')
+      ]
+    }
 
     for (const p of candidates) {
       if (fs.existsSync(p)) return p

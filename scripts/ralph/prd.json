@@ -638,8 +638,8 @@
         "Tests pass"
       ],
       "priority": 38,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added darwin entry to DOWNLOADS map in scripts/download-octave.js targeting octave-app v9.4.0 .dmg (Octave-9.4.0.dmg from github.com/octave-app/octave-app). Extractor uses hdiutil attach/detach + cp -R to copy Octave.app into resources/octave/Octave.app. Extended getBundledOctavePath() in src/main/octaveConfig.ts with a darwin branch that checks Octave.app/Contents/Resources/usr/bin/octave-cli (and octave). package.json build:mac now runs download:octave before electron-vite build && electron-builder --mac (matches build:win pattern). Added tests/unit/download-octave-mac.test.ts with 5 assertions covering the darwin DOWNLOADS entry, hdiutil extraction, build:mac script ordering, and octaveConfig darwin branch."
     },
     {
       "id": "US-039",

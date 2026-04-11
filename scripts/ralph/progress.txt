@@ -701,3 +701,17 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
   - When rendering a conditional dock vbox (left column with >=1 child), collapse the single-child case into a direct PanelData (with the box's size) so the layout doesn't gain an unnecessary wrapper node. Avoids rc-dock's fixBoxData re-normalization surprises.
   - Playwright e2e pattern for git features: use execFileSync to build the real repo in a temp dir in beforeAll, then drive IPCs via `window.evaluate(async (cwd) => window.matslop.gitStatus(cwd), repoDir)`. No need to stub the binary.
 ---
+
+## 2026-04-11 - US-038 Extend download-octave.js for macOS
+- Added `darwin` entry to DOWNLOADS map in scripts/download-octave.js pointing at octave-app v9.4.0 Octave-9.4.0.dmg
+- Implemented darwin extraction branch: hdiutil attach -nobrowse -readonly -mountpoint <tmp> <dmg>, cp -R Octave.app, hdiutil detach -force (in try/finally so detach always runs)
+- Extended getBundledOctavePath in src/main/octaveConfig.ts with a darwin candidate list: Octave.app/Contents/Resources/usr/bin/octave-cli (and octave), plus generic bin/ fallbacks
+- package.json build:mac now runs `npm run download:octave && electron-vite build && electron-builder --mac` (mirrors build:win)
+- Added tests/unit/download-octave-mac.test.ts (5 assertions: darwin DOWNLOADS key, .dmg URL, Octave.app/Contents path, hdiutil attach+detach present, build:mac script order, octaveConfig darwin branch)
+- Files changed: scripts/download-octave.js, src/main/octaveConfig.ts, package.json, tests/unit/download-octave-mac.test.ts, scripts/ralph/prd.json
+- **Learnings:**
+  - macOS has no "portable zip" Octave like Windows; the octave-app project ships a notarized Octave.app bundle as a .dmg at github.com/octave-app/octave-app/releases
+  - Extract DMGs from Node with hdiutil (only works on macOS, which is fine for a `build:mac` pre-step that only runs on macOS): `hdiutil attach -nobrowse -readonly -mountpoint <dir> <dmg>` then `cp -R` then `hdiutil detach -force <dir>`. Always wrap in try/finally so detach runs on errors.
+  - Octave.app structure: `Octave.app/Contents/Resources/usr/bin/octave-cli` is the real binary inside the bundle
+  - Pre-existing baseline test failure: tests/unit/octave-config.test.ts asserts the mingw64 binary exists on disk, which only passes after `npm run download:octave` on Windows. Not touched by US-038.
+---
