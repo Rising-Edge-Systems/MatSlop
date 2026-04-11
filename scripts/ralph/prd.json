@@ -403,8 +403,8 @@
         "Tests pass"
       ],
       "priority": 24,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added docs/adr/0002-dock-layout-library.md comparing rc-dock vs flexlayout-react vs dockview (decision: rc-dock, MIT, native detach-to-OS-window via Electron new-window interception, JSON save/loadLayout, loadTab(id) factory keeps panel wiring co-located). Installed rc-dock@^4.0.0-alpha.2. Created src/renderer/panels/MatslopDockLayout.tsx: pure buildDefaultDockLayout() helper returns the MATLAB-default LayoutData tree (FileBrowser | Editor+CommandWindow | Workspace, 3 top-level panes) plus a MatslopDockLayout component that accepts ReactNode slots for each panel and mounts them through a loadTab(id) factory sharing group='main'. Not yet wired into App.tsx \u2014 US-025 migrates the live tree. Added tests/unit/dock-layout.test.ts (6 cases) asserting dockbox shape, tab ordering, uniqueness of ids, non-negative sizes, and fresh-object per call."
     },
     {
       "id": "US-025",
