@@ -10,6 +10,15 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
 
 ---
 
+## 2026-04-11 - US-P02
+- Removed `display: flex` from the loadTab() content wrapper in MatslopDockLayout.tsx so the inner `.panel` (which is itself flex column with height:100%) is no longer a flex item shrinking to intrinsic width.
+- Added `width: 100%; min-width: 0; min-height: 0` to the `.panel` selector in styles.css alongside the existing `height: 100%`.
+- Files changed: src/renderer/panels/MatslopDockLayout.tsx, src/renderer/styles.css.
+- **Learnings for future iterations:**
+  - The pre-existing typecheck errors in MatslopDockLayout.tsx (rc-dock module not found, implicit any in dockMove globals) and octave-bundle test failures are unchanged baselines — do not block on them.
+  - Inner panel root (`.panel`) is `display: flex; flex-direction: column`. Wrapping it in another `display:flex` row container caused horizontal collapse because the child had no explicit `flex: 1` and default `flex-shrink: 1` shrunk it.
+---
+
 ## 2026-04-11 - US-P01
 - Removed PanelHeader import + JSX from 12 dock-hosted panels (FileBrowser, EditorPanel, WorkspacePanel, CommandWindow, CommandHistoryPanel, CallStackPanel, WatchesPanel, FigurePanel, HelpPanel, FindInFilesPanel, ProfilerPanel, SourceControlPanel).
 - WatchesPanel: kept refresh button by introducing an inline `watches-toolbar` div.
