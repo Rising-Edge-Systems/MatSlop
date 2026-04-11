@@ -57,8 +57,11 @@
       "target": [
         "dmg"
       ],
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
     },
+    "afterSign": "scripts/notarize.cjs",
     "win": {
       "target": [
         "nsis"

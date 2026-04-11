@@ -701,8 +701,8 @@
         "Tests pass"
       ],
       "priority": 42,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added scripts/notarize.cjs as electron-builder afterSign hook. Reads APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD (or legacy APPLE_ID_PASSWORD) / APPLE_TEAM_ID, skips gracefully with a [notarize] message when any are missing (matches US-040 unsigned fallback). Dynamic imports @electron/notarize so Linux CI runners without it also skip. Enabled hardenedRuntime:true on build.mac (required by Apple notary). Added docs/macos-notarization.md covering Developer ID setup, env vars, local+CI usage, graceful skip, troubleshooting. Added tests/unit/macos-notarization.test.ts with 19 assertions covering pkg config, skip matrix, non-darwin short-circuit, darwin-with-missing-creds graceful skip, and doc contents."
     }
   ]
 }
