@@ -587,8 +587,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 35,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added pure helpers in src/renderer/shortcuts/customShortcuts.ts (normalizeBinding, applyShortcutOverrides, findShortcutConflicts, pruneRedundantOverrides, parseStoredOverrides, bindingFromKeyboardEvent). Extended ShortcutManager with setActiveDefinitions/getActiveDefinitions so runtime overrides apply without reload. Added Keyboard tab to PreferencesDialog with per-action binding button, capture mode (window keydown listener), conflict badges, per-row reset, and Reset All. Wired config:getShortcuts/config:setShortcuts IPCs backed by electron-store (StoredShortcutBinding in appConfig). EditorPanel loads persisted overrides at startup. Unit tests: tests/unit/custom-shortcuts.test.ts (21 cases). E2E: tests/e2e/keyboard-shortcuts.spec.ts verifies list, rebind, persistence, and Ctrl+F conflict between save and find."
     },
     {
       "id": "US-036",

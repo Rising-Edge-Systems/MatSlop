@@ -56,11 +56,26 @@ export interface StoredLayoutPreset {
   dockLayout?: unknown
 }
 
+/**
+ * US-035: Custom keyboard shortcut override, keyed by `ShortcutAction`.
+ * Values mirror the binding fields in `ShortcutDefinition` (key + modifiers).
+ * We intentionally store this as a plain record so appConfig does not need
+ * to import the renderer-side ShortcutAction union.
+ */
+export interface StoredShortcutBinding {
+  key: string
+  ctrl?: boolean
+  shift?: boolean
+  alt?: boolean
+}
+
 export interface AppConfig extends AppPreferences {
   layout: LayoutConfig
   recentFiles: string[]
   /** US-028: user-saved layout presets, keyed by preset name. */
   layoutPresets: Record<string, StoredLayoutPreset>
+  /** US-035: user keyboard shortcut overrides, keyed by ShortcutAction. */
+  shortcutOverrides: Record<string, StoredShortcutBinding>
 }
 
 const defaultLayout: LayoutConfig = {
@@ -213,3 +228,17 @@ export function deleteLayoutPreset(name: string): void {
 export function listLayoutPresetNames(): string[] {
   return Object.keys(getLayoutPresets())
 }
+
+// ---------------------------------------------------------------------------
+// US-035: Keyboard shortcut overrides
+// ---------------------------------------------------------------------------
+
+export function getShortcutOverrides(): Record<string, StoredShortcutBinding> {
+  const raw = store.get('shortcutOverrides', {}) as Record<string, StoredShortcutBinding>
+  return { ...raw }
+}
+
+export function setShortcutOverrides(overrides: Record<string, StoredShortcutBinding>): void {
+  store.set('shortcutOverrides', overrides)
+}
+

@@ -1,5 +1,22 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { ThemeMode } from '../App'
+import {
+  SHORTCUT_DEFINITIONS,
+  shortcutManager,
+  type ShortcutAction,
+  type ShortcutDefinition,
+} from '../shortcuts/shortcutManager'
+import {
+  applyShortcutOverrides,
+  bindingFromKeyboardEvent,
+  conflictingActions,
+  defToBinding,
+  formatBindingLabel,
+  parseStoredOverrides,
+  pruneRedundantOverrides,
+  type ShortcutBinding,
+  type ShortcutOverrides,
+} from '../shortcuts/customShortcuts'
 
 export interface EditorPreferences {
   theme: ThemeMode
@@ -34,9 +51,46 @@ export default function PreferencesDialog({
   })
   const [octaveStatus, setOctaveStatus] = useState<string | null>(null)
 
+  // US-035: Keyboard shortcut editor state.
+  const [activeTab, setActiveTab] = useState<'general' | 'keyboard'>('general')
+  const [shortcutOverrides, setShortcutOverridesState] = useState<ShortcutOverrides>({})
+  const [capturingAction, setCapturingAction] = useState<ShortcutAction | null>(null)
+  const captureInputRef = useRef<HTMLInputElement | null>(null)
+
+  // Derived: merged list of shortcut definitions with overrides applied,
+  // and which actions currently participate in a conflict.
+  const mergedShortcutDefs: ShortcutDefinition[] = useMemo(
+    () => applyShortcutOverrides(SHORTCUT_DEFINITIONS, shortcutOverrides),
+    [shortcutOverrides],
+  )
+  const conflictSet = useMemo(() => conflictingActions(mergedShortcutDefs), [mergedShortcutDefs])
+
   useEffect(() => {
     loadPreferences()
   }, [])
+
+  // US-035: When the capture input gains focus, intercept the next key
+  // combination and commit it as an override for the active action.
+  useEffect(() => {
+    if (!capturingAction) return
+    const handler = (e: KeyboardEvent): void => {
+      // Swallow so Monaco/global shortcut manager don't see it.
+      e.preventDefault()
+      e.stopPropagation()
+      const binding = bindingFromKeyboardEvent(e)
+      if (!binding) return // naked modifier — keep waiting
+      if (binding.key === 'escape') {
+        // Escape cancels the capture without mutating the binding.
+        setCapturingAction(null)
+        return
+      }
+      commitOverride(capturingAction, binding)
+      setCapturingAction(null)
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [capturingAction])
 
   async function loadPreferences(): Promise<void> {
     const stored = await window.matslop.configGetPreferences()
@@ -52,7 +106,57 @@ export default function PreferencesDialog({
       octavePath: octPath,
       sessionRestore,
     })
+    // US-035: load persisted shortcut overrides for the Keyboard tab.
+    try {
+      const raw = await window.matslop.configGetShortcuts()
+      const parsed = parseStoredOverrides(raw)
+      setShortcutOverridesState(parsed)
+    } catch {
+      setShortcutOverridesState({})
+    }
   }
+
+  // US-035: Persist + activate a new binding for an action.
+  const commitOverride = useCallback(
+    (action: ShortcutAction, binding: ShortcutBinding) => {
+      setShortcutOverridesState((prev) => {
+        const next = { ...prev, [action]: binding }
+        const pruned = pruneRedundantOverrides(next, SHORTCUT_DEFINITIONS)
+        // Persist
+        void window.matslop.configSetShortcuts(
+          pruned as Record<string, { key: string; ctrl?: boolean; shift?: boolean; alt?: boolean }>,
+        )
+        // Apply immediately to the running shortcut manager
+        shortcutManager.setActiveDefinitions(
+          applyShortcutOverrides(SHORTCUT_DEFINITIONS, pruned),
+        )
+        return pruned
+      })
+    },
+    [],
+  )
+
+  // US-035: Reset one action to its default binding.
+  const resetShortcut = useCallback((action: ShortcutAction) => {
+    setShortcutOverridesState((prev) => {
+      const next = { ...prev }
+      delete next[action]
+      void window.matslop.configSetShortcuts(
+        next as Record<string, { key: string; ctrl?: boolean; shift?: boolean; alt?: boolean }>,
+      )
+      shortcutManager.setActiveDefinitions(
+        applyShortcutOverrides(SHORTCUT_DEFINITIONS, next),
+      )
+      return next
+    })
+  }, [])
+
+  // US-035: Reset all shortcuts to their defaults.
+  const resetAllShortcuts = useCallback(() => {
+    setShortcutOverridesState({})
+    void window.matslop.configSetShortcuts({})
+    shortcutManager.setActiveDefinitions([...SHORTCUT_DEFINITIONS])
+  }, [])
 
   const applyAndNotify = useCallback(
     (updated: EditorPreferences) => {
@@ -142,7 +246,117 @@ export default function PreferencesDialog({
           </button>
         </div>
 
-        <div className="prefs-dialog-body">
+        {/* US-035: Tab bar */}
+        <div className="prefs-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'general'}
+            className={`prefs-tab ${activeTab === 'general' ? 'active' : ''}`}
+            onClick={() => setActiveTab('general')}
+            data-testid="prefs-tab-general"
+          >
+            General
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'keyboard'}
+            className={`prefs-tab ${activeTab === 'keyboard' ? 'active' : ''}`}
+            onClick={() => setActiveTab('keyboard')}
+            data-testid="prefs-tab-keyboard"
+          >
+            Keyboard
+          </button>
+        </div>
+
+        <div className="prefs-dialog-body" data-testid={`prefs-body-${activeTab}`}>
+          {activeTab === 'keyboard' ? (
+            <div className="prefs-section" data-testid="prefs-shortcuts-section">
+              <h3>Keyboard Shortcuts</h3>
+              <table className="prefs-shortcuts-table" data-testid="prefs-shortcuts-table">
+                <thead>
+                  <tr>
+                    <th>Command</th>
+                    <th>Shortcut</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mergedShortcutDefs.map((def) => {
+                    const isCapturing = capturingAction === def.action
+                    const isConflicted = conflictSet.has(def.action)
+                    const isOverridden = Boolean(shortcutOverrides[def.action])
+                    return (
+                      <tr
+                        key={def.action}
+                        data-testid={`prefs-shortcut-row-${def.action}`}
+                        data-conflicted={isConflicted ? 'true' : 'false'}
+                      >
+                        <td className="prefs-shortcut-desc">{def.description}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className={`prefs-shortcut-binding ${isCapturing ? 'capturing' : ''} ${isConflicted ? 'conflicted' : ''}`}
+                            data-testid={`prefs-shortcut-btn-${def.action}`}
+                            onClick={() => {
+                              setCapturingAction(def.action)
+                              // Briefly focus a hidden input so blurs can cancel.
+                              captureInputRef.current?.focus()
+                            }}
+                            title={isConflicted ? 'This shortcut conflicts with another command' : 'Click and press a key combination'}
+                          >
+                            {isCapturing ? 'Press a key combination…' : formatBindingLabel(defToBinding(def))}
+                          </button>
+                          {isConflicted && (
+                            <span
+                              className="prefs-shortcut-conflict"
+                              data-testid={`prefs-shortcut-conflict-${def.action}`}
+                            >
+                              ⚠ conflict
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {isOverridden && (
+                            <button
+                              type="button"
+                              className="prefs-shortcut-reset"
+                              data-testid={`prefs-shortcut-reset-${def.action}`}
+                              onClick={() => resetShortcut(def.action)}
+                              title="Reset to default"
+                            >
+                              Reset
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              <div className="prefs-shortcuts-footer">
+                <button
+                  type="button"
+                  className="prefs-browse-btn"
+                  data-testid="prefs-shortcuts-reset-all"
+                  onClick={resetAllShortcuts}
+                >
+                  Reset All to Defaults
+                </button>
+                <input
+                  ref={captureInputRef}
+                  type="text"
+                  tabIndex={-1}
+                  readOnly
+                  className="prefs-shortcut-capture-input"
+                  aria-hidden="true"
+                  onBlur={() => setCapturingAction(null)}
+                />
+              </div>
+            </div>
+          ) : (
+          <>
           {/* Editor Section */}
           <div className="prefs-section">
             <h3>Editor</h3>
@@ -275,6 +489,8 @@ export default function PreferencesDialog({
               />
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
     </div>

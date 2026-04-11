@@ -138,6 +138,11 @@ contextBridge.exposeInMainWorld('matslop', {
   }> => ipcRenderer.invoke('config:getPreferences'),
   configSetPreferences: (prefs: Record<string, unknown>): Promise<void> =>
     ipcRenderer.invoke('config:setPreferences', prefs),
+  // US-035: Keyboard shortcut overrides
+  configGetShortcuts: (): Promise<Record<string, { key: string; ctrl?: boolean; shift?: boolean; alt?: boolean }>> =>
+    ipcRenderer.invoke('config:getShortcuts'),
+  configSetShortcuts: (overrides: Record<string, { key: string; ctrl?: boolean; shift?: boolean; alt?: boolean }>): Promise<void> =>
+    ipcRenderer.invoke('config:setShortcuts', overrides),
   configGetShowWelcome: (): Promise<boolean> =>
     ipcRenderer.invoke('config:getShowWelcome'),
   configSetShowWelcome: (show: boolean): Promise<void> =>

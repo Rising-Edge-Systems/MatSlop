@@ -41,10 +41,13 @@ import {
   saveLayoutPreset as saveLayoutPresetStore,
   deleteLayoutPreset as deleteLayoutPresetStore,
   listLayoutPresetNames,
+  getShortcutOverrides,
+  setShortcutOverrides,
   type ThemeMode,
   type AppPreferences,
   type LayoutConfig,
   type StoredLayoutPreset,
+  type StoredShortcutBinding,
 } from './appConfig'
 import {
   readSession,
@@ -892,6 +895,15 @@ ipcMain.handle('config:getPreferences', () => {
 
 ipcMain.handle('config:setPreferences', (_event, prefs: Partial<AppPreferences>) => {
   setPreferences(prefs)
+})
+
+// US-035: Keyboard shortcut overrides
+ipcMain.handle('config:getShortcuts', () => {
+  return getShortcutOverrides()
+})
+
+ipcMain.handle('config:setShortcuts', (_event, overrides: Record<string, StoredShortcutBinding>) => {
+  setShortcutOverrides(overrides ?? {})
 })
 
 ipcMain.handle('config:getShowWelcome', () => {

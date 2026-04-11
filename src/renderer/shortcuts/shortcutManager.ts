@@ -68,10 +68,17 @@ type ShortcutHandler = (action: ShortcutAction) => void
  * Centralized keyboard shortcut manager.
  * Registers a single global keydown listener and dispatches matched
  * shortcuts to the registered handler.
+ *
+ * US-035: the active binding list can be customized at runtime via
+ * `setActiveDefinitions(...)`. The preferences dialog uses this to apply
+ * user overrides immediately, and EditorPanel re-pushes the merged list
+ * after reading persisted overrides at startup.
  */
 export class ShortcutManager {
   private handler: ShortcutHandler | null = null
   private boundListener: ((e: KeyboardEvent) => void) | null = null
+  /** Active definition list. Starts as a copy of SHORTCUT_DEFINITIONS. */
+  private activeDefs: ShortcutDefinition[] = [...SHORTCUT_DEFINITIONS]
 
   /**
    * Start listening for keyboard shortcuts.
@@ -93,6 +100,19 @@ export class ShortcutManager {
     this.handler = null
   }
 
+  /**
+   * Replace the active shortcut definition list. Used by US-035 to apply
+   * user customizations at runtime without reloading the window.
+   */
+  setActiveDefinitions(defs: ShortcutDefinition[]): void {
+    this.activeDefs = defs.map((d) => ({ ...d }))
+  }
+
+  /** Read the currently-active definition list (for tooltips, etc.). */
+  getActiveDefinitions(): ShortcutDefinition[] {
+    return this.activeDefs.map((d) => ({ ...d }))
+  }
+
   private onKeyDown(e: KeyboardEvent): void {
     if (!this.handler) return
 
@@ -103,7 +123,7 @@ export class ShortcutManager {
 
     const ctrl = e.ctrlKey || e.metaKey
 
-    for (const def of SHORTCUT_DEFINITIONS) {
+    for (const def of this.activeDefs) {
       const ctrlMatch = def.ctrl ? ctrl : !ctrl
       const shiftMatch = def.shift ? e.shiftKey : !e.shiftKey
       const altMatch = def.alt ? e.altKey : !e.altKey
@@ -127,9 +147,11 @@ export const shortcutManager = new ShortcutManager()
 
 /**
  * Get the keyboard shortcut label for a given action.
- * Useful for displaying shortcut hints in tooltips.
+ * Useful for displaying shortcut hints in tooltips. Reads the currently-
+ * active (possibly user-customized) definition list.
  */
 export function getShortcutLabel(action: ShortcutAction): string {
-  const def = SHORTCUT_DEFINITIONS.find((d) => d.action === action)
+  const active = shortcutManager.getActiveDefinitions()
+  const def = active.find((d) => d.action === action)
   return def?.label ?? ''
 }

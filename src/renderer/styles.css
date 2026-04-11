@@ -1626,6 +1626,112 @@ body {
   overflow-y: auto;
 }
 
+/* US-035: Preferences tabs */
+.prefs-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 12px;
+  background: var(--bg-dialog-header);
+}
+.prefs-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.prefs-tab:hover {
+  color: var(--text-primary);
+}
+.prefs-tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-color);
+}
+
+/* US-035: Keyboard shortcut editor */
+.prefs-shortcuts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.prefs-shortcuts-table thead th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 11px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.prefs-shortcuts-table tbody td {
+  padding: 6px 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+.prefs-shortcut-desc {
+  color: var(--text-primary);
+}
+.prefs-shortcut-binding {
+  display: inline-block;
+  min-width: 120px;
+  padding: 4px 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 12px;
+  text-align: left;
+}
+.prefs-shortcut-binding:hover {
+  border-color: var(--accent-color);
+}
+.prefs-shortcut-binding.capturing {
+  background: var(--accent-color);
+  color: white;
+  border-color: var(--accent-color);
+  font-style: italic;
+}
+.prefs-shortcut-binding.conflicted {
+  border-color: #d9534f;
+}
+.prefs-shortcut-conflict {
+  margin-left: 8px;
+  color: #d9534f;
+  font-size: 11px;
+}
+.prefs-shortcut-reset {
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.prefs-shortcut-reset:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-color);
+}
+.prefs-shortcuts-footer {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+.prefs-shortcut-capture-input {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .prefs-section {
   margin-bottom: 20px;
 }

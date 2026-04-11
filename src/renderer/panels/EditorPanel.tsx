@@ -17,7 +17,8 @@ import {
   type CursorSnapshot,
 } from '../editor/sessionState'
 import type { OctaveEngineStatus } from '../App'
-import { shortcutManager, type ShortcutAction } from '../shortcuts/shortcutManager'
+import { shortcutManager, SHORTCUT_DEFINITIONS, type ShortcutAction } from '../shortcuts/shortcutManager'
+import { applyShortcutOverrides, parseStoredOverrides } from '../shortcuts/customShortcuts'
 
 interface PanelVisibility {
   fileBrowser: boolean
@@ -605,6 +606,28 @@ function EditorPanel({
     shortcutManager.start(handleShortcut)
     return () => shortcutManager.stop()
   }, [handleShortcut])
+
+  // US-035: load persisted shortcut overrides and push the merged list
+  // into shortcutManager on startup.
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const raw = await window.matslop.configGetShortcuts()
+        if (cancelled) return
+        const overrides = parseStoredOverrides(raw)
+        shortcutManager.setActiveDefinitions(
+          applyShortcutOverrides(SHORTCUT_DEFINITIONS, overrides),
+        )
+      } catch {
+        // Fall back to defaults
+        shortcutManager.setActiveDefinitions([...SHORTCUT_DEFINITIONS])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Handle menu actions from main process
   const lastMenuActionIdRef = useRef(0)

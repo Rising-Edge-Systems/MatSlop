@@ -112,6 +112,9 @@ interface Window {
       defaultWorkingDirectory: string
     }>
     configSetPreferences: (prefs: Record<string, unknown>) => Promise<void>
+    // US-035: Keyboard shortcut overrides
+    configGetShortcuts: () => Promise<Record<string, { key: string; ctrl?: boolean; shift?: boolean; alt?: boolean }>>
+    configSetShortcuts: (overrides: Record<string, { key: string; ctrl?: boolean; shift?: boolean; alt?: boolean }>) => Promise<void>
     configGetShowWelcome: () => Promise<boolean>
     configSetShowWelcome: (show: boolean) => Promise<void>
     // Layout persistence
