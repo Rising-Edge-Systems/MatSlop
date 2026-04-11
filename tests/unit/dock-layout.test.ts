@@ -126,20 +126,21 @@ describe('buildDefaultDockLayout', () => {
     expect(ratios[2]).toBeLessThanOrEqual(0.23)
   })
 
-  it('US-Q06: workspace column and pane both declare a minWidth ≥ 180px', () => {
+  it('US-R02: workspace column and pane both declare a minWidth ≥ 200px', () => {
     // Prevents the right column from collapsing so narrow that the
-    // "No variables in workspace" placeholder hard-clips.
+    // "No variables in workspace" placeholder hard-clips. Bumped from
+    // 180 → 200 in US-R02 so the placeholder string fits without wrap.
     const layout = buildDefaultDockLayout()
     const rightCol = layout.dockbox.children[2] as {
       minWidth?: number
       children: Array<{ minWidth?: number; tabs?: Array<{ id?: string }> }>
     }
-    expect(rightCol.minWidth ?? 0).toBeGreaterThanOrEqual(180)
+    expect(rightCol.minWidth ?? 0).toBeGreaterThanOrEqual(200)
     const wsPane = rightCol.children.find((p) =>
       p.tabs?.some((t) => t.id === DOCK_TAB_IDS.workspace),
     )
     expect(wsPane).toBeDefined()
-    expect(wsPane!.minWidth ?? 0).toBeGreaterThanOrEqual(180)
+    expect(wsPane!.minWidth ?? 0).toBeGreaterThanOrEqual(200)
   })
 })
 

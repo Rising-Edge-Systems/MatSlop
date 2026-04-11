@@ -255,3 +255,16 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
   - Vitest supports `describe.skipIf(condition)` for runtime-gated test suites — use it for platform- or binary-dependent integration tests instead of top-level throws which abort module load.
   - Top-level `throw` in a test helper imported by a test file causes Vitest to report the test file as a failed *suite* (not a failed test). Always return `null`/boolean from helpers and let the suite skip.
   - tests/helpers/octaveBinary.ts is the shared binary-discovery helper — three tests import it, keep its exported API stable or update all three call sites.
+
+## 2026-04-11 - US-R02
+- Bumped `minWidth` from 180 → 200 on both the right-column box and the Workspace pane in `buildDockLayoutFromVisibility` so the "No variables in workspace" placeholder never hard-clips at narrow dock widths.
+- Updated the US-Q06 unit assertion in tests/unit/dock-layout.test.ts to require ≥ 200 on both (now renamed US-R02 test).
+- Added a new e2e assertion in tests/e2e/visual-polish.spec.ts that fetches `.placeholder-text` inside `[data-testid="workspace-panel"]`, verifies `scrollWidth === clientWidth`, and checks its bounding rect stays within the panel right edge at 1600x1000.
+- `.placeholder-text` already uses `white-space: normal; overflow-wrap: anywhere; word-break: break-word` (US-Q06), so wrap-clean-to-second-line was already satisfied — this story was about hardening the minWidth floor.
+- Files changed: src/renderer/panels/MatslopDockLayout.tsx, tests/unit/dock-layout.test.ts, tests/e2e/visual-polish.spec.ts.
+- Typecheck: clean. `npm test`: 519 passed / 24 skipped / 0 failed.
+- **Learnings for future iterations:**
+  - The Workspace "header" referenced in the PRD is actually the `.placeholder-text <p>` rendered inside `.ws-content` when `variables.length === 0` — there is no dedicated header element. WorkspacePanel.tsx:241-249.
+  - When bumping dock pane minWidth floors, update BOTH the BoxData (right column) AND the PanelData (leaf pane) — rc-dock honours the stricter of the two during drag-resize.
+  - Don't introduce `white-space: nowrap + text-overflow: ellipsis` on `.placeholder-text` — it hides the message entirely when it clips. Keep the wrap + min-width approach.
+---

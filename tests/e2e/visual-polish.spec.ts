@@ -225,6 +225,42 @@ test('US-Q03: panel content fills its parent and the command prompt anchors at b
   }
 })
 
+test('US-R02: workspace placeholder text is fully visible at 1600x1000', async () => {
+  // "No variables in workspace" must render without horizontal clipping
+  // inside the Workspace pane. The pane has a minWidth of 200px so the
+  // text fits comfortably on a single line or wraps cleanly to a second.
+  const placeholder = window
+    .locator('[data-testid="workspace-panel"] .placeholder-text')
+    .first()
+  await expect(placeholder).toBeVisible()
+  const metrics = await placeholder.evaluate((el) => {
+    const p = el as HTMLElement
+    const host = p.closest('.panel') as HTMLElement | null
+    const r = p.getBoundingClientRect()
+    const h = host?.getBoundingClientRect()
+    return {
+      scrollWidth: p.scrollWidth,
+      clientWidth: p.clientWidth,
+      text: (p.textContent ?? '').trim(),
+      right: r.right,
+      panelRight: h?.right ?? 0,
+    }
+  })
+  // Placeholder must contain the expected string.
+  expect(metrics.text).toBe('No variables in workspace')
+  // No horizontal overflow (wrap handles the narrow case; at 1600x1000
+  // the right column is ~320px which fits the text on one line).
+  expect(
+    metrics.scrollWidth - metrics.clientWidth,
+    `placeholder horizontal overflow: scrollWidth=${metrics.scrollWidth} clientWidth=${metrics.clientWidth}`,
+  ).toBeLessThanOrEqual(1)
+  // Bounding rect must stay inside the owning panel.
+  expect(
+    metrics.right,
+    `placeholder right edge (${metrics.right}) exceeds panel right (${metrics.panelRight})`,
+  ).toBeLessThanOrEqual(metrics.panelRight + 1)
+})
+
 test('Every dock tab fills its parent rc-dock panel content area', async () => {
   const tabs = await window.locator('[data-testid^="dock-tab-"]').all()
   // Filter out the dock-tab-title-* spans (they share the prefix).
