@@ -133,20 +133,30 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
   const [sortColumn, setSortColumn] = useState<'name' | 'size' | 'class'>('name')
   const [sortAsc, setSortAsc] = useState(true)
   const refreshingRef = useRef(false)
+  const pendingRefreshRef = useRef(false)
   const engineStatusRef = useRef<OctaveEngineStatus>(engineStatus)
   const onVariablesChangedRef = useRef(onVariablesChanged)
   engineStatusRef.current = engineStatus
   onVariablesChangedRef.current = onVariablesChanged
 
+  // Coalesced refresh: if a refresh is already in flight, remember that
+  // another one is wanted and run it once the current one finishes.
+  // Without this, rapid-fire refresh triggers (typing commands quickly)
+  // get silently dropped and the panel shows stale state from the first
+  // completed refresh — e.g. only `ans` after `clear all; x=1; y=2;`.
   const refreshWorkspace = useCallback(async () => {
-    if (engineStatusRef.current !== 'ready' || refreshingRef.current) return
+    if (engineStatusRef.current !== 'ready') return
+    if (refreshingRef.current) {
+      pendingRefreshRef.current = true
+      return
+    }
     refreshingRef.current = true
 
     try {
       const result = await window.matslop.octaveExecute('whos')
       if (!result.output || result.output.trim() === '') {
         setVariables([])
-        refreshingRef.current = false
+        onVariablesChangedRef.current?.([])
         return
       }
 
@@ -173,6 +183,11 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
       // ignore errors during refresh
     } finally {
       refreshingRef.current = false
+      if (pendingRefreshRef.current) {
+        pendingRefreshRef.current = false
+        // Re-run on next microtask so the state update above commits first.
+        void Promise.resolve().then(() => refreshWorkspace())
+      }
     }
   }, [])
 
