@@ -100,6 +100,18 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.invoke('plot:getDetachedFigure', id),
   _testDetachedPlotCount: (): Promise<number> =>
     ipcRenderer.invoke('plot:_testDetachedCount'),
+  // Detached panel windows (US-027)
+  panelOpenDetached: (tabId: string): Promise<{ success: boolean; tabId?: string; error?: string }> =>
+    ipcRenderer.invoke('panel:openDetached', tabId),
+  panelCloseDetached: (tabId: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('panel:closeDetached', tabId),
+  onPanelRedocked: (callback: (tabId: string) => void): (() => void) => {
+    const handler = (_event: IpcRendererEvent, tabId: string): void => callback(tabId)
+    ipcRenderer.on('panel:redocked', handler)
+    return () => ipcRenderer.removeListener('panel:redocked', handler)
+  },
+  _testDetachedPanelList: (): Promise<string[]> =>
+    ipcRenderer.invoke('panel:_testDetachedList'),
   // Menu action events from main process
   onMenuAction: (callback: (action: string) => void): (() => void) => {
     const handler = (_event: IpcRendererEvent, action: string): void => callback(action)

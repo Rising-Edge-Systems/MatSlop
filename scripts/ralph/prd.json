@@ -454,8 +454,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 27,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added panel:openDetached / panel:closeDetached / panel:redocked IPCs in src/main/index.ts. Preload exposes panelOpenDetached, panelCloseDetached, onPanelRedocked, _testDetachedPanelList. MatslopDockLayout accepts detachedPanels + onDetachTab props; buildDockLayoutFromVisibility(vis, detached?) omits tabs in the detached set (unit-tested, 5 new cases). Tab title now renders a span that opens a custom context menu with a \"Detach to window\" option. App.tsx tracks detachedPanels: Set<string>, handleDetachTab spawns the BrowserWindow and omits the tab, onPanelRedocked event restores it. DetachedPanel.tsx is a lightweight component rendered in the aux window (routed via main.tsx on ?detachedPanelId=...) that shows the panel title, shared Octave status via window.matslop.octaveGetStatus, and a panel-specific live view (workspace runs whos, file browser lists pwd, etc) \u2014 proves state is shared via IPC. Closing the window sends panel:redocked \u2192 renderer removes from detachedPanels set \u2192 dock layout re-includes the tab. Test hooks: __matslopDetachPanelTab(id), __matslopOpenTabContextMenu(id), __matslopDetachedPanels. Added tests/e2e/detached-panel.spec.ts with 2 Playwright tests (workspace detach\u2192redock cycle + context-menu click path), both passing."
     },
     {
       "id": "US-028",

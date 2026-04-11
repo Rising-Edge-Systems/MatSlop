@@ -191,6 +191,58 @@ describe('buildDockLayoutFromVisibility', () => {
   })
 })
 
+describe('buildDockLayoutFromVisibility – US-027 detached panels', () => {
+  it('omits a detached tab from the layout tree even when visibility=true', () => {
+    const layout = buildDockLayoutFromVisibility(
+      DEFAULT_DOCK_VISIBILITY,
+      new Set([DOCK_TAB_IDS.workspace]),
+    )
+    const ids = collectTabIds(layout.dockbox)
+    expect(ids).not.toContain(DOCK_TAB_IDS.workspace)
+    expect(ids).toContain(DOCK_TAB_IDS.fileBrowser)
+    expect(ids).toContain(DOCK_TAB_IDS.editor)
+    expect(ids).toContain(DOCK_TAB_IDS.commandWindow)
+  })
+
+  it('removes the right column when its only visible panel is detached', () => {
+    const layout = buildDockLayoutFromVisibility(
+      DEFAULT_DOCK_VISIBILITY,
+      new Set([DOCK_TAB_IDS.workspace]),
+    )
+    expect(layout.dockbox.children.length).toBe(2)
+  })
+
+  it('keeps the center column when only the editor is detached but cmd window remains', () => {
+    const layout = buildDockLayoutFromVisibility(
+      DEFAULT_DOCK_VISIBILITY,
+      new Set([DOCK_TAB_IDS.editor]),
+    )
+    const ids = collectTabIds(layout.dockbox)
+    expect(ids).not.toContain(DOCK_TAB_IDS.editor)
+    expect(ids).toContain(DOCK_TAB_IDS.commandWindow)
+  })
+
+  it('drops the center column entirely when every center panel is detached', () => {
+    const layout = buildDockLayoutFromVisibility(
+      DEFAULT_DOCK_VISIBILITY,
+      new Set([DOCK_TAB_IDS.editor, DOCK_TAB_IDS.commandWindow]),
+    )
+    const ids = collectTabIds(layout.dockbox)
+    expect(ids).not.toContain(DOCK_TAB_IDS.editor)
+    expect(ids).not.toContain(DOCK_TAB_IDS.commandWindow)
+    expect(ids).toContain(DOCK_TAB_IDS.fileBrowser)
+    expect(ids).toContain(DOCK_TAB_IDS.workspace)
+  })
+
+  it('no-op when detached set is empty', () => {
+    const withEmpty = buildDockLayoutFromVisibility(DEFAULT_DOCK_VISIBILITY, new Set())
+    const baseline = buildDockLayoutFromVisibility(DEFAULT_DOCK_VISIBILITY)
+    expect(collectTabIds(withEmpty.dockbox).sort()).toEqual(
+      collectTabIds(baseline.dockbox).sort(),
+    )
+  })
+})
+
 describe('DOCK_TAB_TITLES', () => {
   it('has a human title for every tab id', () => {
     for (const id of Object.values(DOCK_TAB_IDS)) {

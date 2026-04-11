@@ -90,6 +90,11 @@ interface Window {
     plotOpenDetached: (figure: unknown) => Promise<{ success: boolean; id?: string; error?: string }>
     plotGetDetachedFigure: (id: string) => Promise<unknown | null>
     _testDetachedPlotCount: () => Promise<number>
+    // Detached panel windows (US-027)
+    panelOpenDetached: (tabId: string) => Promise<{ success: boolean; tabId?: string; error?: string }>
+    panelCloseDetached: (tabId: string) => Promise<{ success: boolean }>
+    onPanelRedocked: (callback: (tabId: string) => void) => () => void
+    _testDetachedPanelList: () => Promise<string[]>
     // Menu action events from main process
     onMenuAction: (callback: (action: string) => void) => () => void
     // Theme/config

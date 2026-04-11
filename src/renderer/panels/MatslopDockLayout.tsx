@@ -106,11 +106,15 @@ const idOnly = (id: string): TabData => ({ id }) as unknown as TabData
  * function returns a fresh object on each call so callers can mutate it
  * without side effects.
  */
-export function buildDockLayoutFromVisibility(vis: DockVisibility): LayoutData {
+export function buildDockLayoutFromVisibility(
+  vis: DockVisibility,
+  detached?: ReadonlySet<string>,
+): LayoutData {
+  const isDetached = (id: string): boolean => !!detached && detached.has(id)
   const dockboxChildren: (BoxData | PanelData)[] = []
 
   // Left column: File Browser (optional)
-  if (vis.fileBrowser) {
+  if (vis.fileBrowser && !isDetached(DOCK_TAB_IDS.fileBrowser)) {
     dockboxChildren.push({
       size: 220,
       tabs: [idOnly(DOCK_TAB_IDS.fileBrowser)],
@@ -118,48 +122,53 @@ export function buildDockLayoutFromVisibility(vis: DockVisibility): LayoutData {
   }
 
   // Center column: Editor on top, Command Window / History panel beneath
-  const centerChildren: (BoxData | PanelData)[] = [
-    {
+  const centerChildren: (BoxData | PanelData)[] = []
+  if (!isDetached(DOCK_TAB_IDS.editor)) {
+    centerChildren.push({
       size: 600,
       tabs: [idOnly(DOCK_TAB_IDS.editor)],
-    } as PanelData,
-  ]
-  if (vis.commandWindow || vis.commandHistory) {
+    } as PanelData)
+  }
+  const wantCmdWindow = vis.commandWindow && !isDetached(DOCK_TAB_IDS.commandWindow)
+  const wantCmdHistory = vis.commandHistory && !isDetached(DOCK_TAB_IDS.commandHistory)
+  if (wantCmdWindow || wantCmdHistory) {
     const bottomTabs: TabData[] = []
-    if (vis.commandWindow) bottomTabs.push(idOnly(DOCK_TAB_IDS.commandWindow))
-    if (vis.commandHistory) bottomTabs.push(idOnly(DOCK_TAB_IDS.commandHistory))
+    if (wantCmdWindow) bottomTabs.push(idOnly(DOCK_TAB_IDS.commandWindow))
+    if (wantCmdHistory) bottomTabs.push(idOnly(DOCK_TAB_IDS.commandHistory))
     centerChildren.push({
       size: 300,
       tabs: bottomTabs,
     } as PanelData)
   }
-  dockboxChildren.push({
-    mode: 'vertical',
-    size: 900,
-    children: centerChildren,
-  } as BoxData)
+  if (centerChildren.length > 0) {
+    dockboxChildren.push({
+      mode: 'vertical',
+      size: 900,
+      children: centerChildren,
+    } as BoxData)
+  }
 
   // Right column: Workspace / Call Stack / Watches / Figure (stacked)
   const rightChildren: PanelData[] = []
-  if (vis.workspace) {
+  if (vis.workspace && !isDetached(DOCK_TAB_IDS.workspace)) {
     rightChildren.push({
       size: 300,
       tabs: [idOnly(DOCK_TAB_IDS.workspace)],
     } as PanelData)
   }
-  if (vis.callStack) {
+  if (vis.callStack && !isDetached(DOCK_TAB_IDS.callStack)) {
     rightChildren.push({
       size: 180,
       tabs: [idOnly(DOCK_TAB_IDS.callStack)],
     } as PanelData)
   }
-  if (vis.watches) {
+  if (vis.watches && !isDetached(DOCK_TAB_IDS.watches)) {
     rightChildren.push({
       size: 180,
       tabs: [idOnly(DOCK_TAB_IDS.watches)],
     } as PanelData)
   }
-  if (vis.figure) {
+  if (vis.figure && !isDetached(DOCK_TAB_IDS.figure)) {
     rightChildren.push({
       size: 250,
       tabs: [idOnly(DOCK_TAB_IDS.figure)],
@@ -212,6 +221,19 @@ export interface MatslopDockLayoutProps {
    * `LayoutBase` — host persists it via the existing layout IPC.
    */
   onDockLayoutChange?: (layout: LayoutBase, direction?: DropDirection) => void
+  /**
+   * US-027: set of tab ids whose panels are currently detached into
+   * separate OS windows. Detached tabs are omitted from the dock layout
+   * tree entirely (same treatment as visibility=false).
+   */
+  detachedPanels?: ReadonlySet<string>
+  /**
+   * US-027: called when the user picks "Detach" from a tab's context
+   * menu. Host is responsible for actually creating the BrowserWindow
+   * (via the `panel:openDetached` IPC) and adding the tabId to its
+   * detachedPanels set.
+   */
+  onDetachTab?: (tabId: MatslopDockTabId) => void
 }
 
 /**
@@ -221,13 +243,27 @@ export interface MatslopDockLayoutProps {
  * layout and has no content (so its data-testid does not leak into DOM).
  */
 export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.JSX.Element {
-  const { visibility, savedDockLayout, onDockLayoutChange } = props
+  const { visibility, savedDockLayout, onDockLayoutChange, detachedPanels, onDetachTab } = props
   const containerRef = useRef<HTMLDivElement>(null)
   const dockRef = useRef<DockLayout>(null)
   // Keep the latest change handler in a ref so we don't need to re-bind
   // the DockLayout `onLayoutChange` prop each render.
   const onDockLayoutChangeRef = useRef(onDockLayoutChange)
   onDockLayoutChangeRef.current = onDockLayoutChange
+  // Same pattern for the detach callback — stable identity so loadTab
+  // closures always pick up the latest.
+  const onDetachTabRef = useRef(onDetachTab)
+  onDetachTabRef.current = onDetachTab
+
+  // US-027: simple tab-context-menu state. When set, a floating menu is
+  // rendered at (x, y) containing a "Detach" option. Right-clicking a
+  // tab title opens the menu; clicking anywhere else (or pressing Escape)
+  // dismisses it.
+  const [tabContextMenu, setTabContextMenu] = useState<{
+    tabId: MatslopDockTabId
+    x: number
+    y: number
+  } | null>(null)
 
   // Stable map id -> React content. Lives in a ref so `loadTab` (which
   // rc-dock may call at any time during a layout update) always sees the
@@ -273,18 +309,24 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
         // fall through to default
       }
     }
-    return buildDockLayoutFromVisibility(visibility)
+    return buildDockLayoutFromVisibility(visibility, detachedPanels)
   })
   // Track whether we already consumed the initial saved layout so the
   // visibility-effect below knows to rebuild instead of re-applying it.
   const visKey = JSON.stringify(visibility)
-  const prevVisKeyRef = useRef(visKey)
+  const detachedKey = detachedPanels ? [...detachedPanels].sort().join('|') : ''
+  const prevKeysRef = useRef({ vis: visKey, detached: detachedKey })
   useEffect(() => {
-    if (prevVisKeyRef.current === visKey) return
-    prevVisKeyRef.current = visKey
-    setLayout(buildDockLayoutFromVisibility(visibility))
+    if (
+      prevKeysRef.current.vis === visKey &&
+      prevKeysRef.current.detached === detachedKey
+    ) {
+      return
+    }
+    prevKeysRef.current = { vis: visKey, detached: detachedKey }
+    setLayout(buildDockLayoutFromVisibility(visibility, detachedPanels))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visKey])
+  }, [visKey, detachedKey])
 
   const loadTab = (tab: TabData): TabData => {
     const id = tab.id as MatslopDockTabId | undefined
@@ -297,9 +339,28 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
       }
     }
     const content = slotsRef.current[id]
+    // US-027: wrap the tab title in a span so right-click opens a
+    // custom context menu containing the "Detach" option. We set
+    // data-testid on both the wrapper and an explicit title element so
+    // E2E tests can target either.
+    const titleNode = (
+      <span
+        data-testid={`dock-tab-title-${id}`}
+        className="dock-tab-title"
+        onContextMenu={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setTabContextMenu({ tabId: id, x: e.clientX, y: e.clientY })
+        }}
+      >
+        {DOCK_TAB_TITLES[id]}
+      </span>
+    )
     return {
       ...tab,
-      title: DOCK_TAB_TITLES[id],
+      // rc-dock accepts ReactElement for titles at runtime even though
+      // the types advertise `string`; cast through unknown.
+      title: titleNode as unknown as string,
       group: 'main',
       content: (
         <div
@@ -383,6 +444,60 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
     }
   }, [])
 
+  // US-027: expose a test hook that drives the "Detach" tab-context-menu
+  // option programmatically — Playwright-based right-click against
+  // rc-dock's internal tab header is flaky, but a direct hook maps 1:1
+  // to the UI path (both ultimately call `onDetachTabRef.current(id)`).
+  useEffect(() => {
+    const w = window as unknown as {
+      __matslopDetachPanelTab?: (tabId: string) => boolean
+      __matslopOpenTabContextMenu?: (tabId: string) => boolean
+    }
+    w.__matslopDetachPanelTab = (tabId: string) => {
+      const handler = onDetachTabRef.current
+      if (!handler) return false
+      handler(tabId as MatslopDockTabId)
+      return true
+    }
+    w.__matslopOpenTabContextMenu = (tabId: string) => {
+      setTabContextMenu({ tabId: tabId as MatslopDockTabId, x: 50, y: 50 })
+      return true
+    }
+    return () => {
+      delete w.__matslopDetachPanelTab
+      delete w.__matslopOpenTabContextMenu
+    }
+  }, [])
+
+  // US-027: dismiss the tab context menu on outside-click or Escape. The
+  // click listener runs in bubble phase (NOT capture) so the menu's own
+  // button onClick handlers fire first — otherwise a capture-phase
+  // dismiss would unmount the menu before React dispatched the click to
+  // its children.
+  useEffect(() => {
+    if (!tabContextMenu) return
+    const dismiss = (e: MouseEvent): void => {
+      const target = e.target as Node | null
+      const menuEl = document.querySelector('[data-testid="dock-tab-context-menu"]')
+      if (menuEl && target && menuEl.contains(target)) return
+      setTabContextMenu(null)
+    }
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setTabContextMenu(null)
+    }
+    // Delay registration so the opening context-menu event doesn't
+    // immediately close us.
+    const id = setTimeout(() => {
+      window.addEventListener('click', dismiss)
+      window.addEventListener('keydown', onKey)
+    }, 0)
+    return () => {
+      clearTimeout(id)
+      window.removeEventListener('click', dismiss)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [tabContextMenu])
+
   return (
     <div
       ref={containerRef}
@@ -410,6 +525,53 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
           },
         }}
       />
+      {tabContextMenu && (
+        <div
+          data-testid="dock-tab-context-menu"
+          data-tab-id={tabContextMenu.tabId}
+          role="menu"
+          style={{
+            position: 'fixed',
+            left: tabContextMenu.x,
+            top: tabContextMenu.y,
+            zIndex: 10000,
+            background: 'var(--panel-bg, #2d2d30)',
+            color: 'var(--text, #ddd)',
+            border: '1px solid var(--border, #3a3a3d)',
+            borderRadius: 4,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+            padding: '4px 0',
+            minWidth: 140,
+            fontSize: 13,
+            userSelect: 'none',
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button
+            type="button"
+            data-testid="dock-tab-context-menu-detach"
+            style={{
+              display: 'block',
+              width: '100%',
+              textAlign: 'left',
+              padding: '6px 14px',
+              background: 'transparent',
+              border: 'none',
+              color: 'inherit',
+              cursor: 'pointer',
+              font: 'inherit',
+            }}
+            onClick={() => {
+              const id = tabContextMenu.tabId
+              setTabContextMenu(null)
+              onDetachTabRef.current?.(id)
+            }}
+          >
+            Detach to window
+          </button>
+        </div>
+      )}
     </div>
   )
 }

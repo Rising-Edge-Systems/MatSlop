@@ -79,6 +79,11 @@ function App(): React.JSX.Element {
   // (drag between docks, tab close, ...).
   const [savedDockLayout, setSavedDockLayout] = useState<unknown>(null)
   const savedDockLayoutRef = useRef<unknown>(null)
+  // US-027: set of tab ids currently hosted in detached OS windows. While
+  // a tab id is in this set, `MatslopDockLayout` omits it from the dock
+  // layout tree. When the detached window closes, main sends a
+  // `panel:redocked` event and the id is removed, restoring the dock tab.
+  const [detachedPanels, setDetachedPanels] = useState<Set<string>>(() => new Set())
   const [layoutLoaded, setLayoutLoaded] = useState(false)
   const [pendingOpenPath, setPendingOpenPath] = useState<string | null>(null)
   const [octaveStatus, setOctaveStatus] = useState<OctaveStatus>({ path: null, version: null, configured: false, engineStatus: 'disconnected' })
@@ -616,6 +621,63 @@ function App(): React.JSX.Element {
     })
   }, [])
 
+  // US-027: detach a dock tab into its own OS window. Marks the tab as
+  // detached (so MatslopDockLayout omits it from the layout tree) and
+  // asks main to open a new BrowserWindow via IPC. Dropping the saved
+  // dock layout mirrors the togglePanel() flow so re-docking can land in
+  // the default slot for the panel.
+  const handleDetachTab = useCallback((tabId: string) => {
+    savedDockLayoutRef.current = null
+    setSavedDockLayout(null)
+    setDetachedPanels((prev) => {
+      if (prev.has(tabId)) return prev
+      const next = new Set(prev)
+      next.add(tabId)
+      return next
+    })
+    // Fire-and-forget; failures are logged but don't block the UI update.
+    void window.matslop.panelOpenDetached(tabId).then((res) => {
+      if (!res?.success) {
+        // Roll back the detached state if main refused to open.
+        setDetachedPanels((prev) => {
+          if (!prev.has(tabId)) return prev
+          const next = new Set(prev)
+          next.delete(tabId)
+          return next
+        })
+      }
+    })
+  }, [])
+
+  // US-027: subscribe to `panel:redocked` events from main. Fires when
+  // the user closes a detached panel window — we remove the tab id from
+  // our detached set so MatslopDockLayout re-includes it in the layout.
+  useEffect(() => {
+    const off = window.matslop.onPanelRedocked((tabId: string) => {
+      savedDockLayoutRef.current = null
+      setSavedDockLayout(null)
+      setDetachedPanels((prev) => {
+        if (!prev.has(tabId)) return prev
+        const next = new Set(prev)
+        next.delete(tabId)
+        return next
+      })
+    })
+    return () => {
+      off()
+    }
+  }, [])
+
+  // US-027: e2e test hook that mirrors the current detached set onto a
+  // window-level global so Playwright can read it without waiting on
+  // IPC roundtrips. Co-located with the state it observes.
+  useEffect(() => {
+    const w = window as unknown as {
+      __matslopDetachedPanels?: string[]
+    }
+    w.__matslopDetachedPanels = Array.from(detachedPanels).sort()
+  }, [detachedPanels])
+
   const togglePanel = useCallback((panel: keyof PanelVisibility) => {
     // Any visibility change rebuilds the dock tree from scratch inside
     // MatslopDockLayout, so we must drop the persisted dock layout here
@@ -997,6 +1059,8 @@ function App(): React.JSX.Element {
           visibility={dockVisibility}
           savedDockLayout={savedDockLayout as never}
           onDockLayoutChange={handleDockLayoutChange}
+          detachedPanels={detachedPanels}
+          onDetachTab={handleDetachTab}
           fileBrowser={
             dockVisibility.fileBrowser ? (
               <FileBrowser

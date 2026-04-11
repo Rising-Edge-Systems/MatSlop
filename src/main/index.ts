@@ -65,6 +65,13 @@ const detachedFigures = new Map<string, unknown>()
 const detachedWindows = new Map<string, BrowserWindow>()
 let detachedCounter = 0
 
+// US-027: Registry of panels currently hosted in detached OS windows.
+// Keyed by panel/tab id (e.g. `matslop-workspace`), not unique per-window,
+// so attempts to detach an already-detached panel are idempotent. The main
+// process notifies the main renderer on window close via `panel:redocked`
+// so the panel can be restored to the dock layout.
+const detachedPanelWindows = new Map<string, BrowserWindow>()
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -512,6 +519,84 @@ ipcMain.handle('plot:getDetachedFigure', (_event, id: string) => {
 ipcMain.handle('plot:_testDetachedCount', () => {
   if (!process.env.MATSLOP_USER_DATA_DIR) return 0
   return detachedWindows.size
+})
+
+/**
+ * US-027: Open a panel in its own OS window. `tabId` is one of the stable
+ * `DOCK_TAB_IDS` values from the renderer. A fresh `BrowserWindow` is
+ * spawned pointing at the same renderer bundle with `?detachedPanelId=<tabId>`;
+ * the renderer entry (main.tsx) detects the query param and mounts the
+ * lightweight `DetachedPanel` component. When the window is closed, the
+ * main renderer is notified via `panel:redocked` so the panel is restored
+ * to the dock layout at its previous location.
+ */
+ipcMain.handle('panel:openDetached', async (_event, tabId: unknown) => {
+  try {
+    if (typeof tabId !== 'string' || tabId.length === 0) {
+      return { success: false, error: 'invalid tabId' }
+    }
+    // Idempotent: if already detached, just focus the existing window.
+    const existing = detachedPanelWindows.get(tabId)
+    if (existing && !existing.isDestroyed()) {
+      existing.focus()
+      return { success: true, tabId }
+    }
+
+    const win = new BrowserWindow({
+      width: 640,
+      height: 480,
+      minWidth: 300,
+      minHeight: 200,
+      title: `MatSlop – ${tabId}`,
+      webPreferences: {
+        preload: path.join(__dirname, '../preload/index.mjs'),
+        sandbox: false,
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    })
+    win.setMenu(null)
+    detachedPanelWindows.set(tabId, win)
+
+    win.on('closed', () => {
+      detachedPanelWindows.delete(tabId)
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('panel:redocked', tabId)
+        mainWindow.focus()
+      }
+    })
+
+    const search = `detachedPanelId=${encodeURIComponent(tabId)}`
+    if (process.env.ELECTRON_RENDERER_URL) {
+      await win.loadURL(`${process.env.ELECTRON_RENDERER_URL}?${search}`)
+    } else {
+      await win.loadFile(path.join(__dirname, '../renderer/index.html'), {
+        search,
+      })
+    }
+    return { success: true, tabId }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
+/**
+ * US-027: Programmatically close a detached panel window (e.g. when the
+ * renderer toggles the panel's visibility off while it is detached). The
+ * normal `closed` handler fires and emits `panel:redocked`.
+ */
+ipcMain.handle('panel:closeDetached', (_event, tabId: unknown) => {
+  if (typeof tabId !== 'string') return { success: false }
+  const win = detachedPanelWindows.get(tabId)
+  if (!win || win.isDestroyed()) return { success: false }
+  win.close()
+  return { success: true }
+})
+
+/** Test-only helper: list of tab ids that are currently detached. */
+ipcMain.handle('panel:_testDetachedList', () => {
+  if (!process.env.MATSLOP_USER_DATA_DIR) return []
+  return Array.from(detachedPanelWindows.keys())
 })
 
 // ---------------------------------------------------------------------------
