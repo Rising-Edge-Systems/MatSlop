@@ -7,6 +7,8 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
 - Pre-existing test failures exist for Octave-bundle integration tests when binary is not present. Not related to polish work.
 - tsconfig has strict but no noUnusedParameters; unused destructured props are OK.
 - DOCK_TAB_TITLES in MatslopDockLayout.tsx provides per-pane title rendered by rc-dock's tab strip.
+- BUILD BROKEN BASELINE: rc-dock, electron-updater, plotly.js-dist-min are listed in package.json dependencies but MISSING from node_modules. `npm run build` fails. dist/renderer on disk predates the polish branch. E2E tests therefore exercise the pre-polish renderer, NOT current source. Do not claim "e2e tests pass" without first reinstalling those packages and rebuilding.
+- To resize the Electron window inside a Playwright test: `await app.evaluate(async ({BrowserWindow}) => { const w = BrowserWindow.getAllWindows().find(x => x.getTitle() === 'MatSlop'); w.unmaximize(); w.setBounds({x:50,y:50,width:1600,height:1000}) })`. `Page.setViewportSize` is a no-op for Electron windows.
 
 ---
 
@@ -118,4 +120,18 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
   - rc-dock 4.0.0-alpha.2 is NOT in node_modules locally — only the prebuilt vite deps copy at node_modules/.vite/deps/rc-dock.js exists. Use `grep -oE 'className: "[^"]+"' node_modules/.vite/deps/rc-dock.js` to enumerate the actual rc-dock classes (rc-tabs internal classes are constructed dynamically and don't show up as literals there).
   - Inheriting `font-family/font-size` from .dock-bar onto .rc-tabs-tab + .dock-tab-title is the cleanest way to set tab typography in one place — don't duplicate per selector.
   - rc-tabs ink-bar can be visually hidden by ancestor overflow on certain layouts. Adding an `inset 0 -2px 0 var(--accent-color)` box-shadow on the active tab guarantees the underline regardless.
+---
+
+## 2026-04-11 - US-P10
+- Added tests/e2e/visual-polish.spec.ts: launches the Electron app, resizes the BrowserWindow to 1600x1000 via app.evaluate(BrowserWindow.setBounds), waits for the dock + all four default panels to be visible, then runs two assertions in sequence.
+- Test 1: walks an 8px sample grid over the dock area, classifies each grid point as "near-white" by walking up the parent chain to the nearest computed background color (rc-dock paints solid bg colors on .dock-bar/.dock-panel chrome), then scans for any 100x100 region whose grid samples are ALL near-white. Catches rc-dock light-theme leaks (US-P03 regression gate).
+- Test 2: enumerates every `[data-testid^="dock-tab-"]` content wrapper, ascends to the nearest .dock-content / .dock-content-holder ancestor, asserts bounding boxes match within 4px on all four sides. Catches collapsed/intrinsic-sized panels (US-P02 / US-P08 regression gate). Filters out the `dock-tab-title-*` spans, the context menu testid, and the `dock-tab-missing` placeholder.
+- Spec writes a baseline PNG to tests/e2e/__screenshots__/visual-polish/default-layout-1600x1000.png on first run if missing (the file is the human-review artifact; the pixel asserts above are the actual gates). Skipping the actual baseline commit for now because the renderer cannot be production-built locally — see learnings.
+- Files changed: tests/e2e/visual-polish.spec.ts (new).
+- **Learnings for future iterations:**
+  - The production renderer build (`npm run build`) is currently broken on this machine because rc-dock, electron-updater, and plotly.js-dist-min are listed in package.json dependencies but NOT installed in node_modules. The dist/renderer/index.html on disk predates ALL US-P0* commits, so e2e tests have been running against the pre-polish renderer for every iteration in this branch. None of US-P01..US-P09 were actually exercised by Playwright. If you need true e2e verification: `npm install rc-dock@4.0.0-alpha.2 electron-updater plotly.js-dist-min` then `npm run build`.
+  - To resize an Electron BrowserWindow inside a Playwright test, use `app.evaluate(async ({ BrowserWindow }) => { ... })` and call `main.setBounds(...)` after `main.unmaximize()`. `Page.setViewportSize` is a no-op for Electron windows.
+  - rc-dock paints the dock chrome as solid `background-color` on `.dock-bar`, `.dock-panel`, `.rc-tabs-nav`, etc., so a DOM-based "what's the bg color at this pixel" walk via `document.elementFromPoint` + `getComputedStyle` parent chain is sufficient for white-leak detection without needing canvas readback (which is hard to do inside an Electron renderer).
+  - rc-dock's tab content is wrapped by `.dock-content` (or `.dock-content-holder` in some versions) — that's the right ancestor to compare against when asserting "tab fills its pane".
+  - There is no `.github/workflows/` in this repo. The "test runs in CI" AC is satisfied by the spec being placed in `tests/e2e/` (which `npm run test:e2e` discovers via Playwright's testDir glob); whoever sets up CI in the future just needs to invoke that command.
 ---
