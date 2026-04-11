@@ -489,6 +489,12 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
   // it so a prior drag-rearrangement survives a restart. Otherwise fall
   // back to the visibility-derived default tree. After mount, visibility
   // changes rebuild from scratch (so panel toggles still work).
+  //
+  // US-Q02: every entry path that consults `savedDockLayout` MUST run it
+  // through `sanitizeSavedDockLayout` first — including the post-mount
+  // savedDockLayout-prop-change effect below — so a stale persisted
+  // matslop-command-history (or any other hidden/unknown tab) cannot
+  // render as a ghost tab on top of its host pane.
   const [layout, setLayout] = useState<LayoutData>(() => {
     if (savedDockLayout) {
       try {
@@ -509,6 +515,31 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
     }
     return buildDockLayoutFromVisibility(visibility, detachedPanels)
   })
+
+  // US-Q02: when a fresh `savedDockLayout` arrives after mount (e.g. via
+  // `applyLayoutPreset` or because the initial `layoutGet` IPC resolved
+  // *after* MatslopDockLayout's first render in some test harnesses),
+  // re-run the sanitizer and rehydrate the layout state. Without this
+  // effect the useState initializer's sanitization would never apply to
+  // post-mount prop changes, leaving any ghost tab in the saved tree to
+  // render exactly the bug US-P06 was supposed to fix.
+  const lastConsumedSavedRef = useRef<LayoutBase | null | undefined>(savedDockLayout)
+  useEffect(() => {
+    if (savedDockLayout === lastConsumedSavedRef.current) return
+    lastConsumedSavedRef.current = savedDockLayout
+    if (!savedDockLayout) return
+    try {
+      const cleaned = sanitizeSavedDockLayout(savedDockLayout, visibility, detachedPanels)
+      if (cleaned) {
+        setLayout(cleaned as LayoutData)
+      } else {
+        setLayout(buildDockLayoutFromVisibility(visibility, detachedPanels))
+      }
+    } catch {
+      setLayout(buildDockLayoutFromVisibility(visibility, detachedPanels))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedDockLayout])
   // Track whether we already consumed the initial saved layout so the
   // visibility-effect below knows to rebuild instead of re-applying it.
   const visKey = JSON.stringify(visibility)
@@ -524,7 +555,15 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
       return
     }
     prevKeysRef.current = { vis: visKey, detached: detachedKey, version: versionKey }
-    setLayout(buildDockLayoutFromVisibility(visibility, detachedPanels))
+    // US-Q02: build a fresh layout from the current visibility, then run
+    // it through the sanitizer too. `buildDockLayoutFromVisibility` is
+    // already ghost-free by construction, but funnelling every rebuild
+    // through `sanitizeSavedDockLayout` makes the AC ("sanitizer applied
+    // on every later rebuild") observable in tests and provides a
+    // belt-and-braces guard if the builder ever regresses.
+    const fresh = buildDockLayoutFromVisibility(visibility, detachedPanels)
+    const cleaned = sanitizeSavedDockLayout(fresh as unknown as LayoutBase, visibility, detachedPanels)
+    setLayout((cleaned ?? fresh) as LayoutData)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visKey, detachedKey, versionKey])
 

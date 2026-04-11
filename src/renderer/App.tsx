@@ -1,5 +1,8 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
-import MatslopDockLayout, { type DockVisibility } from './panels/MatslopDockLayout'
+import MatslopDockLayout, {
+  type DockVisibility,
+  sanitizeSavedDockLayout,
+} from './panels/MatslopDockLayout'
 import FileBrowser from './panels/FileBrowser'
 import EditorPanel from './panels/EditorPanel'
 import WorkspacePanel from './panels/WorkspacePanel'
@@ -646,7 +649,64 @@ function App(): React.JSX.Element {
     window.matslop.layoutGet().then((layout) => {
       setVisibility(layout.panelVisibility)
       setPanelSizes(layout.panelSizes)
-      const saved = (layout as { dockLayout?: unknown }).dockLayout ?? null
+      const rawSaved = (layout as { dockLayout?: unknown }).dockLayout ?? null
+      // US-Q02: migrate stale persisted layouts on load. If the saved
+      // tree contains a tab id whose visibility flag is currently false
+      // (e.g. a leftover `matslop-command-history` after the user hid
+      // History), strip it via the sanitizer and write the cleaned layout
+      // back to disk so the ghost cannot resurrect on the next launch.
+      let saved: unknown = rawSaved
+      if (rawSaved && typeof rawSaved === 'object') {
+        try {
+          // Mirror the same DockVisibility shape MatslopDockLayout will
+          // see at first paint. We only know the persistable subset here
+          // (callStack/watches/figure are derived from runtime state and
+          // start out false on a fresh launch), which is exactly the
+          // shape that mattered when the layout was saved.
+          const visForSanitize: DockVisibility = {
+            fileBrowser: layout.panelVisibility.fileBrowser,
+            commandWindow: layout.panelVisibility.commandWindow,
+            commandHistory: layout.panelVisibility.commandHistory,
+            workspace: layout.panelVisibility.workspace,
+            callStack: false,
+            watches: false,
+            figure: false,
+            helpBrowser: false,
+            findInFiles: false,
+            profiler: false,
+            sourceControl: false,
+          }
+          const cleaned = sanitizeSavedDockLayout(
+            rawSaved as never,
+            visForSanitize,
+          )
+          if (cleaned) {
+            const before = JSON.stringify(rawSaved)
+            const after = JSON.stringify(cleaned)
+            if (before !== after) {
+              saved = cleaned
+              // Persist the migration so future launches start clean.
+              window.matslop.layoutSet({
+                panelVisibility: layout.panelVisibility,
+                panelSizes: layout.panelSizes,
+                dockLayout: cleaned,
+              })
+            }
+          } else {
+            // Sanitization wiped everything → drop the saved layout so
+            // we fall back to the visibility-derived default tree.
+            saved = null
+            window.matslop.layoutSet({
+              panelVisibility: layout.panelVisibility,
+              panelSizes: layout.panelSizes,
+              dockLayout: undefined,
+            })
+          }
+        } catch {
+          // On any sanitizer error, keep the raw layout — better a
+          // possibly-stale tab than a wiped layout.
+        }
+      }
       setSavedDockLayout(saved)
       savedDockLayoutRef.current = saved
       setLayoutLoaded(true)

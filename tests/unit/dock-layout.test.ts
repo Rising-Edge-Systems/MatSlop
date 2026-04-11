@@ -404,6 +404,54 @@ describe('sanitizeSavedDockLayout (US-P06)', () => {
     expect(ids).toContain(DOCK_TAB_IDS.commandHistory)
   })
 
+  it('US-Q02: migration round-trip — sanitizing then re-sanitizing is stable', () => {
+    // A persisted layout with both a hidden command-history tab AND an
+    // unknown tab id should converge after one sanitize pass; running
+    // sanitize again on the result must produce an identical tree.
+    const saved: LayoutBase = {
+      dockbox: hbox(
+        panel(DOCK_TAB_IDS.fileBrowser),
+        vbox(
+          panel(DOCK_TAB_IDS.editor),
+          panel(DOCK_TAB_IDS.commandWindow, DOCK_TAB_IDS.commandHistory, 'matslop-bogus'),
+        ),
+        panel(DOCK_TAB_IDS.workspace),
+      ),
+    } as unknown as LayoutBase
+    const once = sanitizeSavedDockLayout(saved, DEFAULT_DOCK_VISIBILITY)
+    expect(once).not.toBeNull()
+    const onceIds = collectTabIds(
+      (once as unknown as { dockbox: BoxData }).dockbox,
+    ).sort()
+    expect(onceIds).not.toContain(DOCK_TAB_IDS.commandHistory)
+    expect(onceIds).not.toContain('matslop-bogus')
+    const twice = sanitizeSavedDockLayout(once as LayoutBase, DEFAULT_DOCK_VISIBILITY)
+    expect(twice).not.toBeNull()
+    const twiceIds = collectTabIds(
+      (twice as unknown as { dockbox: BoxData }).dockbox,
+    ).sort()
+    expect(twiceIds).toEqual(onceIds)
+    // The cleaned tree's serialized form must equal the once-sanitized
+    // tree's serialized form so the App.tsx migration's "did the layout
+    // change?" comparison terminates after one pass.
+    expect(JSON.stringify(twice)).toBe(JSON.stringify(once))
+  })
+
+  it('US-Q02: a fresh layout from buildDockLayoutFromVisibility is sanitizer-fixed-point', () => {
+    // The visibility-effect rebuild path runs the freshly-built layout
+    // through the sanitizer too. That round-trip must be a no-op so we
+    // do not waste a render or accidentally mutate visible-tab activeIds.
+    const fresh = buildDockLayoutFromVisibility(DEFAULT_DOCK_VISIBILITY)
+    const cleaned = sanitizeSavedDockLayout(
+      fresh as unknown as LayoutBase,
+      DEFAULT_DOCK_VISIBILITY,
+    )
+    expect(cleaned).not.toBeNull()
+    expect(collectTabIds((cleaned as unknown as { dockbox: BoxData }).dockbox).sort()).toEqual(
+      collectTabIds(fresh.dockbox).sort(),
+    )
+  })
+
   it('drops detached tabs from the saved layout', () => {
     const saved: LayoutBase = {
       dockbox: hbox(
