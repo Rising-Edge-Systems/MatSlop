@@ -236,6 +236,42 @@ contextBridge.exposeInMainWorld('matslop', {
   // sent for verification in tests.
   debugReapplyBreakpointsForFile: (filePath: string | null): Promise<{ sent: string[] }> =>
     ipcRenderer.invoke('debug:reapplyBreakpointsForFile', filePath),
+  // US-034: Session save/restore
+  sessionGet: (): Promise<{
+    version: 1
+    savedAt: number
+    activeTabId: string | null
+    tabs: Array<{
+      id: string
+      filename: string
+      filePath: string | null
+      mode: string
+      content: string
+      savedContent: string
+      cursorLine?: number
+      cursorColumn?: number
+    }>
+  } | null> => ipcRenderer.invoke('session:get'),
+  sessionSet: (state: {
+    version: 1
+    savedAt: number
+    activeTabId: string | null
+    tabs: Array<{
+      id: string
+      filename: string
+      filePath: string | null
+      mode: string
+      content: string
+      savedContent: string
+      cursorLine?: number
+      cursorColumn?: number
+    }>
+  }): Promise<void> => ipcRenderer.invoke('session:set', state),
+  sessionClear: (): Promise<void> => ipcRenderer.invoke('session:clear'),
+  sessionGetRestoreEnabled: (): Promise<boolean> =>
+    ipcRenderer.invoke('session:getRestoreEnabled'),
+  sessionSetRestoreEnabled: (enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke('session:setRestoreEnabled', enabled),
   // Test-only helper
   _testMenuAction: (action: string): Promise<void> =>
     ipcRenderer.invoke('test:menuAction', action),

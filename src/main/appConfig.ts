@@ -10,6 +10,8 @@ export interface AppPreferences {
   insertSpaces: boolean
   defaultWorkingDirectory: string
   showWelcome: boolean
+  /** US-034: Restore last session (tabs + cursor + layout) on launch. */
+  sessionRestore: boolean
 }
 
 export interface PanelVisibilityConfig {
@@ -84,6 +86,7 @@ const defaults: AppPreferences = {
   insertSpaces: true,
   defaultWorkingDirectory: '',
   showWelcome: true,
+  sessionRestore: true,
 }
 
 // Lazily create the electron-store instance. Creating it at module load
@@ -126,6 +129,7 @@ export function getPreferences(): AppPreferences {
     insertSpaces: store.get('insertSpaces', defaults.insertSpaces) as boolean,
     defaultWorkingDirectory: store.get('defaultWorkingDirectory', defaults.defaultWorkingDirectory) as string,
     showWelcome: store.get('showWelcome', defaults.showWelcome) as boolean,
+    sessionRestore: store.get('sessionRestore', defaults.sessionRestore) as boolean,
   }
 }
 

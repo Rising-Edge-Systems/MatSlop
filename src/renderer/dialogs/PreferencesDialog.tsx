@@ -9,6 +9,8 @@ export interface EditorPreferences {
   insertSpaces: boolean
   defaultWorkingDirectory: string
   octavePath: string
+  /** US-034: Restore last session (tabs + cursor) on launch. */
+  sessionRestore: boolean
 }
 
 interface PreferencesDialogProps {
@@ -28,6 +30,7 @@ export default function PreferencesDialog({
     insertSpaces: true,
     defaultWorkingDirectory: '',
     octavePath: '',
+    sessionRestore: true,
   })
   const [octaveStatus, setOctaveStatus] = useState<string | null>(null)
 
@@ -38,6 +41,7 @@ export default function PreferencesDialog({
   async function loadPreferences(): Promise<void> {
     const stored = await window.matslop.configGetPreferences()
     const octPath = (await window.matslop.octaveGetPath()) ?? ''
+    const sessionRestore = await window.matslop.sessionGetRestoreEnabled()
     setPrefs({
       theme: stored.theme,
       fontFamily: stored.fontFamily,
@@ -46,6 +50,7 @@ export default function PreferencesDialog({
       insertSpaces: stored.insertSpaces,
       defaultWorkingDirectory: stored.defaultWorkingDirectory,
       octavePath: octPath,
+      sessionRestore,
     })
   }
 
@@ -62,6 +67,8 @@ export default function PreferencesDialog({
       })
       // Persist theme separately (existing channel)
       window.matslop.configSetTheme(updated.theme)
+      // US-034: persist the session-restore preference through its own IPC.
+      void window.matslop.sessionSetRestoreEnabled(updated.sessionRestore)
       // Notify parent for immediate application
       onPreferencesChanged(updated)
     },
@@ -254,6 +261,18 @@ export default function PreferencesDialog({
                   Browse...
                 </button>
               </div>
+            </div>
+
+            {/* US-034: Session save/restore toggle */}
+            <div className="prefs-row">
+              <label htmlFor="prefs-session-restore">Restore previous session on launch</label>
+              <input
+                id="prefs-session-restore"
+                data-testid="prefs-session-restore"
+                type="checkbox"
+                checked={prefs.sessionRestore}
+                onChange={(e) => updatePref('sessionRestore', e.target.checked)}
+              />
             </div>
           </div>
         </div>

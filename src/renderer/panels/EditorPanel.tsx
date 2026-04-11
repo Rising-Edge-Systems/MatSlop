@@ -11,6 +11,11 @@ import {
   type EditorTab,
 } from '../editor/editorTypes'
 import { publishHtml } from '../editor/publishHtml'
+import {
+  tabsToSession,
+  sessionToTabs,
+  type CursorSnapshot,
+} from '../editor/sessionState'
 import type { OctaveEngineStatus } from '../App'
 import { shortcutManager, type ShortcutAction } from '../shortcuts/shortcutManager'
 
@@ -92,19 +97,166 @@ function EditorPanel({
   )
   const [welcomeTabId, setWelcomeTabId] = useState<string | null>(null)
   const welcomeInitRef = useRef(false)
+  // Stable refs for tabs/activeTabId so flush-on-unmount closures see the
+  // latest values without re-binding listeners on every edit.
+  const tabsRef = useRef<EditorTab[]>(tabs)
+  const activeTabIdRef = useRef<string | null>(activeTabId)
+  useEffect(() => {
+    tabsRef.current = tabs
+  }, [tabs])
+  useEffect(() => {
+    activeTabIdRef.current = activeTabId
+  }, [activeTabId])
+  // US-034: per-tab cursor snapshots (line/column), mirrored into session.json
+  const tabCursorsRef = useRef<Record<string, CursorSnapshot>>({})
+  // Guard so session persistence effect doesn't fire with uninitialized state
+  // during the initial welcome/session restore.
+  const sessionReadyRef = useRef(false)
+  // Snapshot of whether session restore preference is on — checked once at
+  // mount. Falsy means we skip restore on this launch but still save state so
+  // toggling the pref on later recovers the subsequent session.
+  const sessionRestoreEnabledRef = useRef(true)
 
-  // Show welcome tab on first launch
+  // US-034: On first mount, try to restore the last session. Falls back to
+  // showing the welcome tab (legacy behavior) when there's no saved session
+  // or the restore pref is disabled.
   useEffect(() => {
     if (welcomeInitRef.current) return
     welcomeInitRef.current = true
-    window.matslop.configGetShowWelcome().then((show) => {
-      if (show) {
-        const welcomeTab = createTab('Welcome', '', null, 'welcome')
-        setTabs((prev) => [welcomeTab, ...prev])
-        setActiveTabId(welcomeTab.id)
-        setWelcomeTabId(welcomeTab.id)
+    ;(async () => {
+      let restored = false
+      try {
+        const enabled = await window.matslop.sessionGetRestoreEnabled()
+        sessionRestoreEnabledRef.current = enabled
+        if (enabled) {
+          const session = await window.matslop.sessionGet()
+          const loaded = sessionToTabs(session)
+          if (loaded) {
+            setTabs(loaded.tabs)
+            setActiveTabId(loaded.activeTabId)
+            tabCursorsRef.current = { ...loaded.cursors }
+            restored = true
+          }
+        }
+      } catch {
+        // ignore — fall through to welcome path
       }
-    })
+      if (restored) {
+        // After React commits the restored tabs, move the Monaco cursor
+        // to the saved line/col of the active tab (if any). Schedule a
+        // couple of retries because TabbedEditor mounts lazily.
+        const tryRestoreCursor = (attempt: number): void => {
+          const ed = editorInstanceRef.current
+          const activeId = activeTabIdRef.current
+          const pos = activeId ? tabCursorsRef.current[activeId] : null
+          if (ed && pos) {
+            try {
+              ed.setPosition({ lineNumber: pos.line, column: pos.column })
+              ed.revealLineInCenter(pos.line)
+            } catch {
+              // ignore
+            }
+            return
+          }
+          if (attempt < 10) setTimeout(() => tryRestoreCursor(attempt + 1), 50)
+        }
+        setTimeout(() => tryRestoreCursor(0), 50)
+      }
+      if (!restored) {
+        const show = await window.matslop.configGetShowWelcome()
+        if (show) {
+          const welcomeTab = createTab('Welcome', '', null, 'welcome')
+          setTabs((prev) => [welcomeTab, ...prev])
+          setActiveTabId(welcomeTab.id)
+          setWelcomeTabId(welcomeTab.id)
+        }
+      }
+      sessionReadyRef.current = true
+    })()
+  }, [])
+
+  // US-034: Persist the session (tabs + active tab + cursor) on every change
+  // to any of those. Debounced via a simple setTimeout + ref so rapid typing
+  // doesn't hammer the IPC channel.
+  const sessionSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (!sessionReadyRef.current) return
+    if (sessionSaveTimerRef.current) clearTimeout(sessionSaveTimerRef.current)
+    sessionSaveTimerRef.current = setTimeout(() => {
+      try {
+        const state = tabsToSession(tabs, activeTabId, tabCursorsRef.current)
+        void window.matslop.sessionSet(state)
+      } catch {
+        // ignore
+      }
+    }, 400)
+    return () => {
+      if (sessionSaveTimerRef.current) clearTimeout(sessionSaveTimerRef.current)
+    }
+  }, [tabs, activeTabId])
+
+  // US-034: Also flush session immediately on unmount (covers reload /
+  // close-without-typing-again cases).
+  useEffect(() => {
+    const flush = (): void => {
+      if (!sessionReadyRef.current) return
+      try {
+        const state = tabsToSession(
+          tabsRef.current,
+          activeTabIdRef.current,
+          tabCursorsRef.current,
+        )
+        void window.matslop.sessionSet(state)
+      } catch {
+        // ignore
+      }
+    }
+    window.addEventListener('beforeunload', flush)
+    return () => {
+      window.removeEventListener('beforeunload', flush)
+      flush()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Test hook so e2e specs can flush the in-memory session snapshot to
+  // disk without needing to navigate/quit the window.
+  useEffect(() => {
+    ;(
+      window as unknown as {
+        __matslopSessionFlush?: () => void
+        __matslopSessionSetCursor?: (tabId: string, line: number, column: number) => void
+      }
+    ).__matslopSessionFlush = (): void => {
+      try {
+        const state = tabsToSession(
+          tabsRef.current,
+          activeTabIdRef.current,
+          tabCursorsRef.current,
+        )
+        void window.matslop.sessionSet(state)
+      } catch {
+        // ignore
+      }
+    }
+    ;(
+      window as unknown as {
+        __matslopSessionSetCursor?: (tabId: string, line: number, column: number) => void
+      }
+    ).__matslopSessionSetCursor = (tabId, line, column): void => {
+      tabCursorsRef.current = {
+        ...tabCursorsRef.current,
+        [tabId]: { line, column },
+      }
+    }
+    return () => {
+      const w = window as unknown as {
+        __matslopSessionFlush?: () => void
+        __matslopSessionSetCursor?: (tabId: string, line: number, column: number) => void
+      }
+      delete w.__matslopSessionFlush
+      delete w.__matslopSessionSetCursor
+    }
   }, [])
   const editorInstanceRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
@@ -698,7 +850,17 @@ function EditorPanel({
           onTabSelect={handleTabSelect}
           onTabClose={handleTabClose}
           onContentChange={handleContentChange}
-          onCursorPositionChange={onCursorPositionChange}
+          onCursorPositionChange={(line, column) => {
+            // Mirror cursor into per-tab snapshot for US-034 session save.
+            const activeId = activeTabIdRef.current
+            if (activeId) {
+              tabCursorsRef.current = {
+                ...tabCursorsRef.current,
+                [activeId]: { line, column },
+              }
+            }
+            onCursorPositionChange?.(line, column)
+          }}
           onEditorRef={handleEditorRef}
           onErrorCountChange={onErrorCountChange}
           onNewFile={handleNewFile}

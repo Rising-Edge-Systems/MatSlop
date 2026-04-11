@@ -570,8 +570,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 34,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added src/main/sessionStore.ts (pure normalizeSession + fs-based read/write of session.json and recovery.json in userData). Added session IPCs (session:get/set/clear/getRestoreEnabled/setRestoreEnabled) and preload bridges. Added pure renderer helpers in src/renderer/editor/sessionState.ts (tabsToSession / sessionToTabs / sessionHasDirtyTabs). EditorPanel now (1) restores tabs + active tab + cursor from sessionGet on mount (guarded by sessionRestore pref), (2) debounces sessionSet on every tabs/activeTabId change, (3) flushes on unmount/beforeunload, (4) mirrors the active-tab cursor into a per-tab ref via onCursorPositionChange. Dirty buffers are written to recovery.json alongside session.json; a subsequent clean save deletes it. sessionRestore pref added to AppPreferences defaults + Preferences dialog (checkbox). Tests: tests/unit/session-state.test.ts (12 cases covering round-trip, welcome-drop, dirty detection, normalizeSession validation), tests/e2e/session-restore.spec.ts (relaunch restores hello.m fixture tab; relaunch with restore disabled does NOT; dirty content lands in recovery.json and is cleared on clean save)."
     },
     {
       "id": "US-035",

@@ -189,6 +189,40 @@ interface Window {
     // US-023: edit-and-continue (best effort) — re-apply breakpoints for a
     // single file after it was saved while paused.
     debugReapplyBreakpointsForFile: (filePath: string | null) => Promise<{ sent: string[] }>
+    // US-034: Session save/restore
+    sessionGet: () => Promise<{
+      version: 1
+      savedAt: number
+      activeTabId: string | null
+      tabs: Array<{
+        id: string
+        filename: string
+        filePath: string | null
+        mode: string
+        content: string
+        savedContent: string
+        cursorLine?: number
+        cursorColumn?: number
+      }>
+    } | null>
+    sessionSet: (state: {
+      version: 1
+      savedAt: number
+      activeTabId: string | null
+      tabs: Array<{
+        id: string
+        filename: string
+        filePath: string | null
+        mode: string
+        content: string
+        savedContent: string
+        cursorLine?: number
+        cursorColumn?: number
+      }>
+    }) => Promise<void>
+    sessionClear: () => Promise<void>
+    sessionGetRestoreEnabled: () => Promise<boolean>
+    sessionSetRestoreEnabled: (enabled: boolean) => Promise<void>
     // Test-only
     _testMenuAction?: (action: string) => Promise<void>
   }

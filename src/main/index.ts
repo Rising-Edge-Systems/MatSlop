@@ -46,6 +46,12 @@ import {
   type LayoutConfig,
   type StoredLayoutPreset,
 } from './appConfig'
+import {
+  readSession,
+  writeSession,
+  clearSession,
+  type SessionState,
+} from './sessionStore'
 
 // Command history file path
 function getHistoryFilePath(): string {
@@ -970,6 +976,31 @@ ipcMain.handle('shell:openExternal', async (_event, url: string) => {
 })
 
 // Test-only: programmatically trigger a menu action. Guarded by env var.
+// ---------------------------------------------------------------------------
+// US-034: Session save/restore
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('session:get', () => {
+  return readSession()
+})
+
+ipcMain.handle('session:set', (_event, state: SessionState) => {
+  writeSession(state)
+})
+
+ipcMain.handle('session:clear', () => {
+  clearSession()
+})
+
+ipcMain.handle('session:getRestoreEnabled', () => {
+  const prefs = getPreferences()
+  return prefs.sessionRestore !== false
+})
+
+ipcMain.handle('session:setRestoreEnabled', (_event, enabled: boolean) => {
+  setPreferences({ sessionRestore: !!enabled })
+})
+
 ipcMain.handle('test:menuAction', (_event, action: string) => {
   if (!process.env.MATSLOP_USER_DATA_DIR) return // only enabled during tests
   mainWindow?.webContents.send('menu:action', action)
