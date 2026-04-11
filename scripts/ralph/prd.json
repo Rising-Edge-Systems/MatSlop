@@ -63,8 +63,8 @@
         "Tests pass"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Enhanced handlePublishHtml in EditorPanel to capture disp/fprintf output for .m scripts via `disp(evalc(\"source('<path>')\"))` before building the HTML, so published docs carry real runtime output. Added tests/integration/publish-html-integration.test.ts (runs under vitest) exercising the full pipeline with real Octave + real file IO (script path + figure embedding), and a new tests/e2e/publish-html.spec.ts Playwright spec mirroring the flow through the packaged Electron app with publishSaveDialog stubbed."
     },
     {
       "id": "US-T05",

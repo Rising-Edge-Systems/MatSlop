@@ -374,10 +374,30 @@ function EditorPanel({
   const handlePublishHtml = useCallback(async () => {
     const tab = getActiveTab()
     if (!tab || tab.mode === 'welcome') return
+
+    // US-T04: For saved .m scripts, capture disp/fprintf output by sourcing
+    // the file inside `evalc(...)` so the published HTML carries real
+    // runtime output, not just a code listing. Live scripts already embed
+    // per-cell output in their JSON so no capture is needed.
+    let scriptOutput: string | undefined
+    if (tab.mode !== 'livescript' && tab.filePath) {
+      try {
+        const escapedPath = tab.filePath.replace(/'/g, "''")
+        const res = await window.matslop.octaveExecute(
+          `disp(evalc("source('${escapedPath}')"))`,
+        )
+        const combined = (res?.output ?? '') + (res?.error ?? '')
+        if (combined.trim().length > 0) scriptOutput = combined.replace(/\n+$/, '')
+      } catch {
+        /* swallow — publish without output */
+      }
+    }
+
     const html = publishHtml({
       filename: tab.filename,
       mode: tab.mode === 'livescript' ? 'livescript' : 'script',
       content: tab.content,
+      scriptOutput,
       timestamp: new Date().toISOString(),
     })
     const defaultName = tab.filename.replace(/\.(m|mls)$/i, '') + '.html'

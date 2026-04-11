@@ -57,3 +57,22 @@ Started: Sat Apr 11 07:38:25 PM EDT 2026
   - To verify prod bundle purity, `npm run build` then `grep -r <needle> dist/` — if the grep is empty, the needle is gone
   - No E2E tests currently use the `__matslopWs*` hooks (only source-control has `__matslopOpenSourceControl` etc.); the workspace debug hooks were pure dev-only diagnostics
 ---
+
+## 2026-04-11 - US-T04
+- Wired end-to-end verification of File > Publish > HTML for .m scripts
+- Enhanced handlePublishHtml in EditorPanel to capture disp/fprintf output for saved .m files by running `disp(evalc("source('<path>')"))` via `window.matslop.octaveExecute` before assembling the HTML; the captured text is passed to publishHtml({ scriptOutput }) so published docs carry real runtime output (previously the .m path only emitted a code listing)
+- New integration test (tests/integration/publish-html-integration.test.ts) runs under vitest and exercises the full pipeline with real Octave + real file IO: writes a temp .m file, uses OctaveProcessManager to evalc-source it, publishes to HTML, reads the file back, asserts highlighted code, embedded runtime output, self-contained (no <script>, no external css/js), and verifies figure embedding via a synthesised 1x1 PNG through the livescript path
+- New Playwright e2e spec (tests/e2e/publish-html.spec.ts) mirrors the flow through the packaged app: opens hello.m, stubs publishSaveDialog to a temp path, leaves publishWriteFile real, dispatches the `publishHtml` menu action through _testMenuAction, and asserts the resulting file on disk
+- Files changed:
+  - src/renderer/panels/EditorPanel.tsx (handlePublishHtml now captures script output via octaveExecute+evalc)
+  - tests/integration/publish-html-integration.test.ts (new)
+  - tests/e2e/publish-html.spec.ts (new)
+  - scripts/ralph/prd.json (US-T04 passes: true)
+- Tests: 586 passed / 0 failed (was 584). Typecheck clean.
+- **Learnings for future iterations:**
+  - Integration tests that need a real Octave gracefully fall back to `/tmp/octave-root/octave-cli-wrap` when `resources/octave/bin/octave-cli` is absent — pattern: `fs.accessSync(devWrap, fs.constants.X_OK)` before use. Do NOT modify `tests/helpers/octaveBinary.ts` (affects the whole suite) — localize the fallback to the one test file that needs it
+  - Octave's graphics stack is unusable in many CI/dev environments (freetype font errors break `plot()` + `print()`). When a publish/export test needs to exercise the figure-embedding code path, synthesise a tiny PNG in JS (`Buffer.from('89504e47...', 'hex')`) and feed it through the live-script publish helper instead of depending on Octave rendering
+  - The renderer-side IPC for publish is split: `publishSaveDialog` (just dialog, returns {filePath}) + `publishWriteFile` (actual fs.writeFile). e2e tests can stub the dialog and leave writeFile real for a true disk-write assertion
+  - `disp(evalc("source('<path>')"))` is the canonical way to capture a .m script's stdout output from inside Octave without running it in a subprocess — handles disp, fprintf, and automatic variable echo
+  - The test-only `_testMenuAction(action)` bridge dispatches through `mainWindow.webContents.send('menu:action', action)` — use it to drive any File menu action in e2e specs without synthesising real menu clicks
+---
