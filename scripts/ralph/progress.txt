@@ -728,3 +728,15 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
   - download-octave.js pattern: each platform entry has { url, filename, binary } where `binary` is the post-extract relative path probed by `fs.existsSync` for a short-circuit. extractedDir is win32-specific (powershell Expand-Archive adds a version subfolder).
   - Parallel unit tests in tests/unit/download-octave-<platform>.test.ts verify script/manifest consistency — repeat this pattern for any new platform branch (check DOWNLOADS entry, extract method, build:<platform> script ordering, octaveConfig path layout).
 ---
+
+## 2026-04-11 - US-040 Windows code signing
+- Extended `build.win` in package.json with `signingHashAlgorithms: ["sha256"]`, `signDlls: false`, and `rfc3161TimeStampServer: "http://timestamp.digicert.com"` so the NSIS installer is SHA-256 Authenticode signed with a valid RFC-3161 timestamp when a cert is supplied.
+- Electron-builder auto-detects `CSC_LINK` (cert path / https URL / base64 blob) and `CSC_KEY_PASSWORD` env vars at `npm run build:win` time — no JS plumbing required, and the unsigned fallback (no env vars set) still works for local dev.
+- Created docs/build-signing.md covering: env var table, local dev usage, GitHub Actions secrets pattern (base64 `.pfx` → `CSC_LINK`), unsigned fallback warning, PowerShell verification with `Get-AuthenticodeSignature`, and notes on macOS/Linux.
+- Added tests/unit/build-signing.test.ts (7 tests) that lock the `package.json` win config + docs file in place so future refactors can't silently drop signing.
+- Files changed: package.json, docs/build-signing.md (new), tests/unit/build-signing.test.ts (new), scripts/ralph/prd.json
+- **Learnings:**
+  - electron-builder 25.x still honors the classic `CSC_LINK`/`CSC_KEY_PASSWORD` env-var contract — no need to migrate to `win.signtoolOptions` unless you want per-thumbprint selection.
+  - `CSC_LINK` accepts a base64 blob directly, which is the cleanest way to carry a `.pfx` through GitHub Actions secrets without touching the runner's filesystem.
+  - RFC-3161 timestamping (vs legacy Authenticode timestamping) is required for SHA-256 certs; pin a public server (DigiCert) in `rfc3161TimeStampServer` so builds don't depend on signtool's default.
+---
