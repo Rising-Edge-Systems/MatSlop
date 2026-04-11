@@ -10,6 +10,11 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.invoke('file:saveAs', content, defaultName),
   confirmClose: (filename: string): Promise<number> =>
     ipcRenderer.invoke('file:confirmClose', filename),
+  // US-030: Publish to HTML
+  publishSaveDialog: (defaultName: string): Promise<{ filePath: string } | null> =>
+    ipcRenderer.invoke('publish:saveDialog', defaultName),
+  publishWriteFile: (filePath: string, content: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('publish:writeFile', filePath, content),
   // Filesystem operations for File Browser
   readDir: (dirPath: string): Promise<Array<{ name: string; path: string; isDirectory: boolean }>> =>
     ipcRenderer.invoke('fs:readDir', dirPath),

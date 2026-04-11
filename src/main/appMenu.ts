@@ -7,6 +7,7 @@ export type MenuAction =
   | 'openFile'
   | 'save'
   | 'saveAs'
+  | 'publishHtml'
   | 'closeTab'
   | 'find'
   | 'findReplace'
@@ -97,6 +98,16 @@ export function buildAppMenu(
           label: 'Save As...',
           accelerator: 'CmdOrCtrl+Shift+S',
           click: () => send('saveAs'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Publish',
+          submenu: [
+            {
+              label: 'HTML...',
+              click: () => send('publishHtml'),
+            },
+          ],
         },
         { type: 'separator' },
         {

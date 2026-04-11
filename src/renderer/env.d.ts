@@ -46,6 +46,9 @@ interface Window {
     saveFile: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>
     saveFileAs: (content: string, defaultName?: string) => Promise<{ filePath: string; filename: string } | null>
     confirmClose: (filename: string) => Promise<number>
+    // US-030: Publish to HTML
+    publishSaveDialog: (defaultName: string) => Promise<{ filePath: string } | null>
+    publishWriteFile: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>
     // Filesystem operations for File Browser
     readDir: (dirPath: string) => Promise<Array<{ name: string; path: string; isDirectory: boolean }>>
     readFile: (filePath: string) => Promise<{ filePath: string; content: string; filename: string } | null>

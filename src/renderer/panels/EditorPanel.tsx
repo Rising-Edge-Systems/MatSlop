@@ -10,6 +10,7 @@ import {
   findNextSectionAdvanceLine,
   type EditorTab,
 } from '../editor/editorTypes'
+import { publishHtml } from '../editor/publishHtml'
 import type { OctaveEngineStatus } from '../App'
 import { shortcutManager, type ShortcutAction } from '../shortcuts/shortcutManager'
 
@@ -200,6 +201,28 @@ function EditorPanel({
       // Untitled file — use Save As
       await handleSaveAs()
     }
+  }, [getActiveTab])
+
+  /**
+   * US-030: Publish the active tab as a self-contained HTML document.
+   * Live scripts preserve cell layout + outputs + embedded figures; .m
+   * scripts emit a highlighted code listing. Delegates document assembly
+   * to the pure `publishHtml()` helper so all the string work is
+   * unit-testable.
+   */
+  const handlePublishHtml = useCallback(async () => {
+    const tab = getActiveTab()
+    if (!tab || tab.mode === 'welcome') return
+    const html = publishHtml({
+      filename: tab.filename,
+      mode: tab.mode === 'livescript' ? 'livescript' : 'script',
+      content: tab.content,
+      timestamp: new Date().toISOString(),
+    })
+    const defaultName = tab.filename.replace(/\.(m|mls)$/i, '') + '.html'
+    const result = await window.matslop.publishSaveDialog(defaultName)
+    if (!result) return
+    await window.matslop.publishWriteFile(result.filePath, html)
   }, [getActiveTab])
 
   const handleSaveAs = useCallback(async () => {
@@ -452,6 +475,9 @@ function EditorPanel({
       case 'saveAs':
         handleSaveAs().then(() => onMenuActionConsumed?.())
         break
+      case 'publishHtml':
+        handlePublishHtml().then(() => onMenuActionConsumed?.())
+        break
       case 'closeTab':
         if (activeTabId) {
           handleTabClose(activeTabId).then(() => onMenuActionConsumed?.())
@@ -506,7 +532,7 @@ function EditorPanel({
         // Not handled by EditorPanel — leave for other consumers
         break
     }
-  }, [menuAction, activeTabId, handleNewFile, handleNewLiveScript, handleOpenFile, handleSave, handleSaveAs, handleTabClose, handleRun, handleRunSection, handleRunAndAdvance, onMenuActionConsumed])
+  }, [menuAction, activeTabId, handleNewFile, handleNewLiveScript, handleOpenFile, handleSave, handleSaveAs, handlePublishHtml, handleTabClose, handleRun, handleRunSection, handleRunAndAdvance, onMenuActionConsumed])
 
   // Open file from File Browser
   useEffect(() => {

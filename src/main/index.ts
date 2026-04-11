@@ -427,6 +427,37 @@ ipcMain.handle('figures:readTextFile', async (_event, filePath: string) => {
   }
 })
 
+/**
+ * US-030: Publish to HTML. Renderer computes the HTML content (see
+ * src/renderer/editor/publishHtml.ts) and passes it here to be written
+ * to a user-chosen .html file. Split into `publish:saveDialog` and
+ * `publish:writeFile` to mirror the figures export flow and to keep
+ * the main-process handler dependency-free.
+ */
+ipcMain.handle('publish:saveDialog', async (_event, defaultName: string) => {
+  const result = await dialog.showSaveDialog({
+    defaultPath: defaultName,
+    filters: [
+      { name: 'HTML Document', extensions: ['html'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  })
+  if (result.canceled || !result.filePath) return null
+  return { filePath: result.filePath }
+})
+
+ipcMain.handle('publish:writeFile', async (_event, filePath: string, content: string) => {
+  try {
+    if (!filePath || typeof filePath !== 'string') {
+      return { success: false, error: 'invalid file path' }
+    }
+    fs.writeFileSync(filePath, content, 'utf-8')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
+
 ipcMain.handle('figures:saveDialog', async (_event, defaultName: string) => {
   const result = await dialog.showSaveDialog({
     defaultPath: defaultName,
