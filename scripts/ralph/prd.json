@@ -337,8 +337,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 20,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added debug_on_interrupt(true) to OctaveProcessManager init script and a new pauseForDebug() method that kills the process with SIGINT while busy. Wired via new IPC 'octave:pauseForDebug' + preload bridge octavePauseForDebug + env.d.ts. Added a Pause button in EditorToolbar (lucide Pause icon, data-testid='toolbar-pause') that is only enabled while engine is busy AND debugger not already paused \u2014 App.tsx forwards the click to the new bridge. Added a test-only __matslopSimulateEngineStatus hook. Created tests/e2e/pause-for-debug.spec.ts (4 tests). All related e2e suites (pause-for-debug, debug-toolbar, debug-paused) pass."
     },
     {
       "id": "US-021",

@@ -119,6 +119,11 @@ export class OctaveProcessManager extends EventEmitter {
       // not as external gnuplot windows.
       "set(0, 'defaultfigurevisible', 'off');",
       "more off;",
+      // US-020: enable debug-on-interrupt so SIGINT (from `pauseForDebug()`)
+      // drops Octave into the debugger at the currently-executing line
+      // rather than just aborting the script. This is the Octave equivalent
+      // of MATLAB's "Pause" button for the debugger.
+      "try; debug_on_interrupt(true); catch; end;",
       // US-009: put bundled matslop_export_fig on the Octave load path so
       // live-script cells can serialize figures to JSON for PlotRenderer.
       addpathStmt,
@@ -277,6 +282,28 @@ export class OctaveProcessManager extends EventEmitter {
     if (this.process && this.status === 'busy') {
       this.process.kill('SIGINT')
     }
+  }
+
+  /**
+   * US-020: Pause a running script and drop into the debugger at the
+   * currently-executing line. This relies on `debug_on_interrupt(true)`
+   * being set during `start()`; sending SIGINT while Octave is executing
+   * a script then causes it to enter debug mode at the current line
+   * rather than aborting the script. The UI flows just like hitting a
+   * breakpoint — the renderer will receive a `'paused'` event via the
+   * existing parsePausedMarker pipeline once Octave prints its standard
+   * "stopped in <file> at line N" marker.
+   *
+   * Returns true if a SIGINT was actually sent. No-op and returns false
+   * when the process isn't running or isn't busy, so callers can safely
+   * invoke it regardless of state.
+   */
+  pauseForDebug(): boolean {
+    if (this.process && this.status === 'busy') {
+      this.process.kill('SIGINT')
+      return true
+    }
+    return false
   }
 
   stop(): void {

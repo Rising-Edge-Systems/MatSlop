@@ -322,6 +322,14 @@ ipcMain.handle('octave:interrupt', () => {
   octaveProcess?.interrupt()
 })
 
+// US-020: Pause a running script and drop into the debugger at the
+// currently-executing line. See OctaveProcessManager.pauseForDebug() for
+// the mechanism (SIGINT + debug_on_interrupt(true)).
+ipcMain.handle('octave:pauseForDebug', () => {
+  const sent = octaveProcess?.pauseForDebug() ?? false
+  return { sent }
+})
+
 ipcMain.handle('octave:restart', async (_event, binaryPath: string) => {
   if (octaveProcess) {
     octaveProcess.stop()

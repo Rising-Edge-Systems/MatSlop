@@ -29,6 +29,7 @@ interface EditorPanelProps {
   engineStatus: OctaveEngineStatus
   onRun?: (filePath: string, dirPath: string) => void
   onStop?: () => void
+  onPauseForDebug?: () => void
   onRunSection?: (code: string) => void
   menuAction?: MenuAction | null
   onMenuActionConsumed?: () => void
@@ -53,6 +54,7 @@ function EditorPanel({
   engineStatus,
   onRun,
   onStop,
+  onPauseForDebug,
   onRunSection,
   menuAction,
   onMenuActionConsumed,
@@ -578,7 +580,9 @@ function EditorPanel({
         onSave={handleSave}
         onRun={handleRun}
         onStop={handleStop}
+        onPauseForDebug={onPauseForDebug}
         onRunSection={handleRunSection}
+        debugPaused={pausedLocation !== null}
       />
       <div className="panel-content editor-panel-content">
         {isDragOver && (

@@ -248,6 +248,26 @@ function App(): React.JSX.Element {
     }
   }, [pausedLocation])
 
+  // US-020: expose a test-only hook so Playwright can simulate the Octave
+  // engine being 'busy' without actually running a script. The Pause button
+  // is only enabled while the engine is busy, so e2e tests need to drive
+  // that state directly.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const w = window as unknown as {
+      __matslopSimulateEngineStatus?: (status: OctaveEngineStatus) => void
+    }
+    w.__matslopSimulateEngineStatus = (status: OctaveEngineStatus) => {
+      setOctaveStatus((prev) => ({ ...prev, engineStatus: status }))
+    }
+    return () => {
+      const ww = window as unknown as {
+        __matslopSimulateEngineStatus?: unknown
+      }
+      ww.__matslopSimulateEngineStatus = undefined
+    }
+  }, [])
+
   // US-019: expose the workspace refresh counter so e2e tests can assert
   // that entering/leaving a paused state causes the panel to re-query.
   useEffect(() => {
@@ -462,6 +482,31 @@ function App(): React.JSX.Element {
 
   const handleStop = useCallback(() => {
     window.matslop.octaveInterrupt()
+  }, [])
+
+  // US-020: Pause a running script and drop into the debugger at the
+  // currently-executing line. Calls the preload bridge which in turn
+  // invokes `OctaveProcessManager.pauseForDebug()` (SIGINT with
+  // `debug_on_interrupt(true)` set). When Octave actually enters debug
+  // mode it will print its standard "stopped in <file>" marker which
+  // flows back through the existing `onOctavePaused` IPC pipeline and
+  // sets `pausedLocation`, flipping the UI into debug mode.
+  //
+  // Also exposes `window.__matslopLastPauseForDebug` so e2e tests can
+  // observe that the button fired without needing a real Octave process.
+  const handlePauseForDebug = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      const w = window as unknown as {
+        __matslopLastPauseForDebug?: { at: number }
+      }
+      w.__matslopLastPauseForDebug = { at: Date.now() }
+    }
+    try {
+      const bridge = (window as unknown as { matslop?: Window['matslop'] }).matslop
+      void bridge?.octavePauseForDebug?.().catch(() => {})
+    } catch {
+      /* ignore */
+    }
   }, [])
 
   // US-017: Dispatch a debug command (continue/step/stepIn/stepOut/stop).
@@ -737,6 +782,7 @@ function App(): React.JSX.Element {
                   engineStatus={octaveStatus.engineStatus}
                   onRun={handleRunScript}
                   onStop={handleStop}
+                  onPauseForDebug={handlePauseForDebug}
                   onRunSection={handleRunSection}
                   menuAction={menuAction}
                   onMenuActionConsumed={handleMenuActionConsumed}

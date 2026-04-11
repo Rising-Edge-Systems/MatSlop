@@ -3,6 +3,7 @@ import {
   FolderOpen,
   Save,
   Play,
+  Pause,
   Square,
   LayoutList,
 } from 'lucide-react'
@@ -17,6 +18,10 @@ interface EditorToolbarProps {
   onRun: () => void
   onStop: () => void
   onRunSection: () => void
+  /** US-020: Pause a running script and drop into the debugger. */
+  onPauseForDebug?: () => void
+  /** US-020: True while the debugger is already paused — hides the Pause button. */
+  debugPaused?: boolean
 }
 
 function EditorToolbar({
@@ -28,10 +33,15 @@ function EditorToolbar({
   onRun,
   onStop,
   onRunSection,
+  onPauseForDebug,
+  debugPaused = false,
 }: EditorToolbarProps): React.JSX.Element {
   const isBusy = engineStatus === 'busy'
   const runDisabled = !hasActiveFile || isBusy || engineStatus === 'disconnected'
   const stopDisabled = !isBusy
+  // US-020: Pause button is only meaningful while a script is actively
+  // running and we're not ALREADY in the debugger.
+  const pauseDisabled = !isBusy || debugPaused
 
   return (
     <div className="editor-toolbar">
@@ -65,6 +75,15 @@ function EditorToolbar({
         disabled={runDisabled}
       >
         <Play size={16} />
+      </button>
+      <button
+        className="toolbar-btn toolbar-btn-pause"
+        onClick={onPauseForDebug}
+        title="Pause (drop into debugger)"
+        data-testid="toolbar-pause"
+        disabled={pauseDisabled}
+      >
+        <Pause size={16} />
       </button>
       <button
         className="toolbar-btn toolbar-btn-stop"

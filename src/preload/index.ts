@@ -47,6 +47,10 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.invoke('octave:execute', command),
   octaveInterrupt: (): Promise<void> =>
     ipcRenderer.invoke('octave:interrupt'),
+  // US-020: Pause a running script and drop into the debugger at the
+  // currently-executing line.
+  octavePauseForDebug: (): Promise<{ sent: boolean }> =>
+    ipcRenderer.invoke('octave:pauseForDebug'),
   octaveRestart: (binaryPath: string): Promise<{ success: boolean }> =>
     ipcRenderer.invoke('octave:restart', binaryPath),
   octaveGetStatus: (): Promise<'ready' | 'busy' | 'disconnected'> =>

@@ -66,6 +66,7 @@ interface Window {
     octaveStart: (binaryPath: string) => Promise<{ success: boolean; error?: string }>
     octaveExecute: (command: string) => Promise<{ output: string; error: string; isComplete: boolean }>
     octaveInterrupt: () => Promise<void>
+    octavePauseForDebug: () => Promise<{ sent: boolean }>
     octaveRestart: (binaryPath: string) => Promise<{ success: boolean }>
     octaveGetStatus: () => Promise<'ready' | 'busy' | 'disconnected'>
     onOctaveStatusChanged: (callback: (status: 'ready' | 'busy' | 'disconnected') => void) => () => void

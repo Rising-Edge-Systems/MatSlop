@@ -4,6 +4,8 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
 
 ## Codebase Patterns
 - Layout uses Allotment panes; panel sizes persisted via window.matslop.layoutSet
+- To drive engine-status-dependent UI in e2e without a real Octave process, use `window.__matslopSimulateEngineStatus('busy'|'ready'|'disconnected')` (App.tsx test hook). Pairs with `__matslopSimulatePaused` for flows that need both a busy engine AND a paused debugger state.
+- `OctaveProcessManager.pauseForDebug()` (US-020) = SIGINT while busy. Relies on `debug_on_interrupt(true)` set in the init script so the interrupt drops Octave into the debugger at the current line instead of aborting. Prefer this over the older `interrupt()` when the intent is "drop into debugger" — they currently share the SIGINT implementation but differ in semantic + return value.
 - Allotment.Pane with `visible={false}` KEEPS children mounted in the DOM. If a data-testid needs to vanish with the pane, conditionally render inside the Pane: `{cond && <Panel/>}`. Also prefer `.dispatchEvent('click')` over `.click()` in Playwright for buttons inside Allotment panes (pattern also used by debug-toolbar.spec.ts).
 - Panels use data-testid attributes for Playwright selectors
 - Run `npm run build` to verify Vite/electron-vite production build
@@ -344,4 +346,21 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
   - E2E tests run against the BUILT app in `dist/`, not the dev server — if a new `data-testid` or attribute is missing from a Playwright assertion, run `npm run build` first. Wasted one cycle on this.
   - The paused→unpaused useEffect in App.tsx already clears the call stack, so chaining multiple refresh effects onto `pausedLocation` is safe — they all run together on the state transition.
   - `WorkspacePanel` uses `refreshingRef` to guard against concurrent refreshes; if you need to force an immediate refresh, just bump the counter from the parent (don't call the private refresh fn).
+---
+
+## 2026-04-10 - US-020 Pause running execution (Ctrl+C equivalent for debugger)
+- Added `debug_on_interrupt(true)` to the OctaveProcessManager init script in src/main/octaveProcess.ts so SIGINT while a script is running drops Octave into the debugger at the current line instead of aborting execution.
+- Added a new `pauseForDebug()` method on OctaveProcessManager that kills the child process with SIGINT when status === 'busy'. Returns true if a SIGINT was sent, false otherwise.
+- Wired the new method via a new IPC handler `octave:pauseForDebug` in src/main/index.ts, a preload bridge method `octavePauseForDebug` in src/preload/index.ts, and a corresponding type in src/renderer/env.d.ts.
+- Added a new Pause button to the editor toolbar (lucide `Pause` icon, data-testid="toolbar-pause"). It sits between the existing Run and Stop buttons and is only enabled while `engineStatus === 'busy'` AND the debugger is not already paused.
+- Plumbed a `onPauseForDebug` handler through `EditorPanel` → `EditorToolbar`. App.tsx owns the handler (`handlePauseForDebug`) which calls the preload bridge and sets `window.__matslopLastPauseForDebug = { at }` so e2e tests can observe the dispatch without needing a real Octave process.
+- Added a test-only `window.__matslopSimulateEngineStatus` hook in App.tsx that lets Playwright flip the engine status between 'ready' / 'busy' / 'disconnected'. This was needed because the Pause button is gated on the `busy` state and without this hook there's no way to drive it in e2e.
+- Created tests/e2e/pause-for-debug.spec.ts with 4 Playwright tests: (1) button is present in the toolbar, (2) disabled when engine is ready, (3) enabled + dispatches when engine is busy, (4) disabled again once debugger is already paused.
+- Files changed: src/main/octaveProcess.ts, src/main/index.ts, src/preload/index.ts, src/renderer/env.d.ts, src/renderer/editor/EditorToolbar.tsx, src/renderer/panels/EditorPanel.tsx, src/renderer/App.tsx, tests/e2e/pause-for-debug.spec.ts, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Octave's `debug_on_interrupt(true)` is the cleanest way to implement a "pause into debugger" button. When SIGINT arrives during script execution, Octave halts at the current line and enters debug mode just like a breakpoint — the existing `parsePausedMarker` pipeline then fires a `'paused'` event and the UI flips via the shared paused-location state.
+  - Pause button semantics matter: `isBusy && !debugPaused`. If you leave off the `!debugPaused` guard, the button stays enabled while Octave is sitting at a breakpoint, which is confusing — use Continue/Stop from the DebugToolbar instead.
+  - The previous `interrupt()` method is kept for the existing "Stop" toolbar button — that path intentionally aborts rather than entering debug mode. Keep the two methods distinct even though they currently share an implementation, because we may later want Stop to NOT have `debug_on_interrupt(true)` behavior (or to also call `dbquit` first).
+  - When adding new test hooks to App.tsx, follow the existing pattern: `useEffect` that writes the hook onto `window` and cleans up in the return. Keeps them co-located with the real subscriptions and avoids the contextBridge frozen-proxy limitation.
+  - The baseline unit-test failures (`octave-config.test.ts`, `livescript-interactive-plot.test.ts`, bundled-Octave presence) are ongoing noise in dev envs without `resources/octave` populated — they do NOT regress with US-020 changes.
 ---
