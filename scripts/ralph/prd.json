@@ -1,92 +1,85 @@
 {
   "project": "MatSlop",
-  "branchName": "ralph/matslop-polish-v3",
-  "description": "Post-merge polish & real-Octave bug bash. The polish-v2 branch is merged into main. End-to-end validation against a real Octave 8.4 install found several bugs: download-octave.js URLs are broken (macOS 9.4 release doesn't exist, Linux AppImage repo doesn't exist), a few UX rough edges, and assorted cleanups. This cycle also lifts miscellaneous polish: make the editor Run button visibly indicate what it runs, add a busy indicator while Octave executes a long command, and land any remaining small cosmetics.",
+  "branchName": "ralph/matslop-polish-v4",
+  "description": "End-to-end bug bash cycle 6. Live-validated against a real Octave 8.4 install. Found several concrete bugs: Help panel 'Error: No help found' for valid `doc sin` / `help sin` queries; WorkspacePanel needed a watchdog hack because the first refresh after a renderer reload hangs (root cause: OctaveProcessManager sometimes swallows the first command post-HMR); `doc sin` routes to Help panel but returns empty. Also: lint cleanup of leftover test hooks, publish to HTML verification, a reliable first-refresh path that does not need the watchdog.",
   "userStories": [
     {
-      "id": "US-S01",
-      "title": "Fix broken URLs in scripts/download-octave.js",
-      "description": "The download script references https://ftpmirror.gnu.org/octave/windows/... (returns 502), https://github.com/octave-app/octave-app/releases/download/v9.4.0/... (the 9.4.0 release doesn't exist; octave-app max is v9.2), and https://github.com/ryanjdillon/octave-appimage/releases/... (the ryanjdillon/octave-appimage repo doesn't exist). Pin to working sources.",
+      "id": "US-T01",
+      "title": "Help panel shows real content for `doc sin` / `help sin`",
+      "description": "Routing `doc sin` from the Command Window opens the Help panel but renders 'Error: No help found', even though the underlying `help sin` Octave command returns a full paragraph of help text. Root cause: buildHelpFetchCommand used disp(help('<name>')) — the function form of `help` returns an empty string when Octave's texinfo filter fails (e.g. Text::Unidecode missing). Fixed by using evalc('help <name>') (the command form) with a get_help_text fallback.",
       "acceptanceCriteria": [
-        "Windows URL uses https://ftp.gnu.org/gnu/octave/windows/ (mirror-free, confirmed 200 OK)",
-        "macOS URL pinned to v9.2 (latest octave-app release) or a working alternative — document the ceiling clearly",
-        "Linux URL replaced with a working source: either a maintained octave AppImage, a Flatpak bundle step (flatpak --user install org.octave.Octave), OR a clear 'not bundled on Linux' branch that falls back to PATH lookup",
-        "Running `node scripts/download-octave.js --platform linux` on a clean dev checkout either succeeds OR exits with a clear 'no bundled Octave for this platform, please install via apt/flatpak/brew' message (no HTTP 404 stacktrace)",
-        "Unit tests for download-octave updated to match the new URLs (tests/unit/download-octave*.test.ts)",
+        "Typing `doc sin` in the command window opens the Help panel and shows Octave's `help sin` output (starting with \"'sin' is a built-in function...\")",
+        "Typing `help sin` has identical behavior (both route to Help panel in MatSlop's US-031 design)",
+        "If Octave returns 'error: help: ...' the panel still renders that message verbatim instead of a generic 'No help found'",
+        "Clicking See Also cross-references navigates to the corresponding help topic",
+        "Unit test: feed the real `help sin` output (from a fixture) through the panel's content renderer and assert the displayed text",
         "Typecheck passes",
-        "Tests pass"
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Windows pinned to ftp.gnu.org/gnu/octave/windows/ (9.4.0). macOS pinned to octave-app v9.2 (release ceiling). Linux: bundling removed — script exits cleanly with package-manager instructions; runtime falls back to PATH. Tests updated."
+      "notes": "Fixed in buildHelpFetchCommand: use evalc('help <name>') with get_help_text fallback. Added fixture tests for real Octave 8.4 help output and error-body rendering."
     },
     {
-      "id": "US-S02",
-      "title": "Busy indicator while Octave executes a long command",
-      "description": "When the user types a command that takes more than ~300ms (e.g. a tight loop, a large matrix op), the UI should visibly indicate 'running' so the user knows it didn't hang. Currently the status bar just stays on 'Ready' until the next status message.",
+      "id": "US-T02",
+      "title": "Fix WorkspacePanel first-refresh hang at source",
+      "description": "The hotfix watchdog in WorkspacePanel works but masks a real bug: the very first `octaveExecute('whos')` after a renderer reload silently hangs. The OctaveProcessManager's in-flight queue likely gets into a state where the first command is lost or its response is not routed back to the awaiting IPC caller. Find the root cause in src/main/octaveProcess.ts and fix it so the watchdog becomes unnecessary.",
       "acceptanceCriteria": [
-        "Status bar changes from 'Ready' to 'Running...' (or equivalent) whenever an octaveExecute IPC is in flight and takes longer than 250ms",
-        "Returns to 'Ready' when the execute resolves (output or error)",
-        "Nested executes (workspace refresh + command) don't cause flicker — a single ref-counted 'in-flight' state",
-        "A test that mocks a slow octaveExecute and asserts the status bar text sequence",
+        "After a fresh renderer reload (or first launch), `window.matslop.octaveExecute('whos')` resolves within 1 second",
+        "Watchdog in WorkspacePanel refreshWorkspace is removed (or reduced to a 30s safety net)",
+        "Unit test with a mocked process manager that simulates the race condition no longer hangs",
         "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
+        "Tests pass"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Ref-counted octaveBusyTracker in the renderer wraps window.matslop.octaveExecute. Status bar flips to 'Running…' after 250ms of sustained in-flight activity (no flicker on fast commands), ref-counts nested executes (workspace refresh + user cmd), and returns to Ready on settle. 11 unit tests in tests/unit/octave-busy-tracker.test.ts."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-S03",
-      "title": "Stop button should cancel long-running execution, not crash Octave",
-      "description": "Verify the editor toolbar Stop button interrupts a long-running command via SIGINT (existing octaveInterrupt IPC) and returns the user to a ready prompt without losing the Octave process.",
+      "id": "US-T03",
+      "title": "Remove temporary `__matslopWs*` debug hooks from production build",
+      "description": "The cycle-5 hotfix stack added `window.__matslopRefreshWorkspace`, `__matslopResetWsGuard`, `__matslopWsRefs` as test hooks. Gate them behind `import.meta.env.DEV` (or an E2E env flag) so they do not leak into the packaged production bundle.",
       "acceptanceCriteria": [
-        "Clicking Stop while a command is running sends SIGINT to Octave",
-        "Octave prints 'error: interrupted' or similar and returns to the prompt",
-        "Workspace state is preserved (variables defined before the interrupt remain)",
-        "Status bar returns to Ready",
-        "Test: mock a long execute, click stop, assert interrupt IPC was called",
+        "The hooks are only assigned when `import.meta.env.DEV === true` or a test env flag is set",
+        "Existing E2E tests still find them (the test harness sets the env flag)",
+        "Production `npm run build` output contains no references to the hook names",
         "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
+        "Tests pass"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Verified existing wiring: EditorToolbar Stop button → App.handleStop → window.matslop.octaveInterrupt → ipc 'octave:interrupt' → OctaveProcessManager.interrupt() → process.kill('SIGINT'). Added tests/unit/octave-interrupt.test.ts (4 tests) with a mocked child_process.spawn that asserts (a) exactly one SIGINT is sent on interrupt, (b) no SIGKILL/SIGTERM, (c) mgr.isRunning() stays true after interrupt (process not torn down, workspace preserved), (d) pending command resolves cleanly once Octave re-emits the delimiter, (e) interrupt is a no-op when idle or never-started, (f) handleStop click path reaches octaveInterrupt."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-S04",
-      "title": "Workspace panel shows scalar values truncated nicely",
-      "description": "Matrix columns clip the 'Value' cell for anything non-scalar. Current preview formatValuePreview returns '[3x3 double]' which is fine, but scalars display inconsistently. Audit and unify the format.",
+      "id": "US-T04",
+      "title": "Verify Publish to HTML actually produces a working file end-to-end",
+      "description": "US-030 added File > Publish > HTML..., but it was only verified at the unit-test level. Run an integration test where MatSlop publishes a real .mls / .m file to HTML and assert the resulting file has code blocks, text output, and at least one inline image if the script produces a figure.",
       "acceptanceCriteria": [
-        "Scalars show their numeric value truncated to 6 significant digits (e.g. 3.14159, 1.00000e-05)",
-        "Strings show 'abc...' truncated at 20 chars with ellipsis",
-        "Non-scalars show '[RxC class]'",
-        "Unit test for formatValuePreview covering scalar / string / matrix / struct / cell",
+        "New Playwright/E2E test creates a small .m file, opens it, triggers Publish > HTML..., and opens the resulting file",
+        "Generated HTML contains the code syntax-highlighted, the disp/fprintf output, and is self-contained (no external CSS/JS references)",
+        "If the script calls plot(), the HTML contains an inline base64 image",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Rewrote formatValuePreview in WorkspacePanel.tsx and exported it. New contract: scalars render with 6 sig digits via toPrecision(6) (exponential for |n|<1e-4 or |n|>=1e6), with trimmed trailing zeros so 3.14159/1e-5/42 display cleanly; logical scalars render as true/false; strings (char/string class) truncate at 20 chars + '...' and strip surrounding quotes; struct/cell/function_handle and all non-scalars render uniformly as '[RxC class]'. 21 new tests in tests/unit/format-value-preview.test.ts."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-S05",
-      "title": "Editor Run button runs the whole open script via `run`/`source`",
-      "description": "Currently clicking the Run (F5) button on an untitled buffer with a `function` definition produces no visible output. Running should execute the whole file via `source('<path>')` for saved files, or prompt to save the buffer first for untitled ones.",
+      "id": "US-T05",
+      "title": "Clean up stale debug console.log calls left behind by ralph",
+      "description": "Sweep the src/ tree for leftover console.log / debugger / TODO / FIXME calls added during the polish cycles and remove any that were meant to be temporary.",
       "acceptanceCriteria": [
-        "Run (F5) on a saved .m file calls octaveExecute(`source('<abs path>')`) and surfaces any output in the Command Window",
-        "Run on an unsaved buffer shows a 'Save before running' prompt, or writes to a temp file and sources that",
-        "Function-only files trigger a warning banner: 'This file only defines function(s); nothing to run'",
-        "Test covering saved/unsaved/function-only cases",
+        "No `console.log` calls in src/renderer/ outside of the existing error paths",
+        "No `debugger` statements",
+        "ESLint still passes on the full src tree",
         "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
+        "Tests pass"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Run (F5) on a saved .m file now calls octaveExecute(\"cd('<dir>'); source('<abs path>')\") via a new pure helper buildRunScriptCommand in src/renderer/editor/functionFileDetection.ts — source() surfaces top-level output in the Command Window where the old run() path did not. Unsaved buffers still trigger the existing Save-As prompt and then re-enter the same path. Function-only files (first non-comment/blank line begins with `function`) are short-circuited with a visible editor-panel warning banner 'This file only defines function(s); nothing to run.' (dismissible). New module src/renderer/editor/functionFileDetection.ts (pure, no Monaco dep) exports isFunctionOnlyFile and buildRunScriptCommand. 21 new unit tests in tests/unit/function-file-detection.test.ts covering script/function detection edge cases (CRLF, %{ %} block comments, function_handle false-positive guard) plus POSIX/Windows/quoted-path command construction. Typecheck clean, 580 tests pass."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

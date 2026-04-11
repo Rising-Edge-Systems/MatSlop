@@ -45,7 +45,11 @@ describe('parseHelpCommand', () => {
 describe('buildHelpFetchCommand + extractHelpBody', () => {
   it('wraps the body in marker delimiters', () => {
     const cmd = buildHelpFetchCommand('sin')
-    expect(cmd).toContain("help('sin')")
+    // Uses evalc('help <name>') (the command form) because the
+    // `help()` function form returns an empty string when Octave's
+    // texinfo filter fails, and falls back to get_help_text.
+    expect(cmd).toContain("evalc('help sin')")
+    expect(cmd).toContain("get_help_text('sin')")
     expect(cmd).toContain('__MSLP_HELP_BEGIN__:sin')
     expect(cmd).toContain('__MSLP_HELP_END__')
   })
@@ -53,7 +57,7 @@ describe('buildHelpFetchCommand + extractHelpBody', () => {
   it('strips unsafe characters from the name before interpolation', () => {
     const cmd = buildHelpFetchCommand("sin'); system('rm -rf /")
     expect(cmd).not.toContain("system('rm")
-    expect(cmd).toContain("help('sinsystemrmrf')")
+    expect(cmd).toContain("evalc('help sinsystemrmrf')")
   })
 
   it('slices the body out of noisy output', () => {
@@ -75,6 +79,45 @@ describe('buildHelpFetchCommand + extractHelpBody', () => {
 
   it('returns null when markers are missing', () => {
     expect(extractHelpBody('no markers here')).toBeNull()
+  })
+
+  it('extracts a real Octave `help sin` output captured via evalc', () => {
+    // Captured from a real Octave 8.4 install where the texinfo filter
+    // raises a warning and Octave falls back to printing the raw
+    // texinfo-ish blob. The panel must still render this — the prior
+    // implementation used `disp(help('sin'))` which returns '' in this
+    // case and produced a spurious "No help found" error.
+    const fixture = [
+      '__MSLP_HELP_BEGIN__:sin',
+      "warning: help: Texinfo formatting filter exited abnormally; raw Texinfo source of help text follows...",
+      "'sin' is a built-in function from the file libinterp/corefcn/mappers.cc",
+      '',
+      '',
+      'Additional help for built-in functions and operators is',
+      "available in the online version of the manual.  Use the command",
+      "'doc <topic>' to search the manual index.",
+      '',
+      '__MSLP_HELP_END__',
+    ].join('\n')
+    const body = extractHelpBody(fixture)
+    expect(body).not.toBeNull()
+    expect(body).toContain("'sin' is a built-in function")
+    // The panel must render this body as content (not as 'No help found').
+    const segs = splitHelpBody(body!)
+    const joined = segs
+      .map((s) => (s.kind === 'text' ? s.text : s.target))
+      .join('')
+    expect(joined).toContain("'sin' is a built-in function")
+  })
+
+  it('extracts a Octave `help foo` error body (error: ... verbatim)', () => {
+    const fixture = [
+      '__MSLP_HELP_BEGIN__:nonexistentfunc',
+      "error: help: 'nonexistentfunc' not found",
+      '__MSLP_HELP_END__',
+    ].join('\n')
+    const body = extractHelpBody(fixture)
+    expect(body).toBe("error: help: 'nonexistentfunc' not found")
   })
 })
 

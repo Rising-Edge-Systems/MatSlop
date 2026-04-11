@@ -52,6 +52,15 @@ export function parseHelpCommand(input: string): string | null {
  * renderer can slice it out of the larger IPC output cleanly, even if
  * other noise (prompts, warnings) bleeds into the stream.
  *
+ * IMPORTANT: we use `evalc('help <name>')` — the command form — rather
+ * than `disp(help('<name>'))`. The `help()` function form returns an
+ * empty string when Octave's texinfo formatting filter fails (a common
+ * case on installs where `makeinfo` can't locate Text::Unidecode, so
+ * Octave falls back to printing the raw texinfo to stdout as part of
+ * the command-form of `help`). `evalc` captures that fallback output
+ * correctly. If evalc still yields nothing, we fall back once more to
+ * `get_help_text`, which returns the raw texinfo source directly.
+ *
  * Usage (renderer):
  *   const cmd = buildHelpFetchCommand('sin')
  *   const { output } = await window.matslop.octaveExecute(cmd)
@@ -65,13 +74,13 @@ export function buildHelpFetchCommand(name: string): string {
   const safe = name.replace(/[^A-Za-z0-9_.]/g, '')
   return [
     'try;',
-    `printf('__MSLP_HELP_BEGIN__:${safe}\\n');`,
-    `disp(help('${safe}'));`,
-    "printf('__MSLP_HELP_END__\\n');",
+    `s = evalc('help ${safe}');`,
+    'if isempty(strtrim(s));',
+    `  try; [t,~] = get_help_text('${safe}'); s = t; catch; end;`,
+    'end;',
+    `printf('__MSLP_HELP_BEGIN__:${safe}\\n%s__MSLP_HELP_END__\\n', s);`,
     'catch err;',
-    `printf('__MSLP_HELP_BEGIN__:${safe}\\n');`,
-    "printf('%s\\n', err.message);",
-    "printf('__MSLP_HELP_END__\\n');",
+    `printf('__MSLP_HELP_BEGIN__:${safe}\\nerror: %s\\n__MSLP_HELP_END__\\n', err.message);`,
     'end;',
   ].join('')
 }
