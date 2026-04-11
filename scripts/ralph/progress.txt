@@ -54,6 +54,8 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
 - Outside-click dismiss for a custom floating menu: register the global click listener in the BUBBLE phase (not capture) and guard with `menuEl.contains(e.target)`. Capture-phase dismiss runs BEFORE React dispatches synthetic clicks to the menu's own buttons, so the button onClick never fires (menu unmounts first).
 - Menu actions that carry a payload (e.g. US-028 `layoutPreset:custom:<name>`, `recentFile:<path>`) encode the payload in the action string. Pair each with a pure builder+parser in a file next to the consumer so the scheme round-trips and can be unit-tested without a live menu. `src/main/appMenu.ts` stays a dumb string join; App.tsx's switch default-case handles parsing.
 - View-menu submenus whose entries depend on store state (recentFiles, layoutPresets): extend `buildAppMenu(mainWindow, recentFiles, customPresetNames, ...)` with extra parameters, pass them from both the initial `createWindow` path and `rebuildMenu()`, then call `rebuildMenu()` from every IPC handler that mutates that state.
+- Adding a new `ShortcutAction` requires SIX lockstep edits: (1) the `ShortcutAction` union in `shortcutManager.ts`, (2) an entry in `SHORTCUT_DEFINITIONS`, (3) the `case` in `EditorPanel.handleShortcut`, (4) the `case` in `EditorPanel.menuAction` switch, (5) the `MenuAction` union in `appMenu.ts`, (6) the `click: () => send(...)` menu item. Miss any one and the action silently no-ops for that entry point.
+- Monaco whole-line decorations paint THREE independent sub-regions: `className` covers the line body, `linesDecorationsClassName` covers the line-decorations gutter (between glyph margin and text), `marginClassName` covers the glyph margin area. To draw a horizontal divider across the entire line, set all three to the same CSS class with a top-border.
 
 ## 2026-04-10 - US-001 Restructure main layout
 - Refactored src/renderer/App.tsx from vertical(top-horizontal+bottom) into 3 outer horizontal columns: FileBrowser | CenterColumn | RightColumn(Workspace+Figure)
@@ -524,4 +526,23 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
   - `parseLayoutPresetAction()` is an example of putting the action-string schema next to the consumer. Menu actions that encode a payload in the string (e.g. `layoutPreset:custom:<name>`) benefit from a pure parser + matching builder functions — makes them round-trip-testable without needing a live menu.
   - `captureLayoutPreset()` deep-copies visibility/sizes to insulate the stored snapshot from subsequent mutation — important because React state objects from setState callbacks can be reused across renders.
   - `visibilityRef` / `panelSizesRef` pattern (already used by handleDockLayoutChange) is the right place to read "current" state from menu-driven callbacks without forcing dep-array re-binds on every visibility change.
+---
+
+## 2026-04-11 - US-029 Code sections (%%) in .m files with run-section button
+- Added pure helpers to src/renderer/editor/editorTypes.ts: isSectionHeaderLine, findSectionHeaderLines, findSectionRange, findNextSectionAdvanceLine — all unit-tested without Monaco.
+- src/renderer/editor/TabbedEditor.tsx: new useEffect syncs Monaco whole-line decorations (.matslop-section-line / -gutter / -margin) for every %% header line in script-mode tabs, and mirrors the line numbers to window.__matslopSectionLines for Playwright. Exposure is independent of Monaco mount so welcome/empty tabs still surface an empty array.
+- src/renderer/panels/EditorPanel.tsx: refactored handleRunSection to use findSectionRange(). Added handleRunAndAdvance which fires onRunSection then advances the Monaco cursor via setPosition/revealLineInCenterIfOutsideViewport/focus. Wired into shortcut handler and menu-action switch.
+- src/renderer/shortcuts/shortcutManager.ts: new ShortcutAction 'runAndAdvance' bound to Ctrl+Shift+Enter.
+- src/main/appMenu.ts: added 'Run and Advance' menu item (accelerator CmdOrCtrl+Shift+Enter) and new MenuAction type entry.
+- src/renderer/editor/EditorToolbar.tsx: added toolbar-run-and-advance FastForward button; toolbar-run-section now has data-testid="toolbar-run-section".
+- src/renderer/styles.css: new .matslop-section-line / -gutter / -margin rules (blue top border + 8% blue fill on the header line).
+- Fixture: tests/fixtures/scripts/sections.m (3 sections).
+- Tests: tests/unit/code-sections.test.ts (19 passing), tests/e2e/code-sections.spec.ts (6 passing — toolbar buttons, __matslopSectionLines hook, menu dispatch, Ctrl+Shift+Enter keydown).
+- Files changed: src/renderer/editor/editorTypes.ts, src/renderer/editor/TabbedEditor.tsx, src/renderer/editor/EditorToolbar.tsx, src/renderer/panels/EditorPanel.tsx, src/renderer/shortcuts/shortcutManager.ts, src/main/appMenu.ts, src/renderer/styles.css, tests/unit/code-sections.test.ts, tests/e2e/code-sections.spec.ts, tests/fixtures/scripts/sections.m, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Monaco `isWholeLine` decorations with a `className` paint the LINE-BACKGROUND area; to also color the gutter margin add `linesDecorationsClassName` + `marginClassName`. All three take CSS classes that apply to the corresponding sub-region of that line.
+  - Test hooks exposed via `useEffect` that read `editorRef.current` won't fire for tabs that aren't backed by Monaco (e.g. the welcome tab). If the hook needs to be available always, set the window global BEFORE the early-return-on-missing-editor and compute decorations afterward.
+  - `openFileInEditor` + `waitForOctaveReady` are both flaky in dev CI without a bundled Octave. For renderer-only features, skip both and assert against the initial untitled.m tab — EditorPanel always seeds one via useState.
+  - Pattern for pure "run this section of code" execution: delegate to the existing onRunSection(code: string) callback in App.tsx which feeds pendingCommand → CommandWindow. No need to touch the main-process IPC layer for new "run subset of file" actions.
+  - When adding a new ShortcutAction, FOUR places need updating in lockstep: ShortcutAction union, SHORTCUT_DEFINITIONS array in shortcutManager.ts, EditorPanel.handleShortcut switch, and EditorPanel.menuAction switch (plus appMenu.ts MenuAction union + menu item).
 ---

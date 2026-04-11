@@ -24,6 +24,7 @@ export type MenuAction =
   | 'setThemeSystem'
   | 'runScript'
   | 'runSection'
+  | 'runAndAdvance'
   | 'stopExecution'
   | 'clearCommandWindow'
   | 'preferences'
@@ -244,6 +245,11 @@ export function buildAppMenu(
           label: 'Run Section',
           accelerator: 'CmdOrCtrl+Enter',
           click: () => send('runSection'),
+        },
+        {
+          label: 'Run and Advance',
+          accelerator: 'CmdOrCtrl+Shift+Enter',
+          click: () => send('runAndAdvance'),
         },
         { type: 'separator' },
         {

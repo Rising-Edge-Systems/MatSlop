@@ -2483,6 +2483,22 @@ body {
   background: var(--accent-hover);
 }
 
+/* ---- Code sections (US-029) -------------------------------------- */
+/* Lines beginning with `%%` in a .m script are highlighted with a top
+   border so the divider visually separates the script into "cells".
+   Monaco places `isWholeLine` decorations on the whole line background,
+   so we draw the divider as a top border; no intrinsic height change. */
+.matslop-section-line {
+  border-top: 1px solid #4fc3f7 !important;
+  background: rgba(79, 195, 247, 0.08) !important;
+}
+.matslop-section-line-gutter {
+  border-top: 1px solid #4fc3f7 !important;
+}
+.matslop-section-line-margin {
+  border-top: 1px solid #4fc3f7 !important;
+}
+
 /* ---- Debugger breakpoint gutter (US-014) -------------------------- */
 .matslop-breakpoint-glyph {
   background: #e51400;

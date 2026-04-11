@@ -6,6 +6,7 @@ import {
   Pause,
   Square,
   LayoutList,
+  FastForward,
 } from 'lucide-react'
 import type { OctaveEngineStatus } from '../App'
 
@@ -18,6 +19,8 @@ interface EditorToolbarProps {
   onRun: () => void
   onStop: () => void
   onRunSection: () => void
+  /** US-029: Run the section at the cursor then advance to the next section. */
+  onRunAndAdvance?: () => void
   /** US-020: Pause a running script and drop into the debugger. */
   onPauseForDebug?: () => void
   /** US-020: True while the debugger is already paused — hides the Pause button. */
@@ -33,6 +36,7 @@ function EditorToolbar({
   onRun,
   onStop,
   onRunSection,
+  onRunAndAdvance,
   onPauseForDebug,
   debugPaused = false,
 }: EditorToolbarProps): React.JSX.Element {
@@ -97,9 +101,19 @@ function EditorToolbar({
         className="toolbar-btn"
         onClick={onRunSection}
         title="Run Section (Ctrl+Enter)"
+        data-testid="toolbar-run-section"
         disabled={runDisabled}
       >
         <LayoutList size={16} />
+      </button>
+      <button
+        className="toolbar-btn"
+        onClick={onRunAndAdvance}
+        title="Run Section and Advance (Ctrl+Shift+Enter)"
+        data-testid="toolbar-run-and-advance"
+        disabled={runDisabled || !onRunAndAdvance}
+      >
+        <FastForward size={16} />
       </button>
     </div>
   )

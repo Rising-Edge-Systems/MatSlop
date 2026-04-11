@@ -14,6 +14,7 @@ import {
   setBreakpointCondition as setBreakpointConditionStore,
   getBreakpointCondition,
   clearBreakpointConditionsForTab,
+  findSectionHeaderLines,
 } from './editorTypes'
 import LiveScriptEditor from './LiveScriptEditor'
 import WelcomeTab from './WelcomeTab'
@@ -76,6 +77,8 @@ function TabbedEditor({
   const [breakpointConditions, setBreakpointConditions] =
     useState<BreakpointConditionStore>({})
   const breakpointDecorationIdsRef = useRef<string[]>([])
+  // US-029: decoration ids for the `%%` section-divider lines in .m scripts.
+  const sectionDecorationIdsRef = useRef<string[]>([])
   // US-016: decoration ids for the green-arrow "currently paused" marker.
   const pausedDecorationIdsRef = useRef<string[]>([])
   // Keep a ref in sync with activeTabId so the Monaco mouse handler (which is
@@ -366,6 +369,43 @@ function TabbedEditor({
       newDecorations,
     )
   }, [breakpoints, breakpointConditions, activeTabId, activeTab])
+
+  // US-029: highlight `%%` code-section breaks with a horizontal divider
+  // line. Only applied to script-mode tabs (.m files). Decorations are kept
+  // in sync whenever the active tab or its content changes. We also mirror
+  // the list of section header lines onto `window.__matslopSectionLines` so
+  // Playwright tests can assert presence without pixel-hunting DOM nodes.
+  useEffect(() => {
+    const isScriptTab = activeTab?.mode === 'script'
+    const headerLines = isScriptTab && activeTab
+      ? findSectionHeaderLines(activeTab.content)
+      : []
+    // Always expose the test hook, even when Monaco isn't mounted yet
+    // (e.g. on the welcome tab). Tests rely on the array being present.
+    if (typeof window !== 'undefined') {
+      const w = window as unknown as { __matslopSectionLines?: number[] }
+      w.__matslopSectionLines = headerLines
+    }
+    const monaco = monacoRef.current
+    const editor = editorRef.current
+    if (!monaco || !editor) {
+      return
+    }
+    const newDecorations: monacoEditor.IModelDeltaDecoration[] = headerLines.map((line) => ({
+      range: new monaco.Range(line, 1, line, 1),
+      options: {
+        isWholeLine: true,
+        className: 'matslop-section-line',
+        linesDecorationsClassName: 'matslop-section-line-gutter',
+        marginClassName: 'matslop-section-line-margin',
+        stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+      },
+    }))
+    sectionDecorationIdsRef.current = editor.deltaDecorations(
+      sectionDecorationIdsRef.current,
+      newDecorations,
+    )
+  }, [activeTab, activeTabId])
 
   const handleEditorMount: OnMount = useCallback(
     (editor, monaco) => {

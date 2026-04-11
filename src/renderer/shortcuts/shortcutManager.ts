@@ -15,6 +15,7 @@
 export type ShortcutAction =
   | 'run'
   | 'runSection'
+  | 'runAndAdvance'
   | 'save'
   | 'saveAs'
   | 'newFile'
@@ -44,6 +45,7 @@ export const SHORTCUT_DEFINITIONS: ShortcutDefinition[] = [
   // Run
   { action: 'run', key: 'F5', label: 'F5', description: 'Run Script' },
   { action: 'runSection', key: 'Enter', ctrl: true, label: 'Ctrl+Enter', description: 'Run Section' },
+  { action: 'runAndAdvance', key: 'Enter', ctrl: true, shift: true, label: 'Ctrl+Shift+Enter', description: 'Run Section and Advance' },
   { action: 'stop', key: 'F5', shift: true, label: 'Shift+F5', description: 'Stop Execution' },
 
   // File operations

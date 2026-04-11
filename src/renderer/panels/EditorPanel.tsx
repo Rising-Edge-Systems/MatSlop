@@ -3,7 +3,13 @@ import type { editor as monacoEditor } from 'monaco-editor'
 import PanelHeader from './PanelHeader'
 import TabbedEditor from '../editor/TabbedEditor'
 import EditorToolbar from '../editor/EditorToolbar'
-import { createTab, createEmptyLiveScript, type EditorTab } from '../editor/editorTypes'
+import {
+  createTab,
+  createEmptyLiveScript,
+  findSectionRange,
+  findNextSectionAdvanceLine,
+  type EditorTab,
+} from '../editor/editorTypes'
 import type { OctaveEngineStatus } from '../App'
 import { shortcutManager, type ShortcutAction } from '../shortcuts/shortcutManager'
 
@@ -253,48 +259,55 @@ function EditorPanel({
     onRun?.(tab.filePath, dirPath)
   }, [getActiveTab, onRun])
 
-  const handleRunSection = useCallback(() => {
+  /**
+   * Get the section around the current cursor as a pure computation over
+   * the tab content. Returns null when there is no active tab / editor /
+   * cursor position, or when the section body is empty.
+   */
+  const getSectionAtCursor = useCallback((): {
+    tab: EditorTab
+    cursorLine: number
+    code: string
+  } | null => {
     const tab = getActiveTab()
-    if (!tab) return
+    if (!tab) return null
+    const editor = editorInstanceRef.current
+    if (!editor) return null
+    const pos = editor.getPosition()
+    if (!pos) return null
+    const range = findSectionRange(tab.content, pos.lineNumber)
+    if (!range.code.trim()) return null
+    return { tab, cursorLine: pos.lineNumber, code: range.code }
+  }, [getActiveTab])
+
+  const handleRunSection = useCallback(() => {
+    const section = getSectionAtCursor()
+    if (!section) return
+    onRunSection?.(section.code)
+  }, [getSectionAtCursor, onRunSection])
+
+  /**
+   * US-029: Run the section at the cursor and advance the cursor to the
+   * first content line of the next section (if there is one). Reuses the
+   * same command-execution path as handleRunSection.
+   */
+  const handleRunAndAdvance = useCallback(() => {
+    const section = getSectionAtCursor()
+    if (!section) return
+    onRunSection?.(section.code)
     const editor = editorInstanceRef.current
     if (!editor) return
-
-    const model = editor.getModel()
-    if (!model) return
-    const pos = editor.getPosition()
-    if (!pos) return
-
-    const lineCount = model.getLineCount()
-    let startLine = 1
-    let endLine = lineCount
-
-    // Find cell boundaries: lines starting with %%
-    for (let i = pos.lineNumber; i >= 1; i--) {
-      const lineContent = model.getLineContent(i)
-      if (lineContent.trimStart().startsWith('%%')) {
-        startLine = i
-        break
+    const advanceLine = findNextSectionAdvanceLine(section.tab.content, section.cursorLine)
+    if (advanceLine != null) {
+      editor.setPosition({ lineNumber: advanceLine, column: 1 })
+      try {
+        editor.revealLineInCenterIfOutsideViewport(advanceLine)
+      } catch {
+        /* monaco tearing down — ignore */
       }
+      editor.focus()
     }
-    for (let i = pos.lineNumber + 1; i <= lineCount; i++) {
-      const lineContent = model.getLineContent(i)
-      if (lineContent.trimStart().startsWith('%%')) {
-        endLine = i - 1
-        break
-      }
-    }
-
-    // Extract the cell content (skip the %% header line itself)
-    const cellStartLine = model.getLineContent(startLine).trimStart().startsWith('%%') ? startLine + 1 : startLine
-    const lines: string[] = []
-    for (let i = cellStartLine; i <= endLine; i++) {
-      lines.push(model.getLineContent(i))
-    }
-    const code = lines.join('\n').trim()
-    if (code) {
-      onRunSection?.(code)
-    }
-  }, [getActiveTab, onRunSection])
+  }, [getSectionAtCursor, onRunSection])
 
   const handleStop = useCallback(() => {
     onStop?.()
@@ -358,6 +371,9 @@ function EditorPanel({
       case 'runSection':
         handleRunSection()
         break
+      case 'runAndAdvance':
+        handleRunAndAdvance()
+        break
       case 'save':
         handleSave()
         break
@@ -405,7 +421,7 @@ function EditorPanel({
         break
       }
     }
-  }, [handleRun, handleRunSection, handleSave, handleSaveAs, handleNewFile, handleOpenFile, activeTabId, handleTabClose, handleStop])
+  }, [handleRun, handleRunSection, handleRunAndAdvance, handleSave, handleSaveAs, handleNewFile, handleOpenFile, activeTabId, handleTabClose, handleStop])
 
   useEffect(() => {
     shortcutManager.start(handleShortcut)
@@ -450,6 +466,10 @@ function EditorPanel({
         handleRunSection()
         onMenuActionConsumed?.()
         break
+      case 'runAndAdvance':
+        handleRunAndAdvance()
+        onMenuActionConsumed?.()
+        break
       case 'find': {
         const editor = editorInstanceRef.current
         if (editor) {
@@ -486,7 +506,7 @@ function EditorPanel({
         // Not handled by EditorPanel — leave for other consumers
         break
     }
-  }, [menuAction, activeTabId, handleNewFile, handleNewLiveScript, handleOpenFile, handleSave, handleSaveAs, handleTabClose, handleRun, handleRunSection, onMenuActionConsumed])
+  }, [menuAction, activeTabId, handleNewFile, handleNewLiveScript, handleOpenFile, handleSave, handleSaveAs, handleTabClose, handleRun, handleRunSection, handleRunAndAdvance, onMenuActionConsumed])
 
   // Open file from File Browser
   useEffect(() => {
@@ -612,6 +632,7 @@ function EditorPanel({
         onStop={handleStop}
         onPauseForDebug={onPauseForDebug}
         onRunSection={handleRunSection}
+        onRunAndAdvance={handleRunAndAdvance}
         debugPaused={pausedLocation !== null}
       />
       <div className="panel-content editor-panel-content">

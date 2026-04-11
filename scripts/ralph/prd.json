@@ -487,8 +487,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 29,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added pure helpers in editorTypes.ts: findSectionHeaderLines, findSectionRange, findNextSectionAdvanceLine. TabbedEditor syncs Monaco whole-line decorations (.matslop-section-line) for every %% line and exposes window.__matslopSectionLines for tests. EditorPanel.handleRunSection now delegates to findSectionRange; added handleRunAndAdvance which runs the section then advances the cursor to the next section (setPosition + revealLineInCenterIfOutsideViewport). Added ShortcutAction=runAndAdvance (Ctrl+Shift+Enter), menu item Run \u2192 Run and Advance, EditorToolbar button (data-testid=toolbar-run-and-advance). Unit tests in tests/unit/code-sections.test.ts (19 cases). Playwright tests in tests/e2e/code-sections.spec.ts (6 cases)."
     },
     {
       "id": "US-030",

@@ -371,3 +371,118 @@ export function reorderCells<T>(cells: T[], sourceIndex: number, targetIndex: nu
   next.splice(adjustedTarget, 0, moved)
   return next
 }
+
+/**
+ * US-029: Code sections in .m files. A section header is a line whose first
+ * non-whitespace characters are `%%` (optionally followed by a title comment).
+ * This matches MATLAB's "code sections" / "cell mode" feature, letting a user
+ * subdivide a plain .m script and run just the chunk around the cursor.
+ *
+ * Everything below lives as pure helpers so section-detection logic can be
+ * unit-tested without Monaco. The UI layer maps these line numbers onto
+ * editor decorations and cursor movements.
+ */
+
+/** Returns true if `line` is a `%%` section header (possibly with a trailing title). */
+export function isSectionHeaderLine(line: string): boolean {
+  const trimmed = line.trimStart()
+  return trimmed.startsWith('%%')
+}
+
+/**
+ * Return the 1-based line numbers of every `%%` section header in `code`.
+ * Empty input and code without headers yield an empty array.
+ */
+export function findSectionHeaderLines(code: string): number[] {
+  const lines = code.split('\n')
+  const result: number[] = []
+  for (let i = 0; i < lines.length; i++) {
+    if (isSectionHeaderLine(lines[i])) {
+      result.push(i + 1)
+    }
+  }
+  return result
+}
+
+export interface SectionRange {
+  /** 1-based line number of the `%%` header, or null when the cursor is in a
+   * prelude section BEFORE the first header. */
+  headerLine: number | null
+  /** 1-based line number of the first executable line of the section (the
+   * line immediately after the header, or 1 when there's no header). */
+  contentStartLine: number
+  /** 1-based line number of the LAST line of the section (inclusive).
+   * When the cursor sits in the final section, this is the last line of the
+   * file. */
+  endLine: number
+  /** Extracted section body joined with `\n`, trimmed of leading/trailing
+   * blank lines. The header line itself is NOT included. Empty string if the
+   * section body is empty. */
+  code: string
+}
+
+/**
+ * Compute the section that contains the given 1-based `cursorLine` inside
+ * `code`. If `code` has no `%%` headers at all, the whole file is treated as
+ * one big "section". If the cursor lands ON a `%%` header line itself, that
+ * header is treated as the start of its section (not the previous one).
+ *
+ * Pure + deterministic so sectioning can be tested without Monaco.
+ */
+export function findSectionRange(code: string, cursorLine: number): SectionRange {
+  const lines = code.split('\n')
+  const lineCount = lines.length
+  if (lineCount === 0) {
+    return { headerLine: null, contentStartLine: 1, endLine: 1, code: '' }
+  }
+  const cursor = Math.max(1, Math.min(lineCount, Math.floor(cursorLine)))
+
+  // Walk backwards from cursor to find the enclosing header.
+  let headerLine: number | null = null
+  for (let i = cursor; i >= 1; i--) {
+    if (isSectionHeaderLine(lines[i - 1])) {
+      headerLine = i
+      break
+    }
+  }
+  // Walk forwards from the line AFTER the cursor (or header) to find the
+  // next section header — that's one past `endLine`.
+  const forwardStart = headerLine != null ? headerLine + 1 : cursor + 1
+  let endLine = lineCount
+  for (let i = forwardStart; i <= lineCount; i++) {
+    if (isSectionHeaderLine(lines[i - 1])) {
+      endLine = i - 1
+      break
+    }
+  }
+  const contentStartLine = headerLine != null ? headerLine + 1 : 1
+  // Guard: a %% header with nothing after it produces an empty body.
+  const bodyLines = contentStartLine > endLine
+    ? []
+    : lines.slice(contentStartLine - 1, endLine)
+  const body = bodyLines.join('\n').replace(/^\s*\n+|\n+\s*$/g, '')
+  return { headerLine, contentStartLine, endLine, code: body }
+}
+
+/**
+ * After running the section at `cursorLine`, find the 1-based line number
+ * where the editor cursor should move for "Run and Advance":
+ *   - If there IS a next `%%` header after the current section, move the
+ *     cursor to the first content line of THAT next section (i.e. header + 1,
+ *     or the header line itself when it has no body).
+ *   - Otherwise (we're already in the last section) return null and the
+ *     caller should leave the cursor alone.
+ */
+export function findNextSectionAdvanceLine(code: string, cursorLine: number): number | null {
+  const lines = code.split('\n')
+  const range = findSectionRange(code, cursorLine)
+  // `range.endLine` is the last line of the current section; the next
+  // section (if any) starts on endLine + 1 with a header.
+  const nextHeaderLine = range.endLine + 1
+  if (nextHeaderLine > lines.length) return null
+  if (!isSectionHeaderLine(lines[nextHeaderLine - 1])) return null
+  // Move cursor onto the first content line of the next section, clamped to
+  // the end of the file for a header with no body.
+  const advanceLine = nextHeaderLine + 1
+  return Math.min(advanceLine, lines.length)
+}
