@@ -42,7 +42,7 @@ export class OctaveProcessManager extends EventEmitter {
     // so it can find its DLLs and dependencies
     const octaveBinDir = path.dirname(this.octavePath)
     const octaveRootDir = path.resolve(octaveBinDir, '..', '..')
-    const env = { ...process.env, TERM: 'dumb' }
+    const env: NodeJS.ProcessEnv = { ...process.env, TERM: 'dumb' }
     // Prepend Octave's bin dir and usr/bin to PATH
     const extraPaths = [
       octaveBinDir,
