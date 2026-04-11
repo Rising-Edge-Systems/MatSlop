@@ -11,6 +11,19 @@ import StatusBar from './panels/StatusBar'
 import type { CursorPosition } from './panels/StatusBar'
 import DebugToolbar from './editor/DebugToolbar'
 import CallStackPanel, { type CallStackFrame } from './panels/CallStackPanel'
+import WatchesPanel from './panels/WatchesPanel'
+import {
+  addWatch as addWatchHelper,
+  removeWatch as removeWatchHelper,
+  updateWatchExpression as updateWatchHelper,
+  setWatchValue,
+  setWatchError,
+  clearWatchValues,
+  buildWatchCommand,
+  parseWatchOutput,
+  formatWatchValue,
+  type WatchEntry,
+} from './editor/watchesStore'
 import {
   debugActionToOctaveCommand,
   matchDebugShortcut,
@@ -90,6 +103,12 @@ function App(): React.JSX.Element {
   // on every `onOctavePaused` event via a `debug:getCallStack` IPC call.
   const [callStack, setCallStack] = useState<CallStackFrame[]>([])
   const [callStackSelected, setCallStackSelected] = useState<number>(-1)
+  // US-022: Pinned watch expressions. Values are refreshed on every
+  // pause/step transition (see effect below) and when the user explicitly
+  // adds or refreshes a watch.
+  const [watches, setWatches] = useState<WatchEntry[]>([])
+  const watchesRef = useRef<WatchEntry[]>(watches)
+  watchesRef.current = watches
   const [editorSettings, setEditorSettings] = useState({
     fontFamily: "'Consolas', 'Courier New', monospace",
     fontSize: 14,
@@ -224,6 +243,124 @@ function App(): React.JSX.Element {
   useEffect(() => {
     setWorkspaceRefreshTrigger((prev) => prev + 1)
   }, [pausedKey])
+
+  // US-022: Evaluate one watch expression via the main-process Octave IPC
+  // and thread the result back into state via the setWatch{Value,Error}
+  // helpers. Wrapped in try/catch so a bad expression (e.g. undefined
+  // variable) doesn't poison the whole queue; the `__MSLP_WATCH_ERR__`
+  // marker from buildWatchCommand carries the Octave error message.
+  const evaluateWatch = useCallback(async (id: string, expression: string) => {
+    try {
+      const bridge = window.matslop as typeof window.matslop | undefined
+      if (!bridge?.octaveExecute) return
+      const result = await bridge.octaveExecute(buildWatchCommand(expression))
+      const parsed = parseWatchOutput(result.output || '')
+      if (parsed.ok) {
+        setWatches((prev) => setWatchValue(prev, id, formatWatchValue(parsed.value)))
+      } else {
+        setWatches((prev) => setWatchError(prev, id, parsed.error))
+      }
+    } catch (err) {
+      setWatches((prev) => setWatchError(prev, id, String(err)))
+    }
+  }, [])
+
+  // US-022: Re-evaluate every pinned watch. Called on pause/step
+  // transitions, on engine-ready transitions, and from the refresh button.
+  const refreshAllWatches = useCallback(async () => {
+    const current = watchesRef.current
+    if (current.length === 0) return
+    if (octaveStatus.engineStatus === 'disconnected') return
+    // Fire serially so commands don't race through Octave's queue (the
+    // underlying executor is already serial, but awaiting one at a time
+    // makes ordering deterministic for tests).
+    for (const w of current) {
+      await evaluateWatch(w.id, w.expression)
+    }
+  }, [evaluateWatch, octaveStatus.engineStatus])
+
+  // US-022: Re-evaluate watches whenever Octave's paused location changes
+  // (entering a breakpoint, stepping, or leaving debug mode all update
+  // pausedKey). Leaving the paused state still re-evaluates so top-level
+  // workspace values replace the stack-frame readings.
+  useEffect(() => {
+    refreshAllWatches()
+    // pausedKey intentionally used instead of pausedLocation so deep
+    // object changes don't cause spurious re-runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pausedKey])
+
+  // US-022: Clear watch values on engine disconnect so the panel doesn't
+  // show stale readings from a dead Octave process.
+  useEffect(() => {
+    if (octaveStatus.engineStatus === 'disconnected') {
+      setWatches((prev) => clearWatchValues(prev))
+    }
+  }, [octaveStatus.engineStatus])
+
+  const handleAddWatch = useCallback(
+    (expression: string) => {
+      setWatches((prev) => {
+        const next = addWatchHelper(prev, expression)
+        const added = next[next.length - 1]
+        if (added && added.expression === expression.trim()) {
+          // Kick off an evaluation after the state commit.
+          void evaluateWatch(added.id, added.expression)
+        }
+        return next
+      })
+    },
+    [evaluateWatch],
+  )
+
+  const handleRemoveWatch = useCallback((id: string) => {
+    setWatches((prev) => removeWatchHelper(prev, id))
+  }, [])
+
+  const handleUpdateWatch = useCallback(
+    (id: string, expression: string) => {
+      setWatches((prev) => {
+        const next = updateWatchHelper(prev, id, expression)
+        // If the entry still exists in `next`, the expression changed —
+        // evaluate it. If it was removed (blank edit), skip.
+        const updated = next.find((w) => w.id === id)
+        if (updated) {
+          void evaluateWatch(updated.id, updated.expression)
+        }
+        return next
+      })
+    },
+    [evaluateWatch],
+  )
+
+  // US-022: Expose test-only hooks so Playwright can drive the watch list
+  // without real keyboard interaction. Mirrors the call-stack test hooks.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const w = window as unknown as {
+      __matslopAddWatch?: (expression: string) => void
+      __matslopRemoveWatch?: (id: string) => void
+      __matslopUpdateWatch?: (id: string, expression: string) => void
+      __matslopClearWatches?: () => void
+      __matslopSimulateWatchValue?: (id: string, value: string) => void
+      __matslopSimulateWatchError?: (id: string, error: string) => void
+      __matslopWatches?: WatchEntry[]
+    }
+    w.__matslopAddWatch = (expression: string) => handleAddWatch(expression)
+    w.__matslopRemoveWatch = (id: string) => handleRemoveWatch(id)
+    w.__matslopUpdateWatch = (id: string, expression: string) =>
+      handleUpdateWatch(id, expression)
+    w.__matslopClearWatches = () => setWatches([])
+    w.__matslopSimulateWatchValue = (id: string, value: string) =>
+      setWatches((prev) => setWatchValue(prev, id, value))
+    w.__matslopSimulateWatchError = (id: string, error: string) =>
+      setWatches((prev) => setWatchError(prev, id, error))
+    w.__matslopWatches = watches
+    return () => {
+      const ww = window as unknown as { __matslopWatches?: unknown }
+      ww.__matslopWatches = null
+    }
+  }, [handleAddWatch, handleRemoveWatch, handleUpdateWatch, watches])
 
   // US-016: expose a test-only hook so Playwright can simulate a paused
   // event without spinning up a real Octave process. Gated on
@@ -829,7 +966,7 @@ function App(): React.JSX.Element {
           minSize={150}
           preferredSize={panelSizes.workspaceWidth}
           snap
-          visible={visibility.workspace || figures.length > 0 || pausedLocation !== null}
+          visible={visibility.workspace || figures.length > 0 || pausedLocation !== null || watches.length > 0}
         >
           <Allotment vertical>
             <Allotment.Pane minSize={100} visible={visibility.workspace}>
@@ -846,6 +983,26 @@ function App(): React.JSX.Element {
                   frames={callStack}
                   selectedIndex={callStackSelected}
                   onSelectFrame={handleCallStackSelect}
+                />
+              )}
+            </Allotment.Pane>
+            {/* US-022: Watches panel — mounted whenever the user has pinned
+                at least one expression OR the debugger is paused (so they
+                can start adding watches inside a pause without having to
+                hunt for a toggle). Conditionally rendered to keep the
+                `watches-panel` testid out of the DOM when inactive. */}
+            <Allotment.Pane
+              minSize={120}
+              preferredSize={180}
+              visible={watches.length > 0 || pausedLocation !== null}
+            >
+              {(watches.length > 0 || pausedLocation !== null) && (
+                <WatchesPanel
+                  watches={watches}
+                  onAddWatch={handleAddWatch}
+                  onRemoveWatch={handleRemoveWatch}
+                  onUpdateWatch={handleUpdateWatch}
+                  onRefresh={refreshAllWatches}
                 />
               )}
             </Allotment.Pane>

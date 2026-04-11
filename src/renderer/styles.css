@@ -2557,3 +2557,181 @@ body {
   color: var(--text-dimmed);
   font-family: var(--font-mono, 'Consolas', 'Courier New', monospace);
 }
+
+/* US-022: Watch expressions panel */
+.watches-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+
+.watches-body {
+  flex: 1;
+  overflow: auto;
+}
+
+.watches-empty {
+  padding: 10px 12px;
+  color: var(--text-disabled);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.watches-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.watches-row {
+  border-bottom: 1px solid var(--border-color);
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.watches-row:hover {
+  background: var(--bg-hover);
+}
+
+.watches-row-error {
+  background: rgba(220, 80, 80, 0.08);
+}
+
+.watches-row-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.watches-expression {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-family: var(--font-mono, 'Consolas', 'Courier New', monospace);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0;
+  cursor: text;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watches-edit-input {
+  flex: 1;
+  background: var(--bg-input, #1e1e1e);
+  border: 1px solid var(--accent-color, #4c8eff);
+  color: var(--text-primary);
+  font: inherit;
+  font-family: var(--font-mono, 'Consolas', 'Courier New', monospace);
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.watches-remove-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dimmed);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.watches-row:hover .watches-remove-btn {
+  opacity: 1;
+}
+
+.watches-remove-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.watches-value {
+  font-family: var(--font-mono, 'Consolas', 'Courier New', monospace);
+  font-size: 11px;
+  color: var(--text-dimmed);
+  padding-left: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watches-value-text {
+  color: var(--text-primary);
+}
+
+.watches-error {
+  color: #e57373;
+}
+
+.watches-pending,
+.watches-empty-value {
+  color: var(--text-disabled);
+  font-style: italic;
+}
+
+.watches-add-row {
+  display: flex;
+  border-top: 1px solid var(--border-color);
+  padding: 6px 8px;
+  gap: 6px;
+  background: var(--bg-panel);
+}
+
+.watches-add-input {
+  flex: 1;
+  background: var(--bg-input, #1e1e1e);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font: inherit;
+  font-family: var(--font-mono, 'Consolas', 'Courier New', monospace);
+  font-size: 12px;
+  padding: 3px 6px;
+  border-radius: 2px;
+}
+
+.watches-add-input:focus {
+  border-color: var(--accent-color, #4c8eff);
+  outline: none;
+}
+
+.watches-add-btn {
+  background: var(--accent-color, #4c8eff);
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 0 10px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.watches-add-btn:disabled {
+  background: var(--bg-hover);
+  color: var(--text-disabled);
+  cursor: not-allowed;
+}
+
+.watches-refresh-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dimmed);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 6px;
+}
+
+.watches-refresh-btn:hover {
+  color: var(--text-primary);
+}

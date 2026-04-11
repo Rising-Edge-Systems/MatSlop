@@ -40,6 +40,8 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
 - Clicks on elements covered by `.octave-setup-overlay` (shown in dev e2e when no Octave is configured) can't be reached by `locator.click({ force: true })` — Playwright hit-tests the coordinate. Use `locator.dispatchEvent('click')` to fire a synthetic event directly on the target; React's listener fires normally.
 - To override an existing global keyboard shortcut contextually (e.g. F5 = run normally, but F5 = continue while paused), add a `useEffect` that attaches a window keydown listener in the capture phase (`window.addEventListener('keydown', fn, true)`) only while the override condition holds. Capture-phase handlers run before the bubble-phase shortcut manager so preventDefault/stopPropagation blocks it.
 - `WorkspacePanel` refreshes whenever the parent-owned `workspaceRefreshTrigger` counter increments. To re-query `whos` on some new event, bump the counter from App.tsx via `setWorkspaceRefreshTrigger(prev => prev + 1)` in a useEffect keyed on the trigger state — WorkspacePanel's internal effect handles the rest. For e2e verification without a real Octave, App.tsx mirrors the counter onto `window.__matslopWorkspaceRefreshCount` so tests can assert monotonic increments.
+- `PanelHeader` accepts an optional `actions` ReactNode slot (between title and collapse button). Use it for inline header controls like the Watches panel refresh button — don't roll a custom header div.
+- Watch-style "eval an arbitrary Octave expression safely" pattern: use `buildWatchCommand(expr)` + `parseWatchOutput(raw)` from `src/renderer/editor/watchesStore.ts`. The command wraps `disp(expr)` in a try/catch that printf's a `__MSLP_WATCH_ERR__:<msg>` marker on failure, so a bad expression doesn't leak to stderr or poison the queue. Pair with `formatWatchValue()` to collapse multi-line `disp` output into a single preview line.
 - **IMPORTANT:** E2E tests run against the BUILT app in `dist/` (see `tests/e2e/helpers/launch.ts`), NOT the dev server. Edits to `src/renderer/**` do not appear in Playwright tests until you `npm run build`. If a test sees stale DOM (e.g. missing data attributes you just added), rebuild.
 
 ## 2026-04-10 - US-001 Restructure main layout
@@ -381,4 +383,19 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
   - `reapplyAllBreakpoints`'s conditions map accepts BOTH `Map<number,string>` and `Record<number,string>` values via a tiny `lookupCondition` adapter, so main-side code can use nested Maps while unit tests / renderer-style code can pass plain objects.
   - Use single-quoted Octave strings for conditional expressions (`if 'expr'`) because users commonly embed double-quoted strings inside conditions (e.g. `strcmp(x, "foo")`). Escape embedded single quotes by doubling.
   - The main-process breakpoint registry bucket key is derived via `breakpointBucketKey(filePath)` — import it when you need to mutate the parallel conditions map alongside clear/set IPC handlers so the keys stay in sync.
+---
+
+## 2026-04-11 - US-022 Watch expressions panel
+- Added new dockable Watches panel (right column, mounted when watches.length > 0 OR paused)
+- Pure helpers in src/renderer/editor/watchesStore.ts: add/remove/update/setValue/setError/clearValues + formatWatchValue + buildWatchCommand (try/catch disp wrapper emitting __MSLP_WATCH_ERR__ marker) + parseWatchOutput
+- src/renderer/panels/WatchesPanel.tsx: click-to-edit expression rows, hover-reveal remove, value/error display, bottom add-input, refresh button in header
+- PanelHeader.tsx: extended with optional `actions` slot
+- App.tsx: hosts watches state, evaluateWatch via octaveExecute, refreshAllWatches on pausedKey change, clearWatchValues on engine disconnect, test hooks __matslopAddWatch/RemoveWatch/UpdateWatch/ClearWatches/SimulateWatchValue/SimulateWatchError + __matslopWatches mirror
+- Added tests/unit/watches-store.test.ts (18 tests, all pass) and tests/e2e/watches.spec.ts (7 tests, all pass)
+- `npm run build` succeeds; renderer bundle ~869KB
+- Files changed: src/renderer/App.tsx, src/renderer/editor/watchesStore.ts (new), src/renderer/panels/WatchesPanel.tsx (new), src/renderer/panels/PanelHeader.tsx, src/renderer/styles.css, tests/unit/watches-store.test.ts (new), tests/e2e/watches.spec.ts (new), scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - Watch eval flow: buildWatchCommand + parseWatchOutput keeps bad expressions isolated via an inner try/catch that printf's a `__MSLP_WATCH_ERR__:<msg>` marker — the caller doesn't need to scrape Octave stderr
+  - PanelHeader now accepts an `actions` React node between the title and the collapse-cross — reuse for any panel that needs an inline header control (refresh, settings, etc.)
+  - Re-evaluation trigger: the existing `pausedKey` string (file:line, empty when not paused) is the right hook for any "refresh X on every pause/step" effect — changes on enter, leave, and each step because the line number flips
 ---
