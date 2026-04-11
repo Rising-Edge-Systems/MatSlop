@@ -85,8 +85,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Run (F5) on a saved .m file now calls octaveExecute(\"cd('<dir>'); source('<abs path>')\") via a new pure helper buildRunScriptCommand in src/renderer/editor/functionFileDetection.ts — source() surfaces top-level output in the Command Window where the old run() path did not. Unsaved buffers still trigger the existing Save-As prompt and then re-enter the same path. Function-only files (first non-comment/blank line begins with `function`) are short-circuited with a visible editor-panel warning banner 'This file only defines function(s); nothing to run.' (dismissible). New module src/renderer/editor/functionFileDetection.ts (pure, no Monaco dep) exports isFunctionOnlyFile and buildRunScriptCommand. 21 new unit tests in tests/unit/function-file-detection.test.ts covering script/function detection edge cases (CRLF, %{ %} block comments, function_handle false-positive guard) plus POSIX/Windows/quoted-path command construction. Typecheck clean, 580 tests pass."
     }
   ]
 }

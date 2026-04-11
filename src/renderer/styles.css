@@ -275,6 +275,41 @@ body {
   background: rgba(255, 255, 255, 0.05);
 }
 
+/* US-S05: Warning shown inside the editor panel when Run (F5) is clicked
+   against a function-only file (or one with no top-level code to run). */
+.editor-run-warning {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: rgba(255, 193, 7, 0.12);
+  border-bottom: 1px solid #ffc107;
+  color: var(--text-color, #cccccc);
+  font-size: 12px;
+  user-select: none;
+}
+
+.editor-run-warning > span {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.editor-run-warning-dismiss {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: inherit;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 8px;
+}
+
+.editor-run-warning-dismiss:hover {
+  border-color: var(--panel-border, #3e3e42);
+  background: rgba(255, 255, 255, 0.05);
+}
+
 /* US-P04: "GNU Octave Not Found" banner. Dismissible non-blocking warning
    shown above the status bar on first launch when Octave isn't detected. */
 .octave-not-found-banner {

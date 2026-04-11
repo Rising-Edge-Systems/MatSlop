@@ -70,6 +70,7 @@ import {
   type LayoutPreset,
 } from './editor/layoutPresets'
 import { updateWorkspaceVariables, updateMFileNames } from './editor/matlabCompletionProvider'
+import { buildRunScriptCommand } from './editor/functionFileDetection'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 export type OctaveEngineStatus = 'ready' | 'busy' | 'disconnected'
@@ -972,12 +973,14 @@ function App(): React.JSX.Element {
     setErrorCount(count)
   }, [])
 
+  // US-S05: Run (F5) sources the saved .m file via `source('<abs path>')`
+  // so the Command Window surfaces any output the script prints. We cd into
+  // the script's directory first so relative paths inside the script still
+  // resolve (matching the prior `run(...)` behavior). The Command-Window
+  // "display" echoes the human-friendly `source('file.m')` form, not the
+  // full absolute path, to keep the history readable.
   const handleRunScript = useCallback((filePath: string, dirPath: string) => {
-    const fileName = filePath.substring(Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\')) + 1)
-    const escapedDir = dirPath.replace(/'/g, "''")
-    const escapedFile = fileName.replace(/'/g, "''")
-    const command = `cd('${escapedDir}'); run('${escapedFile}')`
-    const display = `run('${escapedFile}')`
+    const { command, display } = buildRunScriptCommand(filePath, dirPath)
     const id = ++pendingCommandIdRef.current
     setPendingCommand({ command, display, id })
   }, [])

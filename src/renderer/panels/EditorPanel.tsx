@@ -9,6 +9,7 @@ import {
   findNextSectionAdvanceLine,
   type EditorTab,
 } from '../editor/editorTypes'
+import { isFunctionOnlyFile } from '../editor/functionFileDetection'
 import { publishHtml } from '../editor/publishHtml'
 import {
   tabsToSession,
@@ -97,6 +98,11 @@ function EditorPanel({
   )
   const [welcomeTabId, setWelcomeTabId] = useState<string | null>(null)
   const welcomeInitRef = useRef(false)
+  // US-S05: banner text shown above the editor when a Run action is
+  // blocked because the active buffer only defines function(s) and has
+  // no top-level code to execute. Cleared automatically the next time
+  // the user types in the editor, switches tabs, or clicks Run again.
+  const [runWarning, setRunWarning] = useState<string | null>(null)
   // Stable refs for tabs/activeTabId so flush-on-unmount closures see the
   // latest values without re-binding listeners on every edit.
   const tabsRef = useRef<EditorTab[]>(tabs)
@@ -404,6 +410,19 @@ function EditorPanel({
     const tab = getActiveTab()
     if (!tab) return
 
+    // US-S05: A file whose first top-level statement is `function` is a
+    // function file — sourcing it executes no top-level code, so the
+    // user would see no output and think Run was broken. Short-circuit
+    // with a visible banner instead. Detect against the *current* buffer
+    // content (not the saved-on-disk version), so editing in an unsaved
+    // tab is reflected immediately. Clear any stale banner as soon as a
+    // fresh Run attempt begins.
+    setRunWarning(null)
+    if (isFunctionOnlyFile(tab.content)) {
+      setRunWarning('This file only defines function(s); nothing to run.')
+      return
+    }
+
     // Auto-save first
     if (tab.filePath) {
       const result = await window.matslop.saveFile(tab.filePath, tab.content)
@@ -415,7 +434,8 @@ function EditorPanel({
         )
       }
     } else {
-      // Untitled — need Save As first
+      // US-S05: Untitled buffer — prompt Save As before running. Cancelling
+      // the dialog simply aborts; the user stays in the editor.
       const result = await window.matslop.saveFileAs(tab.content, tab.filename)
       if (!result) return // User cancelled
       setTabs((prev) =>
@@ -858,6 +878,23 @@ function EditorPanel({
         debugPaused={pausedLocation !== null}
       />
       <div className="panel-content editor-panel-content">
+        {runWarning !== null && (
+          <div
+            className="editor-run-warning"
+            role="status"
+            data-testid="editor-run-warning"
+          >
+            <span>{runWarning}</span>
+            <button
+              type="button"
+              className="editor-run-warning-dismiss"
+              onClick={() => setRunWarning(null)}
+              aria-label="Dismiss warning"
+            >
+              ×
+            </button>
+          </div>
+        )}
         {isDragOver && (
           <div className="drop-overlay">
             <div className="drop-overlay-content">

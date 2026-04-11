@@ -10,6 +10,8 @@ Started: Sat Apr 11 06:46:53 PM EDT 2026
 - Use `vi.advanceTimersByTimeAsync` (not the sync variant) when code under test awaits promises between timer fires — the async version drains microtasks between ticks.
 - To unit-test OctaveProcessManager without a real child, mock `child_process` at module level (`vi.mock('child_process', () => ({ spawn: vi.fn(() => new FakeChildProcess()) }))`) then `await import('.../octaveProcess')` AFTER the mock. FakeChildProcess extends EventEmitter with `stdin.write`, `stdout`, `stderr` emitters; emit `___MATSLOP_CMD_DONE___\n` on stdout to complete the init handshake.
 - OctaveProcessManager.interrupt() (SIGINT, keeps process) and .stop() (writes 'exit' then SIGKILLs after 2s) are NOT interchangeable. The editor Stop button calls interrupt(); only full shutdown/restart uses stop().
+- Editor Run (F5) flows: TabbedEditor → EditorToolbar onRun → EditorPanel.handleRun (auto-save or Save As) → App.handleRunScript → buildRunScriptCommand → setPendingCommand → CommandWindow. Use source('<abs path>') not run() — source surfaces top-level output through the Command Window pipeline.
+- Octave rule used by isFunctionOnlyFile: a file is a function file iff the first non-blank, non-comment statement is the `function` keyword (word-bounded). Lines before that may be blank, `%`/`#` line comments, or `%{`/`%}` block comments. Extract pure helpers like this into src/renderer/editor/*.ts so they're unit-testable without Monaco/Electron.
 
 ---
 
@@ -86,4 +88,26 @@ Started: Sat Apr 11 06:46:53 PM EDT 2026
   - JS `Number.prototype.toPrecision(6)` only flips to exponential when |n|<1e-6 by default — if you want "1e-5" instead of "0.00001" you must branch on magnitude and call `toExponential(5)` manually.
   - Order matters in the workspace preview formatter: check string classes FIRST (a 1x3 char is not a "scalar"), then non-scalar object classes (struct/cell — even 1x1 structs aren't numbers), then size === '1x1' for real numeric scalars, then the matrix fallback. Getting this order wrong makes a 1x1 struct render as a bogus number.
   - formatValuePreview is now exported from WorkspacePanel.tsx alongside parseWhosOutput — both are pure and unit-tested in tests/unit/.
+---
+
+## 2026-04-11 - US-S05
+- Editor Run (F5) now sources the whole open script via `source('<abs path>')` so top-level output flows into the Command Window, and short-circuits function-only files with a visible warning banner instead of a silent no-op.
+- Added new pure module src/renderer/editor/functionFileDetection.ts exporting:
+  - `isFunctionOnlyFile(content)` — Octave rule: first non-blank, non-comment statement begins with the `function` keyword (word-bounded). Handles blank lines, `%`/`#` line comments, `%{`/`%}` block comments, CRLF, and guards against `function_handle`/`functional` false positives.
+  - `buildRunScriptCommand(filePath, dirPath)` — returns `{ command: "cd('<dir>'); source('<abs path>')", display: "source('<file>')" }`, with single quotes correctly doubled for Octave string escaping. Exported so App.tsx and the tests share the same implementation.
+- EditorPanel.handleRun now calls isFunctionOnlyFile on the *live* buffer content before auto-save. Function-only or empty/comment-only buffers set a new `runWarning` state that renders a dismissible banner ("This file only defines function(s); nothing to run.") above the editor. Unsaved buffers still trigger Save As first.
+- App.handleRunScript switched from `cd(...); run('file')` to the shared buildRunScriptCommand helper.
+- Files changed:
+  - src/renderer/editor/functionFileDetection.ts (new)
+  - src/renderer/panels/EditorPanel.tsx (import helper, runWarning state, handleRun short-circuit, banner markup)
+  - src/renderer/App.tsx (handleRunScript uses buildRunScriptCommand, import added)
+  - src/renderer/styles.css (.editor-run-warning + dismiss button styles — cloned the existing warning-banner look)
+  - tests/unit/function-file-detection.test.ts (new, 21 tests: 9 function-only cases + 8 script cases + 4 command-builder cases)
+  - scripts/ralph/prd.json (US-S05 passes: true, notes filled in)
+- Verification: typecheck clean, all 580 tests pass (was 559, +21 new). Browser verification deferred — no MCP dev-browser active in this iteration; the logic is covered by pure unit tests against the same helpers the renderer calls.
+- **Learnings for future iterations:**
+  - Octave's `source('<abs path>')` executes top-level code in the caller's workspace and streams output back through stdout — this is what the Command Window pipeline needs. `run('<file>')` internally cds then executes but does not reliably surface output when called from another command. Use source.
+  - When adding a new editor-level banner, clone the `.edit-continue-banner` styles in styles.css rather than inventing a new look — the app already has three near-identical yellow warning banners (.edit-continue-banner, .octave-not-found-banner, .editor-run-warning) and they should stay visually consistent.
+  - Pure exported helpers in src/renderer/editor/ are the right place for anything that needs unit coverage without Monaco/Electron. Don't bury logic inside useCallback bodies — extract, export, test, re-import.
+  - The `function` keyword detection needs a word boundary (`/^function\b/`) — otherwise `function_handle = ...` or `functional = 1` would be misclassified as a function file.
 ---
