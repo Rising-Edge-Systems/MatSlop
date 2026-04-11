@@ -105,3 +105,17 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
   - The chain that has to be 100% for Monaco to fill: `.panel` → `.editor-panel-content` (panel-content variant) → `.tabbed-editor` → `.editor-content` → `<section>` wrapper → `.monaco-editor` → `.overflow-guard`. Break any link with a missing `min-width: 0` and the column collapses inside the rc-dock pane.
   - There is NO xterm in this codebase even though older PRD copy mentions one. The Command Window is a plain DOM input + scrollback `<div>`, sized purely via flex.
 ---
+
+## 2026-04-11 - US-P09
+- Polished rc-dock tab strip styling in src/renderer/rc-dock-theme.css to match project chrome.
+- `.dock-bar`: explicit system-UI font stack, font-size 12px, min-height 26px (matches status bar metric).
+- `.dock-tab-title`: inline-flex wrapper inheriting font, plus `::before/::after { content: none !important }` defensively (and same on `.rc-tabs-tab::before`, `.rc-tabs-tab-btn::before`) to kill any pseudo-element glyph rc-dock/rc-tabs may inject next to titles.
+- `.rc-tabs-tab`: font/line-height inherited from .dock-bar so 12px applies; padding kept tight (4px 12px).
+- `.rc-tabs-tab-active`: kept --bg-panel + --text-bright; added `box-shadow: inset 0 -2px 0 var(--accent-color)` as a belt-and-braces underline if the rc-tabs ink-bar is hidden by an ancestor overflow. Active title color also explicitly forced to --text-bright.
+- `.rc-tabs-ink-bar`: pinned to bottom: 0 to keep the underline hugging the tab strip border.
+- Files changed: src/renderer/rc-dock-theme.css.
+- **Learnings for future iterations:**
+  - rc-dock 4.0.0-alpha.2 is NOT in node_modules locally — only the prebuilt vite deps copy at node_modules/.vite/deps/rc-dock.js exists. Use `grep -oE 'className: "[^"]+"' node_modules/.vite/deps/rc-dock.js` to enumerate the actual rc-dock classes (rc-tabs internal classes are constructed dynamically and don't show up as literals there).
+  - Inheriting `font-family/font-size` from .dock-bar onto .rc-tabs-tab + .dock-tab-title is the cleanest way to set tab typography in one place — don't duplicate per selector.
+  - rc-tabs ink-bar can be visually hidden by ancestor overflow on certain layouts. Adding an `inset 0 -2px 0 var(--accent-color)` box-shadow on the active tab guarantees the underline regardless.
+---

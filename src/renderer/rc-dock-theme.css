@@ -66,11 +66,40 @@
   background: var(--accent-color);
 }
 
-/* Tab bar (rc-dock wrapper around rc-tabs) */
+/* Tab bar (rc-dock wrapper around rc-tabs).
+ *
+ * US-P09: tab strip typography matches the status bar — 12px, system UI
+ * font, --text-secondary for inactive, --text-bright for active. Padding
+ * is tightened so tabs feel like the rest of the chrome instead of
+ * rc-dock's default 8-12px chunky pills. */
 .dock-bar {
   background: var(--bg-header);
   border-bottom: 1px solid var(--border-color);
   color: var(--text-secondary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui,
+    sans-serif;
+  font-size: 12px;
+  min-height: 26px;
+}
+
+/* US-P09: Wrapper around tab title text. Kept transparent so the parent
+ * tab background shows through, and stripped of any pseudo-element that
+ * older rc-dock builds inserted alongside the title (the "checkbox-like"
+ * glyph called out in the polish PRD). */
+.dock-tab-title {
+  display: inline-flex;
+  align-items: center;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  line-height: 1;
+}
+
+.dock-tab-title::before,
+.dock-tab-title::after,
+.rc-tabs-tab::before,
+.rc-tabs-tab-btn::before {
+  content: none !important;
 }
 
 /* Per-tab buttons rendered by rc-dock (close, max/min, dropdown) */
@@ -170,6 +199,10 @@
   background: transparent;
 }
 
+/* US-P09: tab cells. Padding/font come from .dock-bar above so the strip
+ * matches the status-bar metric (12px text, ~26px tall). The
+ * --border-subtle right border keeps the visual rhythm of the old chrome
+ * without looking like buttons. */
 .rc-tabs-tab {
   background: var(--bg-header);
   color: var(--text-secondary);
@@ -177,6 +210,9 @@
   border-right: 1px solid var(--border-subtle);
   padding: 4px 12px;
   margin: 0;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1;
   transition: background 0.1s ease, color 0.1s ease;
 }
 
@@ -188,6 +224,15 @@
 .rc-tabs-tab-active,
 .rc-tabs-tab.rc-tabs-tab-active {
   background: var(--bg-panel);
+  color: var(--text-bright);
+  /* Belt-and-braces underline in case the rc-tabs ink-bar is hidden by
+   * an ancestor overflow. The ink-bar still wins when visible because
+   * it sits on top of this border. */
+  box-shadow: inset 0 -2px 0 0 var(--accent-color);
+}
+
+.rc-tabs-tab-active .dock-tab-title,
+.rc-tabs-tab.rc-tabs-tab-active .dock-tab-title {
   color: var(--text-bright);
 }
 
@@ -206,6 +251,7 @@
 .rc-tabs-ink-bar {
   background: var(--accent-color);
   height: 2px;
+  bottom: 0;
 }
 
 .rc-tabs-content,
