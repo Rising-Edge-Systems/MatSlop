@@ -15,7 +15,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:all": "vitest run && playwright test",
-    "build:linux": "electron-vite build && electron-builder --linux",
+    "build:linux": "npm run download:octave && electron-vite build && electron-builder --linux",
     "build:mac": "npm run download:octave && electron-vite build && electron-builder --mac",
     "build:win": "npm run download:octave && electron-vite build && electron-builder --win"
   },

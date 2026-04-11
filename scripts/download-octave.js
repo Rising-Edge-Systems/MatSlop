@@ -25,6 +25,14 @@ const OCTAVE_VERSION = '9.4.0'
 // (https://github.com/octave-app/octave-app/releases). We download that .dmg
 // and extract Octave.app into resources/octave/ so packaging ends up with
 // resources/octave/Octave.app/Contents/Resources/usr/bin/octave-cli.
+//
+// Linux: the GNU Octave project doesn't ship an official static tarball, but
+// the community-maintained octave-appimage project publishes AppImage builds
+// (https://github.com/ryanjdillon/octave-appimage). An AppImage self-extracts
+// via `./octave.AppImage --appimage-extract`, producing a `squashfs-root/`
+// directory that contains `usr/bin/octave-cli`. We unpack into
+// resources/octave/ so packaging ends up with
+// resources/octave/squashfs-root/usr/bin/octave-cli.
 const DOWNLOADS = {
   win32: {
     url: `https://ftpmirror.gnu.org/octave/windows/octave-${OCTAVE_VERSION}-w64.zip`,
@@ -37,6 +45,13 @@ const DOWNLOADS = {
     filename: `Octave-${OCTAVE_VERSION}.dmg`,
     // Relative to OCTAVE_DIR, this is the binary we expect after extraction.
     binary: 'Octave.app/Contents/Resources/usr/bin/octave-cli'
+  },
+  linux: {
+    url: `https://github.com/ryanjdillon/octave-appimage/releases/download/v${OCTAVE_VERSION}/octave-${OCTAVE_VERSION}-x86_64.AppImage`,
+    filename: `octave-${OCTAVE_VERSION}-x86_64.AppImage`,
+    // Relative to OCTAVE_DIR, this is the binary we expect after
+    // `./octave.AppImage --appimage-extract` unpacks squashfs-root/.
+    binary: 'squashfs-root/usr/bin/octave-cli'
   }
 }
 
@@ -164,6 +179,25 @@ async function main() {
           // may not be empty if detach failed; leave it for the user to clean up
         }
       }
+    }
+  } else if (platform === 'linux') {
+    // AppImage self-extracts when invoked with --appimage-extract. It writes
+    // `squashfs-root/` into the current working directory, so we chdir into
+    // OCTAVE_DIR first. The AppImage must be executable.
+    fs.chmodSync(archivePath, 0o755)
+    const squashRoot = path.join(OCTAVE_DIR, 'squashfs-root')
+    if (fs.existsSync(squashRoot)) {
+      fs.rmSync(squashRoot, { recursive: true, force: true })
+    }
+    execSync(`"${archivePath}" --appimage-extract`, {
+      stdio: 'inherit',
+      timeout: 1200000,
+      cwd: OCTAVE_DIR
+    })
+    if (!fs.existsSync(squashRoot)) {
+      throw new Error(
+        `AppImage extraction did not produce squashfs-root at: ${squashRoot}`
+      )
     }
   } else if (platform === 'win32') {
     // Use PowerShell to extract on Windows

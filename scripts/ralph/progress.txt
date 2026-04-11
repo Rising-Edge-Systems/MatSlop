@@ -715,3 +715,16 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
   - Octave.app structure: `Octave.app/Contents/Resources/usr/bin/octave-cli` is the real binary inside the bundle
   - Pre-existing baseline test failure: tests/unit/octave-config.test.ts asserts the mingw64 binary exists on disk, which only passes after `npm run download:octave` on Windows. Not touched by US-038.
 ---
+
+## 2026-04-11 - US-039 Extend download-octave.js for Linux
+- Added `linux` entry to DOWNLOADS in scripts/download-octave.js using the octave-appimage AppImage (v9.4.0 x86_64)
+- Extraction invokes `./archive --appimage-extract` (after chmodSync 0o755) with cwd=OCTAVE_DIR → produces resources/octave/squashfs-root/
+- Updated src/main/octaveConfig.ts getBundledOctavePath: linux branch now prefers squashfs-root/usr/bin/octave-cli with fallbacks to legacy bin/ layouts
+- Updated package.json build:linux to run `npm run download:octave` before electron-vite + electron-builder (mirrors build:mac/win)
+- Added tests/unit/download-octave-linux.test.ts with 5 assertions parallel to the mac test
+- Files changed: scripts/download-octave.js, src/main/octaveConfig.ts, package.json, tests/unit/download-octave-linux.test.ts, scripts/ralph/prd.json
+- **Learnings:**
+  - AppImage self-extract pattern: `chmod +x archive.AppImage && ./archive.AppImage --appimage-extract` creates `squashfs-root/` in cwd. Set `cwd: OCTAVE_DIR` on execSync so the root lands inside resources/octave/.
+  - download-octave.js pattern: each platform entry has { url, filename, binary } where `binary` is the post-extract relative path probed by `fs.existsSync` for a short-circuit. extractedDir is win32-specific (powershell Expand-Archive adds a version subfolder).
+  - Parallel unit tests in tests/unit/download-octave-<platform>.test.ts verify script/manifest consistency — repeat this pattern for any new platform branch (check DOWNLOADS entry, extract method, build:<platform> script ordering, octaveConfig path layout).
+---

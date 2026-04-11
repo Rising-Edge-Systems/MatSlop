@@ -29,7 +29,12 @@ function getBundledOctavePath(): string | null {
         path.join(base, 'bin', 'octave')
       ]
     } else {
+      // Linux: download-octave.js extracts an AppImage into
+      // resources/octave/squashfs-root/. Fall through to legacy bin/ paths
+      // for source-built or tarball layouts.
       candidates = [
+        path.join(base, 'squashfs-root', 'usr', 'bin', 'octave-cli'),
+        path.join(base, 'squashfs-root', 'usr', 'bin', 'octave'),
         path.join(base, 'bin', 'octave-cli'),
         path.join(base, 'bin', 'octave')
       ]
