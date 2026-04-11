@@ -18,6 +18,7 @@ export type MenuAction =
   | 'toggleCommandHistory'
   | 'toggleStatusBar'
   | 'resetLayout'
+  | 'saveLayoutPreset'
   | 'setThemeLight'
   | 'setThemeDark'
   | 'setThemeSystem'
@@ -28,7 +29,21 @@ export type MenuAction =
   | 'preferences'
   | 'about'
 
-export function buildAppMenu(mainWindow: BrowserWindow, recentFiles: string[] = []): Menu {
+// US-028: The Layouts submenu is driven by these constants (mirrored in
+// src/renderer/editor/layoutPresets.ts). Kept inline here so appMenu.ts
+// stays a node-friendly module with no React imports.
+const BUILTIN_PRESETS: Array<{ id: string; label: string }> = [
+  { id: 'default', label: 'Default' },
+  { id: 'debugger', label: 'Debugger' },
+  { id: 'twoColumn', label: 'Two-Column' },
+  { id: 'codeOnly', label: 'Code-Only' },
+]
+
+export function buildAppMenu(
+  mainWindow: BrowserWindow,
+  recentFiles: string[] = [],
+  customPresetNames: string[] = [],
+): Menu {
   const send = (action: MenuAction | string): void => {
     mainWindow.webContents.send('menu:action', action)
   }
@@ -159,6 +174,38 @@ export function buildAppMenu(mainWindow: BrowserWindow, recentFiles: string[] = 
           click: () => send('toggleCommandHistory'),
         },
         { type: 'separator' },
+        {
+          label: 'Layouts',
+          submenu: [
+            ...BUILTIN_PRESETS.map((p) => ({
+              label: p.label,
+              click: () => send(`layoutPreset:builtin:${p.id}`),
+            })),
+            { type: 'separator' as const },
+            ...(customPresetNames.length > 0
+              ? [
+                  ...customPresetNames.map((name) => ({
+                    label: name,
+                    submenu: [
+                      {
+                        label: 'Apply',
+                        click: () => send(`layoutPreset:custom:${name}`),
+                      },
+                      {
+                        label: 'Delete',
+                        click: () => send(`layoutPreset:delete:${name}`),
+                      },
+                    ],
+                  })),
+                  { type: 'separator' as const },
+                ]
+              : []),
+            {
+              label: 'Save Current as Preset...',
+              click: () => send('saveLayoutPreset'),
+            },
+          ],
+        },
         {
           label: 'Reset Layout',
           click: () => send('resetLayout'),

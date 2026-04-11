@@ -24,7 +24,27 @@ import {
   type CallStackFrame,
 } from './callStack'
 import { buildAppMenu } from './appMenu'
-import { getStoredTheme, setStoredTheme, getPreferences, setPreferences, getLayoutConfig, setLayoutConfig, getDefaultLayout, getRecentFiles, addRecentFile, clearRecentFiles, type ThemeMode, type AppPreferences, type LayoutConfig } from './appConfig'
+import {
+  getStoredTheme,
+  setStoredTheme,
+  getPreferences,
+  setPreferences,
+  getLayoutConfig,
+  setLayoutConfig,
+  getDefaultLayout,
+  getRecentFiles,
+  addRecentFile,
+  clearRecentFiles,
+  getLayoutPresets,
+  getLayoutPreset,
+  saveLayoutPreset as saveLayoutPresetStore,
+  deleteLayoutPreset as deleteLayoutPresetStore,
+  listLayoutPresetNames,
+  type ThemeMode,
+  type AppPreferences,
+  type LayoutConfig,
+  type StoredLayoutPreset,
+} from './appConfig'
 
 // Command history file path
 function getHistoryFilePath(): string {
@@ -89,7 +109,8 @@ function createWindow(): void {
 
   // Build and set the application menu
   const recentFiles = getRecentFiles()
-  const appMenu = buildAppMenu(mainWindow, recentFiles)
+  const presetNames = listLayoutPresetNames()
+  const appMenu = buildAppMenu(mainWindow, recentFiles, presetNames)
   Menu.setApplicationMenu(appMenu)
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -848,6 +869,41 @@ ipcMain.handle('recentFiles:clear', () => {
   return updated
 })
 
+// ---------------------------------------------------------------------------
+// US-028: Layout presets
+// ---------------------------------------------------------------------------
+
+ipcMain.handle('layoutPresets:list', () => {
+  // Return the full map so the renderer can show labels/metadata as well
+  // as the name list — used by the View → Layouts menu AND the in-app
+  // "Manage Presets" UI.
+  return getLayoutPresets()
+})
+
+ipcMain.handle('layoutPresets:get', (_event, name: string) => {
+  if (typeof name !== 'string') return null
+  return getLayoutPreset(name)
+})
+
+ipcMain.handle('layoutPresets:save', (_event, name: string, preset: StoredLayoutPreset) => {
+  if (typeof name !== 'string' || name.length === 0) {
+    return { success: false, error: 'invalid name' }
+  }
+  if (!preset || typeof preset !== 'object') {
+    return { success: false, error: 'invalid preset' }
+  }
+  saveLayoutPresetStore(name, preset)
+  rebuildMenu()
+  return { success: true }
+})
+
+ipcMain.handle('layoutPresets:delete', (_event, name: string) => {
+  if (typeof name !== 'string') return { success: false }
+  deleteLayoutPresetStore(name)
+  rebuildMenu()
+  return { success: true }
+})
+
 // Open a URL in the user's default browser (used for plot-export help links).
 ipcMain.handle('shell:openExternal', async (_event, url: string) => {
   // Guard against opening non-http(s) URLs — this bridge is for help docs only.
@@ -865,7 +921,8 @@ ipcMain.handle('test:menuAction', (_event, action: string) => {
 function rebuildMenu(): void {
   if (!mainWindow) return
   const recentFiles = getRecentFiles()
-  const appMenu = buildAppMenu(mainWindow, recentFiles)
+  const presetNames = listLayoutPresetNames()
+  const appMenu = buildAppMenu(mainWindow, recentFiles, presetNames)
   Menu.setApplicationMenu(appMenu)
 }
 

@@ -36,9 +36,29 @@ export interface LayoutConfig {
   dockLayout?: unknown
 }
 
+/**
+ * US-028: a user-saved layout preset. Mirrors the renderer-side
+ * `LayoutPreset` type (see src/renderer/editor/layoutPresets.ts). We
+ * intentionally duplicate the shape here rather than importing across
+ * the main/renderer boundary to keep `electron-store` typing standalone.
+ */
+export interface StoredLayoutPreset {
+  label: string
+  visibility: PanelVisibilityConfig
+  sizes: {
+    fileBrowserWidth: number
+    workspaceWidth: number
+    bottomHeight: number
+    commandHistoryWidth: number
+  }
+  dockLayout?: unknown
+}
+
 export interface AppConfig extends AppPreferences {
   layout: LayoutConfig
   recentFiles: string[]
+  /** US-028: user-saved layout presets, keyed by preset name. */
+  layoutPresets: Record<string, StoredLayoutPreset>
 }
 
 const defaultLayout: LayoutConfig = {
@@ -146,4 +166,46 @@ export function addRecentFile(filePath: string): string[] {
 export function clearRecentFiles(): string[] {
   store.set('recentFiles', [])
   return []
+}
+
+// ---------------------------------------------------------------------------
+// US-028: Layout presets
+// ---------------------------------------------------------------------------
+
+const MAX_LAYOUT_PRESETS = 50
+
+export function getLayoutPresets(): Record<string, StoredLayoutPreset> {
+  const raw = store.get('layoutPresets', {}) as Record<string, StoredLayoutPreset>
+  // Defensive copy so callers don't mutate store-held objects.
+  return { ...raw }
+}
+
+export function getLayoutPreset(name: string): StoredLayoutPreset | null {
+  const all = getLayoutPresets()
+  return Object.prototype.hasOwnProperty.call(all, name) ? all[name] : null
+}
+
+export function saveLayoutPreset(name: string, preset: StoredLayoutPreset): void {
+  const all = getLayoutPresets()
+  // Cap total count: drop the oldest-inserted entry if we'd exceed it AND
+  // the new name is not already in the set.
+  if (!(name in all) && Object.keys(all).length >= MAX_LAYOUT_PRESETS) {
+    const oldest = Object.keys(all)[0]
+    if (oldest) delete all[oldest]
+  }
+  all[name] = preset
+  store.set('layoutPresets', all)
+}
+
+export function deleteLayoutPreset(name: string): void {
+  const all = getLayoutPresets()
+  if (name in all) {
+    delete all[name]
+    store.set('layoutPresets', all)
+  }
+}
+
+/** Ordered list of custom preset names (insertion order). */
+export function listLayoutPresetNames(): string[] {
+  return Object.keys(getLayoutPresets())
 }

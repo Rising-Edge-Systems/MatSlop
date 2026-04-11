@@ -152,6 +152,31 @@ contextBridge.exposeInMainWorld('matslop', {
     panelVisibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
     panelSizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
   }> => ipcRenderer.invoke('layout:getDefault'),
+  // US-028: Layout presets
+  layoutPresetsList: (): Promise<Record<string, {
+    label: string
+    visibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
+    sizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+    dockLayout?: unknown
+  }>> => ipcRenderer.invoke('layoutPresets:list'),
+  layoutPresetsGet: (name: string): Promise<{
+    label: string
+    visibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
+    sizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+    dockLayout?: unknown
+  } | null> => ipcRenderer.invoke('layoutPresets:get', name),
+  layoutPresetsSave: (
+    name: string,
+    preset: {
+      label: string
+      visibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
+      sizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+      dockLayout?: unknown
+    },
+  ): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('layoutPresets:save', name, preset),
+  layoutPresetsDelete: (name: string): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('layoutPresets:delete', name),
   // Recent files
   recentFilesGet: (): Promise<string[]> =>
     ipcRenderer.invoke('recentFiles:get'),

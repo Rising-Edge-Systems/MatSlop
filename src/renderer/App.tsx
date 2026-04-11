@@ -31,6 +31,14 @@ import {
 import OctaveSetupDialog from './dialogs/OctaveSetupDialog'
 import VariableInspectorDialog, { type InspectedVariable } from './dialogs/VariableInspectorDialog'
 import PreferencesDialog, { type EditorPreferences } from './dialogs/PreferencesDialog'
+import SavePresetDialog from './dialogs/SavePresetDialog'
+import {
+  captureLayoutPreset,
+  getBuiltinPreset,
+  parseLayoutPresetAction,
+  type BuiltinPresetId,
+  type LayoutPreset,
+} from './editor/layoutPresets'
 import { updateWorkspaceVariables, updateMFileNames } from './editor/matlabCompletionProvider'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -104,6 +112,11 @@ function App(): React.JSX.Element {
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('dark')
   const [errorCount, setErrorCount] = useState(0)
   const [showPreferences, setShowPreferences] = useState(false)
+  // US-028: Layout presets. Names list is refreshed every time the main
+  // process tells us the list has changed (save/delete) so the "Save as
+  // Preset" dialog's overwrite warning and tests can see the live set.
+  const [showSavePresetDialog, setShowSavePresetDialog] = useState(false)
+  const [customPresetNames, setCustomPresetNames] = useState<string[]>([])
   // US-016: when Octave hits a breakpoint we track the paused location so the
   // editor can highlight the line and the status bar can flip into debug mode.
   const [pausedLocation, setPausedLocation] = useState<{ file: string; line: number } | null>(null)
@@ -605,13 +618,90 @@ function App(): React.JSX.Element {
     })
   }, [])
 
-  // US-026: persist rc-dock layout on drag between docks. We snapshot the
-  // current visibility+sizes from state refs so this callback identity
-  // stays stable across visibility toggles.
+  // Mirror visibility/panelSizes into refs so callbacks can snapshot the
+  // current values without enlarging their dep arrays (used by US-026's
+  // handleDockLayoutChange, and US-028's handleSaveLayoutPreset).
   const visibilityRef = useRef(visibility)
   visibilityRef.current = visibility
   const panelSizesRef = useRef(panelSizes)
   panelSizesRef.current = panelSizes
+
+  // US-028: Apply a layout preset (built-in or custom). Resets detached
+  // panels, applies visibility + sizes, and optionally rehydrates a stored
+  // rc-dock layout tree (custom presets may have one; built-ins never do).
+  const applyLayoutPreset = useCallback(
+    (preset: LayoutPreset) => {
+      setDetachedPanels(new Set())
+      const dock = preset.dockLayout ?? null
+      savedDockLayoutRef.current = dock
+      setSavedDockLayout(dock)
+      setVisibility(preset.visibility)
+      setPanelSizes(preset.sizes)
+      window.matslop.layoutSet({
+        panelVisibility: preset.visibility,
+        panelSizes: preset.sizes,
+        dockLayout: dock ?? undefined,
+      })
+    },
+    [],
+  )
+
+  // US-028: Refresh the custom preset name list from main. Called on
+  // mount + after save/delete so menu and dialog state stay in sync.
+  const refreshCustomPresetNames = useCallback(async () => {
+    const map = await window.matslop.layoutPresetsList()
+    setCustomPresetNames(Object.keys(map))
+  }, [])
+  useEffect(() => {
+    void refreshCustomPresetNames()
+  }, [refreshCustomPresetNames])
+
+  const handleSaveLayoutPreset = useCallback(
+    async (name: string) => {
+      const preset = captureLayoutPreset(
+        name,
+        visibilityRef.current,
+        panelSizesRef.current,
+        savedDockLayoutRef.current ?? null,
+      )
+      await window.matslop.layoutPresetsSave(name, preset)
+      setShowSavePresetDialog(false)
+      await refreshCustomPresetNames()
+    },
+    [refreshCustomPresetNames],
+  )
+
+  const applyCustomPreset = useCallback(
+    async (name: string) => {
+      const stored = await window.matslop.layoutPresetsGet(name)
+      if (!stored) return
+      applyLayoutPreset({
+        label: stored.label,
+        visibility: stored.visibility,
+        sizes: stored.sizes,
+        dockLayout: stored.dockLayout,
+      })
+    },
+    [applyLayoutPreset],
+  )
+
+  const deleteCustomPreset = useCallback(
+    async (name: string) => {
+      await window.matslop.layoutPresetsDelete(name)
+      await refreshCustomPresetNames()
+    },
+    [refreshCustomPresetNames],
+  )
+
+  const applyBuiltinPreset = useCallback(
+    (id: BuiltinPresetId) => {
+      applyLayoutPreset(getBuiltinPreset(id))
+    },
+    [applyLayoutPreset],
+  )
+
+  // US-026: persist rc-dock layout on drag between docks. Callback reads
+  // the latest visibility+sizes via the refs declared above.
   const handleDockLayoutChange = useCallback((layout: unknown) => {
     savedDockLayoutRef.current = layout
     window.matslop.layoutSet({
@@ -834,12 +924,12 @@ function App(): React.JSX.Element {
           break
         case 'resetLayout':
           // Drop any persisted rc-dock rearrangement so reset actually
-          // restores the default tree (see US-026).
-          savedDockLayoutRef.current = null
-          setSavedDockLayout(null)
-          setVisibility(defaultVisibility)
-          setPanelSizes(defaultSizes)
-          saveLayout(defaultVisibility, defaultSizes)
+          // restores the default tree (see US-026). "Reset Layout" is an
+          // alias for applying the Default built-in preset (US-028).
+          applyBuiltinPreset('default')
+          break
+        case 'saveLayoutPreset':
+          setShowSavePresetDialog(true)
           break
         case 'setThemeLight':
           handleSetTheme('light')
@@ -869,6 +959,18 @@ function App(): React.JSX.Element {
             setPendingOpenPath(filePath)
             break
           }
+          // US-028: Layout preset menu actions (builtin/custom/delete).
+          const parsed = parseLayoutPresetAction(action)
+          if (parsed) {
+            if (parsed.kind === 'builtin') {
+              applyBuiltinPreset(parsed.id)
+            } else if (parsed.kind === 'custom') {
+              void applyCustomPreset(parsed.name)
+            } else {
+              void deleteCustomPreset(parsed.name)
+            }
+            break
+          }
           // Forward to EditorPanel/CommandWindow via menuAction state
           const id = ++menuActionIdRef.current
           setMenuAction({ action, id })
@@ -877,7 +979,15 @@ function App(): React.JSX.Element {
       }
     })
     return unsub
-  }, [handleStop, handleSetTheme, togglePanel, saveLayout])
+  }, [
+    handleStop,
+    handleSetTheme,
+    togglePanel,
+    saveLayout,
+    applyBuiltinPreset,
+    applyCustomPreset,
+    deleteCustomPreset,
+  ])
 
   const handleMenuActionConsumed = useCallback(() => {
     setMenuAction(null)
@@ -1039,6 +1149,15 @@ function App(): React.JSX.Element {
         <PreferencesDialog
           onClose={() => setShowPreferences(false)}
           onPreferencesChanged={handlePreferencesChanged}
+        />
+      )}
+      {showSavePresetDialog && (
+        <SavePresetDialog
+          existingNames={customPresetNames}
+          onCancel={() => setShowSavePresetDialog(false)}
+          onSave={(name) => {
+            void handleSaveLayoutPreset(name)
+          }}
         />
       )}
       {inspectedVariable && (

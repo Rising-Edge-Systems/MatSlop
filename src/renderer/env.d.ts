@@ -126,6 +126,29 @@ interface Window {
       panelVisibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
       panelSizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
     }>
+    // US-028: Layout presets
+    layoutPresetsList: () => Promise<Record<string, {
+      label: string
+      visibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
+      sizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+      dockLayout?: unknown
+    }>>
+    layoutPresetsGet: (name: string) => Promise<{
+      label: string
+      visibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
+      sizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+      dockLayout?: unknown
+    } | null>
+    layoutPresetsSave: (
+      name: string,
+      preset: {
+        label: string
+        visibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
+        sizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+        dockLayout?: unknown
+      },
+    ) => Promise<{ success: boolean; error?: string }>
+    layoutPresetsDelete: (name: string) => Promise<{ success: boolean }>
     // Recent files
     recentFilesGet: () => Promise<string[]>
     recentFilesAdd: (filePath: string) => Promise<string[]>
