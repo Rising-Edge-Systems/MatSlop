@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import PanelHeader from './PanelHeader'
 
 interface CommandHistoryPanelProps {
   onCollapse: () => void
@@ -78,7 +77,6 @@ function CommandHistoryPanel({ onCollapse, onExecuteCommand, historyVersion }: C
 
   return (
     <div className="panel ch-panel">
-      <PanelHeader title="Command History" onCollapse={onCollapse} />
       <div className="ch-filter-bar">
         <input
           type="text"

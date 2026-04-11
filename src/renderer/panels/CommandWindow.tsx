@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import PanelHeader from './PanelHeader'
 import type { OctaveEngineStatus } from '../App'
 import { parseDocCommand, parseHelpCommand } from '../editor/helpDoc'
 
@@ -249,7 +248,6 @@ function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExec
 
   return (
     <div className="panel command-window" data-testid="command-window" onClick={handlePanelClick}>
-      <PanelHeader title="Command Window" onCollapse={onCollapse} />
       <div className="cw-output" ref={outputRef} data-testid="command-output">
         {outputEntries.map((entry, i) => (
           <div key={i} className={`cw-line cw-${entry.type}`}>

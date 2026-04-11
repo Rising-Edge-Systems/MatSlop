@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import PanelHeader from './PanelHeader'
 
 interface DirEntry {
   name: string
@@ -295,7 +294,6 @@ function FileBrowser({ onCollapse, onOpenFile, onCwdChange, externalCwd, gitBadg
 
   return (
     <div className="panel file-browser" data-testid="file-browser" onContextMenu={(e) => handleContextMenu(e, null)}>
-      <PanelHeader title="File Browser" onCollapse={onCollapse} />
       <div className="fb-path-bar">
         <span className="fb-path" title={cwd}>{cwd}</span>
         <button className="fb-change-dir-btn" onClick={handleChangeDir} title="Change Directory">

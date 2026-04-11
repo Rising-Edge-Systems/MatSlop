@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import PanelHeader from './PanelHeader'
 import type { OctaveEngineStatus } from '../App'
 
 interface WorkspaceVariable {
@@ -231,7 +230,6 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
       data-testid="workspace-panel"
       data-debug-scope={debugPaused ? 'true' : 'false'}
     >
-      <PanelHeader title="Workspace" onCollapse={onCollapse} />
       {debugPaused && (
         <div className="ws-scope-banner" data-testid="workspace-debug-scope">
           <span className="ws-scope-dot" />

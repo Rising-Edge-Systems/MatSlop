@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import PanelHeader from './PanelHeader'
 
 /**
  * US-018: A single frame reported by Octave's `dbstack()` and surfaced via
@@ -56,7 +55,6 @@ function CallStackPanel({
 
   return (
     <div className="call-stack-panel" data-testid="call-stack-panel">
-      <PanelHeader title="Call Stack" onCollapse={onCollapse} />
       <div className="call-stack-body" data-testid="call-stack-body">
         {rows.length === 0 ? (
           <div className="call-stack-empty" data-testid="call-stack-empty">

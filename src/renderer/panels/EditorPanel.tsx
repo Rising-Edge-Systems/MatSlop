@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef, type DragEvent } from 'react'
 import type { editor as monacoEditor } from 'monaco-editor'
-import PanelHeader from './PanelHeader'
 import TabbedEditor from '../editor/TabbedEditor'
 import EditorToolbar from '../editor/EditorToolbar'
 import {
@@ -845,7 +844,6 @@ function EditorPanel({
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      <PanelHeader title="Editor" />
       <EditorToolbar
         hasActiveFile={activeTabId !== null}
         engineStatus={engineStatus}

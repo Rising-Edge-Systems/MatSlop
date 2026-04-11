@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import PanelHeader from './PanelHeader'
 import type { GitStatusEntry, ParsedDiff } from '../git/gitCore'
 
 /**
@@ -256,7 +255,6 @@ function SourceControlPanel(props: SourceControlPanelProps): React.JSX.Element {
 
   return (
     <div className="source-control-panel" data-testid="source-control-panel">
-      <PanelHeader title="Source Control" onCollapse={onClose} />
       <div className="sc-header" data-testid="sc-header">
         {status?.isRepo ? (
           <>

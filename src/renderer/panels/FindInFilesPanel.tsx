@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import PanelHeader from './PanelHeader'
 import { truncateContext } from '../editor/findInFiles'
 
 /**
@@ -143,7 +142,6 @@ function FindInFilesPanel(props: FindInFilesPanelProps): React.JSX.Element {
 
   return (
     <div className="find-in-files-panel" data-testid="find-in-files-panel">
-      <PanelHeader title="Find in Files" onCollapse={onClose} />
       <div className="find-in-files-controls" data-testid="find-in-files-controls">
         <input
           ref={queryInputRef}

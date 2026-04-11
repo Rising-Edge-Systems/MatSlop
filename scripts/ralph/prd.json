@@ -1,708 +1,177 @@
 {
   "project": "MatSlop",
-  "branchName": "ralph/matslop-roadmap",
-  "description": "MatSlop MATLAB Feature-Parity Roadmap \u2014 7 phases from layout fixes through cross-platform packaging, bringing MatSlop to production-ready MATLAB alternative.",
+  "branchName": "ralph/matslop-polish-v2",
+  "description": "Look-and-feel polish pass on the ROADMAP branch (rc-dock based). Fix duplicate panel headers, collapsed dock content, light-theme leak from rc-dock, blocking Octave modal, tiny default window, and ghost tabs. See tasks/prd-matslop-polish.md for the narrative PRD with root-cause findings. IMPORTANT: this branch is based on ralph/matslop-roadmap (42 stories already merged). The codebase uses rc-dock via src/renderer/panels/MatslopDockLayout.tsx, NOT Allotment. If you find both, rc-dock is the live one.",
   "userStories": [
     {
-      "id": "US-001",
-      "title": "Restructure main layout so Command Window is below the Editor only",
-      "description": "As a user, I want the Command Window to sit directly beneath the editor so it doesn't compete with the Workspace or File Browser for horizontal space.",
+      "id": "US-P01",
+      "title": "Remove legacy PanelHeader from every dock-hosted panel",
+      "description": "As a user, I want exactly one header per dock pane (the rc-dock tab header), not two stacked headers. Inspection showed FileBrowser, EditorPanel, WorkspacePanel, CommandWindow, etc. each render their own <PanelHeader> on top of rc-dock's tab strip.",
       "acceptanceCriteria": [
-        "Default layout: File Browser (left), Editor (center-top) with Command Window (center-bottom), Workspace (right)",
-        "Command Window does NOT extend under the File Browser or Workspace columns",
-        "Resizing the editor vertically shrinks/grows the Command Window",
-        "Layout persistence still works after this restructure",
-        "Existing layout regression tests pass",
-        "Playwright E2E test verifies Command Window bounding box is horizontally contained within the editor column",
+        "PanelHeader import/usage removed from every panel hosted inside MatslopDockLayout: FileBrowser, EditorPanel, WorkspacePanel, CommandWindow, CommandHistoryPanel, CallStackPanel, WatchesPanel, FigurePanel, HelpPanel, FindInFilesPanel, ProfilerPanel, SourceControlPanel",
+        "PanelHeader.tsx is kept only if DetachedPanel (outside rc-dock) still needs it; otherwise it is deleted",
+        "The pane still shows its title in rc-dock's tab strip via DOCK_TAB_TITLES in MatslopDockLayout.tsx",
+        "Playwright smoke: only one element matching a panel's title text per pane",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Restructured App.tsx layout into 3 outer columns (FileBrowser | CenterColumn | RightColumn). Center column has Editor on top and Command Window beneath. Added data-testid='editor-column' and data-testid='editor-panel'. Added tests/e2e/layout.spec.ts with bounding box assertions."
+      "notes": ""
     },
     {
-      "id": "US-002",
-      "title": "Fix live-script cell drag-and-drop reordering",
-      "description": "As a user, I want to drag cells by their grip handle to reorder them in a live script.",
+      "id": "US-P02",
+      "title": "Fix dock tab content sizing so panels fill their pane",
+      "description": "As a user, I want every panel to fill the full area of the dock pane it lives in, not collapse to intrinsic content size leaving ugly gray voids. Inspection showed MatslopDockLayout.tsx loadTab() wraps tab content in display:flex without giving child flex:1, so .panel shrinks to its intrinsic width.",
       "acceptanceCriteria": [
-        "Grabbing the grip handle and dragging a cell moves it above/below other cells",
-        "Drop zones highlight during drag",
-        "Cell order change persists to the .mls file on save",
-        "Playwright test: drag cell 2 above cell 1 and assert DOM order changed",
-        "Outputs follow their cells (no orphaned results after reorder)",
+        "In MatslopDockLayout.tsx the tab-content wrapper at loadTab() either drops display:flex or gives its child flex: 1 1 auto; min-width: 0; min-height: 0",
+        ".panel selector in styles.css gets width: 100% alongside height: 100%",
+        "Resizing the window stretches file-tree, monaco editor, workspace table, and command window to fill their pane with no gray void on the right or bottom",
+        "Playwright: dock-tab-matslop-file-browser bounding box equals its parent rc-dock panel bounding box within 2px on all four sides",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Extracted pure reorderCells() helper in editorTypes.ts. LiveScriptEditor now uses it. Added data-testid='ls-cell'/'ls-drop-zone'/'ls-cell-drag-handle' plus data-cell-id attributes. CSS enlarges drop zones while dragging. Added unit tests (reorderCells) and Playwright test that simulates HTML5 drag events to drag cell 2 above cell 1 and asserts DOM order changed."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-003",
-      "title": "Apply MATLAB-default layout preset on first launch",
-      "description": "As a new user, I want the initial layout to match MATLAB's defaults so I feel at home.",
+      "id": "US-P03",
+      "title": "Replace rc-dock light CSS with project dark theme",
+      "description": "As a user, I want dock panels to match the project's dark theme instead of rendering with rc-dock's default light chrome. Inspection showed MatslopDockLayout.tsx imports rc-dock/dist/rc-dock.css (light), overriding the project's CSS vars inside the dock tree.",
       "acceptanceCriteria": [
-        "First-run layout: File Browser left, Editor + Command Window center, Workspace right",
-        "'Reset Layout' menu item restores this default",
-        "Playwright snapshot verifies main-window bounding boxes",
+        "Import changed from rc-dock/dist/rc-dock.css to rc-dock/dist/rc-dock-dark.css OR a new src/renderer/rc-dock-theme.css maps every rc-dock selector (.dock-tab, .dock-panel, .dock-bar, .dock-nav-wrap, .dock-divider, .dock-drop-indicator) to CSS variables (--bg-panel, --bg-header, --border-color, --text-primary, --accent-color)",
+        "Dark theme is the visible default at first launch",
+        "Switching to light theme via data-theme='light' still works",
+        "Playwright: screenshot of main window in dark mode has no contiguous #f3f3f3 or #ffffff region larger than 100x100 pixels inside the dock area",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "MATLAB-default layout already applied on first launch via defaultLayout in src/main/appConfig.ts (File Browser 220px left, Editor+Command Window center, Workspace 280px right) and the existing 'View \u2192 Reset Layout' menu item (resetLayout action in App.tsx restores defaultVisibility+defaultSizes). Added tests/e2e/default-layout.spec.ts with 2 tests: (1) verifies bounding boxes of FileBrowser|EditorColumn|Workspace form the MATLAB-default 3-column arrangement on first launch (launchApp uses an isolated user-data dir so every run is a fresh first launch), (2) hides panels via menu actions then triggers 'resetLayout' and asserts panels return to their original positions."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-004",
-      "title": "Refactor live script to CSS grid with global code and output tracks",
-      "description": "As a user, I want outputs to flow continuously in a single right-side column across all cells, like MATLAB's Live Editor.",
+      "id": "US-P04",
+      "title": "Make 'Octave Not Found' non-blocking (banner, not modal)",
+      "description": "As a first-time user, I want to see the MatSlop UI on launch even if Octave isn't detected yet. Currently a modal blocks interaction on every launch.",
       "acceptanceCriteria": [
-        "Live script renders as a 2-column CSS grid: code on left, outputs on right",
-        "All cells stack vertically in both columns",
-        "Each cell's output pairs align with its code row using grid-row",
-        "Outputs no longer nested inside the cell container",
-        "Hovering a cell highlights both its code and its output region",
-        "Existing fixtures (multiplot.mls, quiver3.mls) still render correctly",
+        "On launch with no detected Octave, the full dock layout mounts and a dismissible warning banner appears above the status bar with a short message, a 'Browse for octave-cli...' button, and a 'Dismiss' button",
+        "The previous modal dialog is removed from the first-run path (still reachable from Preferences > Octave path)",
+        "Running an Octave-dependent command with no path set shows an inline error in the Command Window, not a modal",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Refactored LiveScriptEditor.tsx to use a 2-track CSS grid (.ls-cells-grid with grid-template-columns: minmax(0,1fr) minmax(0,1fr)). Each code cell now emits two sibling grid items: a .ls-cell-code-side (gutter + editor + delete actions) in column 1 and a .ls-cell-output-col / .ls-cell-output-side in column 2. Outputs are no longer nested inside the code container. Markdown cells, drop zones, and add-cell rows span both columns via grid-column: 1 / -1. Hovering either half toggles a hoveredCellId state that applies .ls-cell-hover to both sides so they highlight together. Added tests/e2e/livescript-grid.spec.ts with 5 Playwright tests covering: (1) grid container has 2 template columns, (2) each code cell has a paired output sibling not nested inside the code container, (3) code and output rects share the same top y (grid-row alignment), (4) hover highlights both halves, (5) multiplot.mls still renders 4 plots in the new layout."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-005",
-      "title": "Preserve cell gutter (run button, grip, delete) in grid layout",
-      "description": "As a user, I want the per-cell controls (run, drag, delete) still attached to each code section in the new grid layout.",
+      "id": "US-P05",
+      "title": "Maximize or honor work-area size on first launch",
+      "description": "As a user, I want MatSlop to open at a reasonable size on first launch instead of a small centered box.",
       "acceptanceCriteria": [
-        "Run button appears in the code column at the cell header",
-        "Drag handle remains functional across the grid layout",
-        "Delete button accessible per cell",
-        "'Add cell' buttons appear between rows, spanning both columns",
+        "BrowserWindow creation in src/main/index.ts uses screen.getPrimaryDisplay().workAreaSize for default width/height (capped at 1920x1200) OR calls win.maximize() before first show",
+        "User-resized dimensions still persist across launches via existing window-state persistence",
+        "E2E tests that set their own viewport are not affected (process.env.E2E guard if needed)",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "The US-004 grid refactor already placed the gutter (drag handle + run button/spinner) and per-cell actions (delete button) inside every .ls-cell-code-side grid item, and add-cell rows already span both columns via `.ls-cells-grid > .ls-add-cell-row { grid-column: 1 / -1 }`. Added tests/e2e/livescript-gutter.spec.ts with 4 Playwright tests that explicitly verify: (1) every code cell has a run control, draggable drag-handle and delete button scoped inside its .ls-cell-code-side container; (2) clicking a cell's delete button removes that cell from the grid; (3) add-cell rows resolve to gridColumnStart=1 and span both grid tracks; (4) the drag handle still reorders cells inside the grid layout (synthetic DragEvents with a shared DataTransfer move the last cell above the first). No production code changes needed \u2014 this story is covered by code written during US-004 and is now regression-guarded."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-006",
-      "title": "Continuous output column scrolls with code column",
-      "description": "As a user, when I scroll the live script, both the code and output columns scroll together.",
+      "id": "US-P06",
+      "title": "Remove stale Command History ghost tab",
+      "description": "As a user, I don't want a disconnected Command History tab floating over the Command Window when Command History is not visible. Inspection screenshot matslop-06.png shows this ghost tab at ~(150, 320).",
       "acceptanceCriteria": [
-        "Vertical scroll is at the grid-container level, not per-cell",
-        "Outputs wider than their code row do not push neighbors out of alignment",
-        "Very tall outputs cause the row to expand, not overflow",
+        "buildDockLayoutFromVisibility in MatslopDockLayout.tsx never emits a Command History tab entry unless visibility.commandHistory is true",
+        "Saved-layout hydration (US-026 path) drops unknown or hidden tab ids from the loaded LayoutBase before passing it to rc-dock",
+        "Playwright: launching with default visibility shows zero elements with data-testid='dock-tab-matslop-command-history'",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "Removed per-cell vertical scroll on `.ls-cell-output` (max-height: none; overflow-y: visible; overflow-x: auto) so tall outputs expand their grid row and the existing `.ls-editor` container-level scroll handles the whole live script. Added `overflow-x: hidden; overflow-y: visible` on `.ls-cell-output-side` so wide outputs are contained within their grid track (`minmax(0,1fr)`) and cannot widen the track or push neighboring code/output rows out of alignment. Added tests/e2e/livescript-scroll.spec.ts with 3 tests: (1) computed-style assertions that .ls-editor is the scroll container and per-cell output boxes have no max-height or vertical scroll, plus output-side clamps horizontal overflow; (2) inject a 1200px-tall element into the first output and assert the output-side grew to >=1200px, the editor scrollHeight grew correspondingly, no internal vertical scroll was created, and every code/output pair still shares the same top; (3) inject a 5000px-wide element into the first output and assert grid-template-columns is unchanged, grid container width is unchanged, and pair alignment still holds."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-007",
-      "title": "Extract plot data from Octave as JSON",
-      "description": "As a developer, I need to convert Octave figure state into a serialized JSON representation so a JavaScript library can re-render it interactively.",
+      "id": "US-P07",
+      "title": "Initial dock sizes use flex weights, not fixed pixels",
+      "description": "As a user, I want the three-column dock to split proportionally as the window resizes. Current sizes (220/900/280) sum to 1400 which is the legacy window width, so wider windows leave dead space.",
       "acceptanceCriteria": [
-        "Implement bundled Octave function matslop_export_fig(h) that walks figure handle and emits JSON describing axes, lines, surfaces, meshes, labels, colors, view angles, limits",
-        "Supports: plot, plot3, scatter, scatter3, surf, mesh, quiver, quiver3, bar, bar3, contour, contour3, imagesc",
-        "JSON schema documented in src/main/plotSchema.ts",
-        "Unit tests feed sample figures and verify JSON structure",
+        "In buildDockLayoutFromVisibility the column size fields are chosen so rc-dock distributes leftover space to the editor column proportionally",
+        "At 1920x1080 File Browser is ~15%, Editor+Command column ~65%, Workspace column ~20%, with no unused space",
+        "Resizing the window shrinks/grows the center column proportionally",
+        "Existing 'reset layout' preset still places panels in the Phase 1 positions",
         "Typecheck passes",
-        "Tests pass"
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "Added src/main/plotSchema.ts with PlotFigure/PlotAxes/PlotSeries TypeScript types covering plot, plot3, scatter, scatter3, surf, mesh, quiver, quiver3, bar, bar3, contour, contour3, imagesc; plus parsePlotFigure(input) that validates JSON strings or objects and downgrades unknown series to {type:'unknown'}. Added bundled Octave function resources/octave-scripts/matslop_export_fig.m that walks a figure handle via get()/findall() and emits a JSON string matching the schema (includes a minimal internal JSON encoder so it works without jsonencode). Added tests/unit/plot-schema.test.ts with 15 passing tests exercising line/line3/scatter/scatter3/surf/mesh/quiver3/bar/bar3/contour/contour3/image, multi-axes (subplot), legend, log scales, error paths, and unknown-type downgrade."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-008",
-      "title": "Integrate Plotly.js as JS 3D plotting library",
-      "description": "As a developer, I need a JS library that can render the extracted plot data as an interactive 3D canvas.",
+      "id": "US-P08",
+      "title": "Audit every .panel child for width: 100%; height: 100%",
+      "description": "As a developer, I need every panel's root element to propagate full width/height to its content (Monaco, file tree, xterm, grid) so no sub-component collapses independently.",
       "acceptanceCriteria": [
-        "Short ADR comparing Plotly.js and Three.js written to docs/adr/",
-        "Recommendation: Plotly.js (covers 2D + 3D, rotate/zoom/pan built-in)",
-        "Plotly.js dependency added, bundle size impact documented",
-        "PlotRenderer React component accepts JSON schema and renders a Plotly figure",
+        "All panel root elements and their direct .panel-content children set width: 100%; height: 100%; min-width: 0; min-height: 0",
+        "EditorPanel Monaco wrapper explicitly sizes to 100%/100% and Monaco auto-layout fills the pane",
+        "CommandWindow xterm element fills its pane and FitAddon still triggers on resize",
+        "WorkspacePanel grid fills its pane horizontally",
+        "Playwright screenshot at 1920x1080: no empty #252526-over-nothing rectangles larger than 4px inside any dock pane",
         "Typecheck passes",
-        "Tests pass"
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "ADR at docs/adr/0001-plotly-vs-threejs.md \u2014 recommends Plotly.js because it covers every roadmap trace type and ships rotate/zoom/pan/hover/modebar/downloadImage built-in. Bundle size documented: plotly.js-dist-min@3.5.0 is 4.7 MB minified. Added plotly.js-dist-min and @types/plotly.js deps. Added minimal `declare module 'plotly.js-dist-min'` to src/renderer/env.d.ts. Added src/renderer/editor/plotlyAdapter.ts with a pure `figureToPlotly(figure): {data, layout, config}` (plus rgbToCss) that maps every roadmap series type \u2014 line/line3/scatter/scatter3/surface/mesh/quiver(\u21922 scatter traces)/quiver3(\u2192cone)/bar/bar3(\u2192scatter3d verticals)/contour/contour3/image(\u2192heatmap) \u2014 and emits Plotly subplot xaxis/xaxis2/scene/scene2 for multi-axes. Added src/renderer/editor/PlotRenderer.tsx React wrapper that lazy-imports plotly.js-dist-min via dynamic import (keeps the 4.7 MB bundle out of the initial renderer chunk), mounts a div with data-testid='plot-renderer', Plotly.react on mount/update, Plotly.purge on unmount. Added tests/unit/plotly-adapter.test.ts (20 passing tests). `npm run build` succeeds (renderer bundle unchanged at ~789 KB because Plotly is lazy-loaded)."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-009",
-      "title": "Replace static PNG plots with interactive renderer in live scripts",
-      "description": "As a user, I want to rotate, zoom, and pan plots with my mouse directly in the live script output.",
+      "id": "US-P09",
+      "title": "Style pass on rc-dock tab strips to match project theme",
+      "description": "As a user, I want the dock tab strips to use the project's accent color and typography, not rc-dock defaults.",
       "acceptanceCriteria": [
-        "Live script cells use PlotRenderer instead of PNG InteractivePlot",
-        "3D plots are rotatable by mouse drag",
-        "2D and 3D plots are zoomable with scroll wheel",
-        "Panning with Shift+drag (or middle-click drag)",
-        "Home button resets view",
-        "Playwright test: open quiver3.mls, verify a Plotly canvas renders with interactive controls",
+        "Active tab underline uses --accent-color (#007acc)",
+        "Tab font size and padding match the existing status bar (12px, system UI font)",
+        "Inactive tabs use --text-secondary; active tab uses --text-bright",
+        "Hover state uses --bg-hover",
+        "Close-tab X in the dock-bar still works (only legacy per-panel inner X is removed in US-P01)",
+        "Any leftover checkbox glyph next to tab titles (visible in current screenshots) is removed",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "Wired the end-to-end interactive plot pipeline. LiveScriptEditor's runCellStatements now also emits `matslop_export_fig(gcf())` for each plot snapshot, writes the JSON to a sibling temp file via fopen/fwrite, and prints a `__MSLP_FIG_JSON_FILE__:<line>:<path>` marker. A new preload API `figuresReadTextFile` (ipcMain handler `figures:readTextFile`) reads the UTF-8 JSON back into the renderer and attaches it as `plotJson` on `LiveScriptCellFigure`. `InlinePlots` now parses `plotJson` with `parsePlotFigure` and renders via the Plotly-backed `PlotRenderer` (data-testid `plot-renderer` + wrapper `ls-inline-plot`), falling back to the PNG `InteractivePlot` on parse failure. OctaveProcessManager takes an optional `scriptsDir` arg and addpath()s it during its init script so `matslop_export_fig` is discoverable; main/index.ts passes `getMatslopScriptsDir()` (new helper in octaveConfig.ts that resolves `resources/octave-scripts` in both dev and packaged builds). package.json `extraResources` now ships `resources/octave-scripts/**/*.m`. Rotate/zoom/pan/home are Plotly-native modebar controls \u2014 no custom code needed. New tests: `tests/unit/livescript-interactive-plot.test.ts` (3 cases: quiver3 JSON \u2192 cone trace, 2D line \u2192 scatter, malformed JSON rejection drives PNG fallback) + `tests/e2e/livescript-interactive-plots.spec.ts` (opens quiver3.mls, asserts `plot-renderer` wrappers mount, the Plotly `.js-plotly-plot` is visible, and the modebar Reset/Home button is present). Files changed: src/renderer/editor/editorTypes.ts, src/renderer/editor/LiveScriptEditor.tsx, src/main/octaveProcess.ts, src/main/octaveConfig.ts, src/main/index.ts, src/preload/index.ts, src/renderer/env.d.ts, package.json, tests/unit/livescript-interactive-plot.test.ts (new), tests/e2e/livescript-interactive-plots.spec.ts (new), scripts/ralph/prd.json, scripts/ralph/progress.txt."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-010",
-      "title": "Data cursor / tooltip on plot points",
-      "description": "As a user, I want to click a point on a plot and see its (x, y, z) value, like MATLAB's data cursor mode.",
+      "id": "US-P10",
+      "title": "Visual-regression Playwright spec for polished layout",
+      "description": "As a maintainer, I want a Playwright test that renders the default layout at a known viewport and fails if anything regresses visually.",
       "acceptanceCriteria": [
-        "Hovering a data point shows a tooltip with coordinates",
-        "Clicking pins the tooltip until clicked away",
-        "Works for 2D and 3D plots",
+        "New spec tests/e2e/visual-polish.spec.ts launches at 1600x1000, waits for dock idle, takes a fullPage screenshot",
+        "Test asserts no contiguous #f3f3f3 or #ffffff region larger than 100x100 inside the dock area",
+        "Test asserts every data-testid^='dock-tab-' element has bounding box equal to its parent panel content area",
+        "Baseline screenshot committed to repo",
+        "Test runs in CI",
         "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
+        "Tests pass"
       ],
       "priority": 10,
-      "passes": true,
+      "passes": false,
       "notes": ""
-    },
-    {
-      "id": "US-011",
-      "title": "Export current plot view as PNG/SVG",
-      "description": "As a user, I want to save the interactive plot as it currently looks (including my rotation) to a file.",
-      "acceptanceCriteria": [
-        "Save button exports current Plotly canvas as PNG and SVG",
-        "Default filename derived from figure title",
-        "Dialog lets user pick format",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 11,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-012",
-      "title": "Detached plot window",
-      "description": "As a user, I want to pop a plot out into its own OS window for larger-screen interaction.",
-      "acceptanceCriteria": [
-        "Button on plot toolbar opens plot in a new BrowserWindow",
-        "Detached window is fully interactive (same controls)",
-        "Closing the detached window returns focus to main window",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 12,
-      "passes": true,
-      "notes": "Added main-process registry (detachedFigures map + plot:openDetached / plot:getDetachedFigure IPCs) that spawns a new BrowserWindow loading ?detachedFigureId=<id>. main.tsx detects the query param and mounts a new DetachedPlot component instead of <App/>. DetachedPlot fetches the figure via IPC, runs parsePlotFigure, and renders a full-viewport PlotRenderer with canDetach={false}. Added Detach button (data-testid='plot-detach-btn') on PlotRenderer that serializes the current figure via window.matslop.plotOpenDetached. Closing the detached window frees the map entry and refocuses main. Added tests/e2e/detached-plot.spec.ts (2 tests, both passing) using a minimal synthetic figure so no Octave is needed."
-    },
-    {
-      "id": "US-013",
-      "title": "Handle plot export failures gracefully",
-      "description": "As a user, if Octave can't serialize a figure (unsupported type), I want to see a clear message instead of a broken UI.",
-      "acceptanceCriteria": [
-        "If matslop_export_fig fails, fall back to PNG rendering with a warning banner",
-        "Warning explains which plot type is unsupported and links to a help doc",
-        "No crash, no empty canvas",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": "Implemented plot export failure handling via Octave __MSLP_FIG_ERR__ marker + buildPlotWarning helper + warning banner in InlinePlots; falls back to PNG on fatal errors, shows advisory for unknown series types."
-    },
-    {
-      "id": "US-014",
-      "title": "Add breakpoint gutter to Monaco editor",
-      "description": "As a user, I want to click in the margin beside a line number to set a breakpoint.",
-      "acceptanceCriteria": [
-        "Monaco glyph margin enabled on .m files",
-        "Click in margin toggles a red breakpoint dot",
-        "Breakpoint state persists in a tab-level store",
-        "IPC debug:setBreakpoint(filePath, line) called on toggle",
-        "Visual feedback: breakpoint dot appears/disappears immediately",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": "Added Monaco glyph-margin breakpoint gutter. Added pure helpers toggleBreakpoint/clearBreakpointsForTab/getBreakpointsForTab + BreakpointStore type to editorTypes.ts with 12 vitest unit tests. TabbedEditor.tsx now: (1) holds a tab-id-keyed BreakpointStore in React state; (2) enables glyphMargin on the .m Editor; (3) wires editor.onMouseDown to detect GUTTER_GLYPH_MARGIN hits and toggle via toggleBreakpointForTab; (4) syncs red-dot decorations via deltaDecorations keyed on .matslop-breakpoint-glyph CSS; (5) forwards each toggle through new preload IPCs debugSetBreakpoint/debugClearBreakpoint, backed by main-side handlers that record breakpoints in a per-file Set. Exposes test hooks window.__matslopBreakpoints and window.__matslopToggleBreakpoint, plus data-tab-id on tab DOM. Added tests/e2e/breakpoints.spec.ts with 5 passing Playwright tests covering: glyph margin presence, toggle-on via test hook, IPC round-trip, decoration rendered, toggle-off clears decoration."
-    },
-    {
-      "id": "US-015",
-      "title": "Translate breakpoint actions to Octave dbstop commands",
-      "description": "As a developer, I need the main process to translate UI breakpoint state into Octave dbstop commands.",
-      "acceptanceCriteria": [
-        "debug:setBreakpoint(file, line) sends dbstop in \"file.m\" at LINE",
-        "debug:clearBreakpoint(file, line) sends dbclear in \"file.m\" at LINE",
-        "Breakpoints survive file save and Octave restart (reapplied on reconnect)",
-        "Unit test with mocked process manager verifies correct command strings",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": "Added pure src/main/debugBridge.ts with formatDbstopCommand/formatDbclearCommand, setBreakpoint/clearBreakpoint, and reapplyAllBreakpoints helpers. src/main/index.ts wires these into debug:setBreakpoint/debug:clearBreakpoint IPCs so the running Octave process receives dbstop/dbclear commands in addition to the existing in-memory registry update. A new attachBreakpointReapplier() hook listens for the first status==ready event on each OctaveProcessManager (in both octave:start and octave:restart) and replays every remembered breakpoint, so breakpoints survive file save and Octave restart. Unsaved-tab bucket is skipped on reapply since Octave cant address it by name. Added tests/unit/debug-bridge.test.ts with 20 tests covering command string format (incl. quote escaping and fractional line flooring), unsaved-tab bucket behavior, executor-null mode, idempotent clear, and deterministic replay order with key/line sorting."
-    },
-    {
-      "id": "US-016",
-      "title": "Detect and surface execution-paused events",
-      "description": "As a user, when my script hits a breakpoint, I want the UI to show I'm in debug mode and highlight the paused line.",
-      "acceptanceCriteria": [
-        "OctaveProcessManager parses stderr/stdout for Octave's 'stopped in ... at line N' markers",
-        "Emits a 'paused' event with file path + line number",
-        "Editor scrolls to the paused line and highlights it with a green arrow",
-        "Status bar changes to indicate 'Debug: paused'",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 16,
-      "passes": true,
-      "notes": "Added pure parsePausedMarker(text) in debugBridge.ts (matches \"stopped in <file> at line N\" + \"stopped at <func>, line N\" variants). OctaveProcessManager now scans every stdout/stderr chunk via maybeEmitPaused() and emits a \"paused\" event; main/index.ts forwards it to the renderer as \"octave:paused\" (on both initial start and restart handlers). Preload exposes onOctavePaused(cb); env.d.ts declares it. App.tsx holds pausedLocation state, passes debugPaused prop to StatusBar (new badge with data-testid=\"status-debug-paused\") and pausedLocation down to EditorPanel \u2192 TabbedEditor. EditorPanel auto-activates the matching tab by basename on pause. TabbedEditor renders a new green-arrow glyph decoration (.matslop-paused-glyph) plus whole-line highlight (.matslop-paused-line) and scrolls the paused line into view. Added styles.css entries. Test hooks __matslopSimulatePaused/__matslopClearPaused let Playwright drive pauses without a real Octave. Unit tests in tests/unit/debug-paused.test.ts (11 cases) + e2e tests/e2e/debug-paused.spec.ts (2 cases) all pass."
-    },
-    {
-      "id": "US-017",
-      "title": "Debug toolbar (continue, step over, step in, step out, stop)",
-      "description": "As a user, when execution is paused, I want buttons to continue, step, step into, step out, or stop the debugger.",
-      "acceptanceCriteria": [
-        "Toolbar appears when paused, hidden otherwise",
-        "Buttons map to Octave commands: dbcont, dbstep, dbstep in, dbstep out, dbquit",
-        "Each button sends the corresponding command",
-        "Keyboard shortcuts: F5 continue, F10 step over, F11 step in, Shift+F11 step out, Shift+F5 stop",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 17,
-      "passes": true,
-      "notes": "Added DebugToolbar component (src/renderer/editor/DebugToolbar.tsx) with 5 buttons (Continue, Step, Step In, Step Out, Stop) that only renders when pausedLocation is non-null. Pure helper debugCommands.ts maps DebugAction -> Octave command (dbcont, dbstep, dbstep in, dbstep out, dbquit) plus matchDebugShortcut() for keyboard bindings. App.tsx dispatches via handleDebugAction which calls octaveExecute and clears pausedLocation (next onOctavePaused event re-shows the toolbar). Global keydown listener (capture phase) wires F5/F10/F11/Shift+F11/Shift+F5 to debug actions while paused. Exposes window.__matslopLastDebugCommand for e2e assertions. Tests: tests/unit/debug-commands.test.ts (12 cases) + tests/e2e/debug-toolbar.spec.ts (4 tests: hidden state, visible+5 buttons, each button dispatches correct command via dispatchEvent, keyboard shortcuts)."
-    },
-    {
-      "id": "US-018",
-      "title": "Call stack panel",
-      "description": "As a user, I want to see the call stack when paused so I can understand how my code got to the current line.",
-      "acceptanceCriteria": [
-        "New dockable panel 'Call Stack' that shows frames from dbstack",
-        "Each frame shows: function name, file, line",
-        "Clicking a frame navigates the editor to that file/line",
-        "Panel auto-updates on each step/continue/pause",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 18,
-      "passes": true,
-      "notes": "Added src/main/callStack.ts with pure formatCallStackQuery() (emits a dbstack() loop wrapped in __MATSLOP_STACK_BEGIN__/_END__ markers and '||'-separated rows) + parseCallStack() that scans Octave output line-by-line into {name,file,line} frames. Exposed via new IPC 'debug:getCallStack' in src/main/index.ts, bridged through preload as debugGetCallStack(). New CallStackPanel.tsx renders one clickable row per frame with PanelHeader, active-row highlight, and an empty state; mounted conditionally inside a new Allotment.Pane in the right-column vertical split so the data-testid only exists while paused. App.tsx tracks callStack + callStackSelected state, refreshes on every pausedLocation change (guarded so a real empty IPC result doesn't clobber test-seeded stacks), clears on crash/unpause, and exposes __matslopSimulateCallStack/__matslopClearCallStack test hooks. Clicking a frame updates pausedLocation, which reuses the existing US-016 pipeline to activate the matching tab and reveal/highlight the line. Unit tests in tests/unit/call-stack.test.ts (10 tests, parser + query formatter); E2E in tests/e2e/call-stack.spec.ts (4 tests: hidden when idle, appears+renders rows when paused with seeded stack, click-to-navigate, hides on clear)."
-    },
-    {
-      "id": "US-019",
-      "title": "Variables at current scope shown in Workspace panel",
-      "description": "As a user, when paused, I want the Workspace panel to show variables of the current stack frame.",
-      "acceptanceCriteria": [
-        "While paused, Workspace panel queries whos in current frame context",
-        "Variable values reflect the paused-scope values",
-        "Resumes showing top scope once debugging ends",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 19,
-      "passes": true,
-      "notes": "Added useEffect in App.tsx that bumps workspaceRefreshTrigger whenever pausedLocation transitions (null<->paused). While paused, Octave's 'whos' naturally reports variables of the current (paused) stack frame, so re-querying on pause/unpause satisfies the 'current frame context' requirement and 'snap back to top scope once debugging ends'. Added a 'Debug scope' banner in WorkspacePanel (data-testid='workspace-debug-scope') with an optional frame name from callStack[callStackSelected]. Wrapper div exposes data-debug-scope='true'/'false' and a ws-debug-scope class. Exposed window.__matslopWorkspaceRefreshCount as a read-only test hook so Playwright can verify the trigger increments without needing a real Octave. Added tests/e2e/workspace-debug-scope.spec.ts with 2 tests: (1) simulateP aused bumps the counter, flips data-debug-scope to 'true', shows the banner, then clearPaused bumps counter again and hides banner; (2) seeding a synthetic call stack then pausing surfaces the top frame's name inside the banner."
-    },
-    {
-      "id": "US-020",
-      "title": "Pause running execution (Ctrl+C equivalent for debugger)",
-      "description": "As a user, I want to interrupt a running script and drop into the debugger at the current line.",
-      "acceptanceCriteria": [
-        "'Pause' button in toolbar while script is running",
-        "Sends SIGINT + dbstop at the line Octave was executing",
-        "UI transitions to debug mode showing the current line",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 20,
-      "passes": true,
-      "notes": "Added debug_on_interrupt(true) to OctaveProcessManager init script and a new pauseForDebug() method that kills the process with SIGINT while busy. Wired via new IPC 'octave:pauseForDebug' + preload bridge octavePauseForDebug + env.d.ts. Added a Pause button in EditorToolbar (lucide Pause icon, data-testid='toolbar-pause') that is only enabled while engine is busy AND debugger not already paused \u2014 App.tsx forwards the click to the new bridge. Added a test-only __matslopSimulateEngineStatus hook. Created tests/e2e/pause-for-debug.spec.ts (4 tests). All related e2e suites (pause-for-debug, debug-toolbar, debug-paused) pass."
-    },
-    {
-      "id": "US-021",
-      "title": "Conditional breakpoints",
-      "description": "As a user, I want breakpoints that only trigger when a condition is true.",
-      "acceptanceCriteria": [
-        "Right-click on breakpoint opens 'Edit condition'",
-        "Dialog accepts an expression, e.g. i > 10",
-        "Translates to dbstop in \"file.m\" at LINE if \"i > 10\"",
-        "Conditional breakpoints render with a different color/shape",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 21,
-      "passes": true,
-      "notes": "Added BreakpointConditionStore (renderer) + breakpointConditions Map (main) parallel to the existing breakpoint store. New pure helpers: setBreakpointCondition/getBreakpointCondition/clearBreakpointConditionsForTab in editorTypes.ts, and formatDbstopConditionalCommand/setBreakpointWithCondition in debugBridge.ts. reapplyAllBreakpoints now accepts an optional conditions map and emits `dbstop in \"file.m\" at LINE if '<expr>'` for conditional lines so they survive Octave restarts. New IPC `debug:setBreakpointCondition` (preload+main) sends dbclear + conditional dbstop and records the condition. TabbedEditor.tsx now tracks conditions in state, clears them on toggle-off/tab-close, exposes `window.__matslopSetBreakpointCondition` + `__matslopBreakpointConditions` test hooks, and adds a right-click handler on the glyph margin that opens `window.prompt` via a new promptForCondition callback. Decorations pick up a new `matslop-breakpoint-glyph-conditional` class (orange diamond via clip-path) when a condition is attached. Tests: tests/unit/breakpoint-conditions.test.ts (12 new cases), tests/unit/debug-bridge.test.ts (9 new cases for formatDbstopConditionalCommand, setBreakpointWithCondition, reapply with conditions), and tests/e2e/conditional-breakpoints.spec.ts (4 Playwright tests covering IPC success, store propagation, conditional glyph class visible, and reverting to plain bp when the condition is cleared). Build + tsc (modulo baseline PATH error) + 60 breakpoint-related unit tests all green."
-    },
-    {
-      "id": "US-022",
-      "title": "Watch expressions panel",
-      "description": "As a user, I want a panel where I can pin arbitrary expressions and see their values update as I step.",
-      "acceptanceCriteria": [
-        "New dockable panel 'Watches'",
-        "User can add expressions; each row shows expression = value",
-        "Values update on every pause/step via disp(expression) queries",
-        "Remove/edit watches via row controls",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 22,
-      "passes": true,
-      "notes": "Added a new Watches dockable panel to the right column, mounted whenever the user has pinned at least one expression OR the debugger is paused (so users can add watches mid-pause). Pure helpers in src/renderer/editor/watchesStore.ts: addWatch/removeWatch/updateWatchExpression/setWatchValue/setWatchError/clearWatchValues, plus formatWatchValue (collapses disp() multi-line output into one line, truncates with ellipsis), buildWatchCommand (wraps `disp(expr)` in a try/catch that emits `__MSLP_WATCH_ERR__:<msg>` on error), parseWatchOutput (decodes the marker back into {ok:true,value}|{ok:false,error}). WatchesPanel.tsx renders one row per WatchEntry with click-to-edit expression input, hover-reveal remove (\u2715) button, value/error display (pending em-dash, `(empty)` for no-output, red error text). New expressions are added via the bottom input row + Enter key; the refresh button re-evaluates all. App.tsx hosts the watches state, wires evaluateWatch() through window.matslop.octaveExecute(buildWatchCommand(expr)), refreshes all watches whenever `pausedKey` changes (entering/leaving/stepping through a pause), kicks a single-watch eval when a new watch is added, and clears values on engine disconnect. Test-only hooks exposed on window: __matslopAddWatch, __matslopRemoveWatch, __matslopUpdateWatch, __matslopClearWatches, __matslopSimulateWatchValue, __matslopSimulateWatchError, and a __matslopWatches mirror. PanelHeader.tsx extended with an optional `actions` slot so the panel can host a refresh button between the title and the collapse cross. Added tests/unit/watches-store.test.ts (18 tests: helper mutations, immutability, buildWatchCommand/parseWatchOutput roundtrip, formatWatchValue edge cases) and tests/e2e/watches.spec.ts (7 tests: hidden at startup, add mounts the panel, simulated value populates row, simulated error styles row red, update+remove mutations, pause-alone mounts the panel with empty state, add-button disabled when input empty). All 18 unit + 7 e2e tests pass. `npm run build` succeeds."
-    },
-    {
-      "id": "US-023",
-      "title": "Edit-and-continue (best effort)",
-      "description": "As a user, I want to edit my code while paused and continue execution with the change.",
-      "acceptanceCriteria": [
-        "On file save while paused: re-apply breakpoints, continue from current line if possible",
-        "Document limitations clearly: approximation by re-running from current function entry",
-        "Warning banner: 'Changes will take effect when this function is re-entered'",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 23,
-      "passes": true,
-      "notes": "Added pure reapplyBreakpointsForFile() helper in src/main/debugBridge.ts that emits dbclear+dbstop pairs (conditions preserved) for a single file. New IPC debug:reapplyBreakpointsForFile (main/preload/env.d.ts). EditorPanel.handleSave fires an onFileSavedWhilePaused callback when a .m tab is saved while pausedLocation is set (via refs so the save useCallback deps stay stable). App.tsx owns a dismissible warning banner (data-testid=edit-continue-banner) that shows on save-while-paused, auto-clears on debugger resume, and fires the reapply IPC. Added test-only window.__matslopSimulateFileSavedWhilePaused hook mirroring __matslopEditContinueBanner state. 5 new unit tests in tests/unit/debug-bridge.test.ts + 4 new Playwright tests in tests/e2e/edit-and-continue.spec.ts."
-    },
-    {
-      "id": "US-024",
-      "title": "Evaluate and integrate rc-dock",
-      "description": "As a developer, I need to choose a React dock layout library and set it up in the codebase.",
-      "acceptanceCriteria": [
-        "Short ADR comparing rc-dock, flexlayout-react, dockview written to docs/adr/",
-        "Recommendation: rc-dock (MIT, active maintenance, MATLAB-like feel)",
-        "rc-dock dependency added",
-        "Create a minimal DockLayout wrapping existing panels as dock panes",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 24,
-      "passes": true,
-      "notes": "Added docs/adr/0002-dock-layout-library.md comparing rc-dock vs flexlayout-react vs dockview (decision: rc-dock, MIT, native detach-to-OS-window via Electron new-window interception, JSON save/loadLayout, loadTab(id) factory keeps panel wiring co-located). Installed rc-dock@^4.0.0-alpha.2. Created src/renderer/panels/MatslopDockLayout.tsx: pure buildDefaultDockLayout() helper returns the MATLAB-default LayoutData tree (FileBrowser | Editor+CommandWindow | Workspace, 3 top-level panes) plus a MatslopDockLayout component that accepts ReactNode slots for each panel and mounts them through a loadTab(id) factory sharing group='main'. Not yet wired into App.tsx \u2014 US-025 migrates the live tree. Added tests/unit/dock-layout.test.ts (6 cases) asserting dockbox shape, tab ordering, uniqueness of ids, non-negative sizes, and fresh-object per call."
-    },
-    {
-      "id": "US-025",
-      "title": "Migrate all panels to dock panes",
-      "description": "As a user, I want every panel to be a dock pane I can rearrange.",
-      "acceptanceCriteria": [
-        "Each panel (Editor, Command Window, File Browser, Workspace, Figure, Call Stack, Watches, History) is a dock pane with a tab header",
-        "Default layout matches Phase 1 design",
-        "Allotment dependency removed",
-        "All existing E2E tests still pass (test IDs preserved)",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 25,
-      "passes": true,
-      "notes": "Migrated the live renderer tree from Allotment to rc-dock via MatslopDockLayout. Removed the allotment dependency. MatslopDockLayout accepts a DockVisibility flag set plus a ReactNode slot for each of the 8 panels (FileBrowser, Editor, CommandWindow, CommandHistory, Workspace, CallStack, Watches, Figure) and builds the LayoutData tree from visibility in buildDockLayoutFromVisibility \u2014 omitting any panel whose flag is false, so hidden panels vanish from DOM (matching the test expectations around toHaveCount(0) and toBeHidden()). Uses rc-dock controlled mode (layout/onLayoutChange). loadTab wraps each panel with a data-testid=\"dock-tab-<id>\" container. A useLayoutEffect walks the DOM from the editor tab to the nearest .dock-vbox and sets data-testid=\"editor-column\" on it so existing layout bounding-box tests keep passing. App.tsx now derives dockVisibility via useMemo from the existing visibility + pausedLocation + watches.length + figures.length state and passes conditional slot children (null when hidden). Removed handleOuterHorizontalChange / handleVerticalChange / handleBottomHorizontalChange. Updated tests/unit/dock-layout.test.ts to cover buildDockLayoutFromVisibility omission rules (11 cases). Bumped the height-delta tolerance in default-layout.spec.ts from 20 to 60 px to account for rc-dock tab-header offsets. Verified: npm run typecheck (baseline noise only), 11/11 dock-layout unit tests pass, layout.spec.ts 4/4 + default-layout.spec.ts 2/2 pass, and the 12 remaining e2e failures exist identically on baseline (Octave-setup-overlay dev-env issue, not regressions)."
-    },
-    {
-      "id": "US-026",
-      "title": "Drag tabs between docks",
-      "description": "As a user, I want to drag a panel's tab to another dock location.",
-      "acceptanceCriteria": [
-        "Dragging a tab shows drop indicators",
-        "Dropping merges the panel into the target dock",
-        "Layout persists via existing layout IPC",
-        "Playwright test: drag Workspace tab next to Command Window, assert new position",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 26,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-027",
-      "title": "Detach panel to separate OS window",
-      "description": "As a user, I want to pop a panel out into its own Electron window.",
-      "acceptanceCriteria": [
-        "'Detach' option in tab context menu",
-        "New BrowserWindow opens containing just that panel",
-        "Panel remains functional (shares Octave state via IPC)",
-        "Closing the detached window redocks to the previous location",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 27,
-      "passes": true,
-      "notes": "Added panel:openDetached / panel:closeDetached / panel:redocked IPCs in src/main/index.ts. Preload exposes panelOpenDetached, panelCloseDetached, onPanelRedocked, _testDetachedPanelList. MatslopDockLayout accepts detachedPanels + onDetachTab props; buildDockLayoutFromVisibility(vis, detached?) omits tabs in the detached set (unit-tested, 5 new cases). Tab title now renders a span that opens a custom context menu with a \"Detach to window\" option. App.tsx tracks detachedPanels: Set<string>, handleDetachTab spawns the BrowserWindow and omits the tab, onPanelRedocked event restores it. DetachedPanel.tsx is a lightweight component rendered in the aux window (routed via main.tsx on ?detachedPanelId=...) that shows the panel title, shared Octave status via window.matslop.octaveGetStatus, and a panel-specific live view (workspace runs whos, file browser lists pwd, etc) \u2014 proves state is shared via IPC. Closing the window sends panel:redocked \u2192 renderer removes from detachedPanels set \u2192 dock layout re-includes the tab. Test hooks: __matslopDetachPanelTab(id), __matslopOpenTabContextMenu(id), __matslopDetachedPanels. Added tests/e2e/detached-panel.spec.ts with 2 Playwright tests (workspace detach\u2192redock cycle + context-menu click path), both passing."
-    },
-    {
-      "id": "US-028",
-      "title": "Layout presets",
-      "description": "As a user, I want to save the current layout as a preset and switch between presets.",
-      "acceptanceCriteria": [
-        "View \u2192 Layouts menu with: Default, Debugger, Two-Column, Code-Only",
-        "'Save Current as Preset...' prompts for a name",
-        "Custom presets persist and appear in the menu",
-        "'Reset Layout' returns to Default preset",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 28,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-029",
-      "title": "Code sections (%%) in .m files with run-section button",
-      "description": "As a user, I want to split a regular .m script into sections with %% and run just the current section.",
-      "acceptanceCriteria": [
-        "Monaco highlights %% section breaks with a divider",
-        "'Run Section' button and Ctrl+Enter shortcut runs only the section at cursor",
-        "'Run and Advance' moves cursor to next section",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 29,
-      "passes": true,
-      "notes": "Added pure helpers in editorTypes.ts: findSectionHeaderLines, findSectionRange, findNextSectionAdvanceLine. TabbedEditor syncs Monaco whole-line decorations (.matslop-section-line) for every %% line and exposes window.__matslopSectionLines for tests. EditorPanel.handleRunSection now delegates to findSectionRange; added handleRunAndAdvance which runs the section then advances the cursor to the next section (setPosition + revealLineInCenterIfOutsideViewport). Added ShortcutAction=runAndAdvance (Ctrl+Shift+Enter), menu item Run \u2192 Run and Advance, EditorToolbar button (data-testid=toolbar-run-and-advance). Unit tests in tests/unit/code-sections.test.ts (19 cases). Playwright tests in tests/e2e/code-sections.spec.ts (6 cases)."
-    },
-    {
-      "id": "US-030",
-      "title": "Publish to HTML",
-      "description": "As a user, I want to export a .m or .mls file with its outputs rendered to a shareable HTML document.",
-      "acceptanceCriteria": [
-        "File \u2192 Publish \u2192 HTML... generates a static HTML file with code, text output, and embedded images",
-        "Live scripts preserve cell layout",
-        "Syntax highlighting in output",
-        "No JS required in output (for portability)",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 30,
-      "passes": true,
-      "notes": "Added File \u2192 Publish \u2192 HTML... menu item that writes a self-contained HTML document for the active tab. Core work is a pure helper in src/renderer/editor/publishHtml.ts (highlightMatlab, renderMarkdown, renderFigureHtml, renderCellHtml, renderCellOutputs, renderLiveScriptBody, renderScriptBody, publishHtml) with 22 vitest cases in tests/unit/publish-html.test.ts. Live scripts preserve cell layout via a 2-column CSS grid with embedded base64 figures (imageDataUrl persisted in the .mls JSON). Scripts emit a highlighted code listing plus optional captured output. Inline-CSS, no <script> tags \u2014 portability requirement met. New IPCs: publish:saveDialog / publish:writeFile in src/main/index.ts; preload bridge publishSaveDialog/publishWriteFile; MenuAction 'publishHtml' handled in EditorPanel.tsx."
-    },
-    {
-      "id": "US-031",
-      "title": "Help browser (doc command)",
-      "description": "As a user, I want to type doc sin in the command window and see rendered documentation.",
-      "acceptanceCriteria": [
-        "doc <name> opens a Help panel (new dock pane)",
-        "Panel shows Octave's help text for the function, rendered with basic formatting",
-        "Clickable cross-references (See also: cos, tan) navigate the help panel",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 31,
-      "passes": true,
-      "notes": "Added pure helpDoc.ts helper (parseDocCommand, parseHelpCommand, buildHelpFetchCommand, extractHelpBody, extractSeeAlso, splitHelpBody + HelpState reducers). New HelpPanel.tsx component renders topic, body, and clickable See-also cross-refs (data-testid=help-panel/help-topic/help-content/help-xref/help-back-btn). MatslopDockLayout gained a helpBrowser tab id and a contentVersion prop that busts rc-docks PureComponent cache on help state changes. App.tsx owns helpState (EMPTY_HELP_STATE + reducers), wires handleDocCommand into CommandWindow (which intercepts doc <name> / help <name> inputs before forwarding to Octave), and exposes __matslopOpenHelp / __matslopSimulateHelpContent / __matslopSimulateHelpError / __matslopCloseHelp / __matslopHelpState test hooks. 23 unit tests in tests/unit/help-doc.test.ts and 8 e2e tests in tests/e2e/help-browser.spec.ts."
-    },
-    {
-      "id": "US-032",
-      "title": "Find in Files",
-      "description": "As a user, I want to search for a string across all files in the current directory.",
-      "acceptanceCriteria": [
-        "Ctrl+Shift+F opens Find-in-Files panel",
-        "Input for search string, optional glob pattern for file filter",
-        "Results list shows file + line + context",
-        "Clicking a result opens the file at that line",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 32,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-033",
-      "title": "Profiler integration",
-      "description": "As a user, I want to profile my script's execution to find bottlenecks.",
-      "acceptanceCriteria": [
-        "Profiler panel with Start/Stop/Report buttons",
-        "'Start' sends profile on; 'Stop' sends profile off",
-        "'Report' parses profile('info') output and shows function \u00d7 time table",
-        "Clicking a function navigates to its definition",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 33,
-      "passes": true,
-      "notes": "Added src/renderer/editor/profilerStore.ts (pure helpers: buildProfileStart/Stop/Report/ClearCommand, parseProfileReport with __MSLP_PROF__/__MSLP_PROF_ERR__ markers, sortProfileEntries, buildWhichCommand/parseWhichOutput, formatProfileTime). Built ProfilerPanel.tsx with Start/Stop/Report buttons, mode badge, sortable table (Function/Total Time/Calls), empty/error/loading branches. Wired into MatslopDockLayout (new profiler tab id, visibility flag, dock-bottom placement) and App.tsx (profilerOpen/Mode/Entries/Error/Loading state, handleProfilerStart/Stop/Report/Navigate handlers that call octaveExecute, menu action toggleProfiler via View \u2192 Profiler). Clicking a function name runs which(name) and opens the resolved path via pendingOpenPath. Added contentVersion bust so rc-dock re-renders profiler state. Unit tests: tests/unit/profiler-store.test.ts (27 tests). E2E: tests/e2e/profiler.spec.ts (7 tests: hidden at startup, open-via-hook, populated table, column sort, error branch, Start/Stop button enablement, close). Also added profiler:false to dock-layout.test.ts existing fixtures."
-    },
-    {
-      "id": "US-034",
-      "title": "Session save/restore",
-      "description": "As a user, I want the app to reopen my last session on launch.",
-      "acceptanceCriteria": [
-        "On quit, serialize open tabs + active tab + cursor + layout to session.json",
-        "On launch, restore if session file exists",
-        "Preference to disable session restore",
-        "Unsaved changes are saved to a recovery file, not lost",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 34,
-      "passes": true,
-      "notes": "Added src/main/sessionStore.ts (pure normalizeSession + fs-based read/write of session.json and recovery.json in userData). Added session IPCs (session:get/set/clear/getRestoreEnabled/setRestoreEnabled) and preload bridges. Added pure renderer helpers in src/renderer/editor/sessionState.ts (tabsToSession / sessionToTabs / sessionHasDirtyTabs). EditorPanel now (1) restores tabs + active tab + cursor from sessionGet on mount (guarded by sessionRestore pref), (2) debounces sessionSet on every tabs/activeTabId change, (3) flushes on unmount/beforeunload, (4) mirrors the active-tab cursor into a per-tab ref via onCursorPositionChange. Dirty buffers are written to recovery.json alongside session.json; a subsequent clean save deletes it. sessionRestore pref added to AppPreferences defaults + Preferences dialog (checkbox). Tests: tests/unit/session-state.test.ts (12 cases covering round-trip, welcome-drop, dirty detection, normalizeSession validation), tests/e2e/session-restore.spec.ts (relaunch restores hello.m fixture tab; relaunch with restore disabled does NOT; dirty content lands in recovery.json and is cleared on clean save)."
-    },
-    {
-      "id": "US-035",
-      "title": "Keyboard shortcut editor",
-      "description": "As a user, I want to customize keyboard shortcuts via a settings UI.",
-      "acceptanceCriteria": [
-        "Preferences \u2192 Keyboard tab shows all commands with current bindings",
-        "Click a binding \u2192 'Press a key combination...' capture",
-        "Conflicts flagged",
-        "Customizations persist",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 35,
-      "passes": true,
-      "notes": "Added pure helpers in src/renderer/shortcuts/customShortcuts.ts (normalizeBinding, applyShortcutOverrides, findShortcutConflicts, pruneRedundantOverrides, parseStoredOverrides, bindingFromKeyboardEvent). Extended ShortcutManager with setActiveDefinitions/getActiveDefinitions so runtime overrides apply without reload. Added Keyboard tab to PreferencesDialog with per-action binding button, capture mode (window keydown listener), conflict badges, per-row reset, and Reset All. Wired config:getShortcuts/config:setShortcuts IPCs backed by electron-store (StoredShortcutBinding in appConfig). EditorPanel loads persisted overrides at startup. Unit tests: tests/unit/custom-shortcuts.test.ts (21 cases). E2E: tests/e2e/keyboard-shortcuts.spec.ts verifies list, rebind, persistence, and Ctrl+F conflict between save and find."
-    },
-    {
-      "id": "US-036",
-      "title": "Variable editor polish",
-      "description": "As a user, I want to edit arrays and matrices in a spreadsheet-like grid.",
-      "acceptanceCriteria": [
-        "Double-click a variable in Workspace opens an inline grid editor",
-        "Edits update Octave via assign",
-        "Supports 2D matrices; 3D+ shows slice selector",
-        "Undo stack per variable",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 36,
-      "passes": true,
-      "notes": "Extracted pure helpers to src/renderer/dialogs/variableEditorCore.ts: parseDimensionString (handles 2D/3D/4D+ sizes), extraDimensionCount, buildSliceDispCommand, buildCellAssignCommand, normalizeNumericInput (strict numeric regex \u2014 rejects injection), parseMatrixOutput, and VariableUndoState helpers (createEmptyUndoState/pushEdit/undoStep/redoStep/canUndo/canRedo). Refactored VariableInspectorDialog.tsx to: (1) use parseDimensionString so 3D+ sizes like 3x4x2 parse correctly; (2) render a SliceSelector component with one number input per trailing dim (data-testid=vi-slice-input-N) when extraDims>0; (3) re-fetch slice via buildSliceDispCommand(name,[i,j...]) \u2192 disp(A(:,:,i,j)); (4) validate cell input via normalizeNumericInput before assign so bad values do not reach Octave; (5) maintain per-open-variable undo stack in React state with Undo/Redo buttons in the header (data-testid=vi-undo/vi-redo), keyboard shortcuts Ctrl/Cmd+Z and Ctrl/Cmd+Y or Shift+Ctrl/Cmd+Z. Undo replays the previous value via buildCellAssignCommand with the original sliceIndices. Added 32 vitest unit tests in tests/unit/variable-editor-core.test.ts covering all helpers including 4D dim parsing, injection rejection, and stack trim-on-fresh-edit. Exposed window.__matslopVariableEditor test hook mirroring undo state. Added CSS for .vi-slice-selector, .vi-header-actions, .vi-btn-undo/redo, .vi-btn:disabled, .vi-cell-error. npm run build passes; pre-existing baseline typecheck noise (octaveProcess env.PATH) and integration test failures (missing bundled Octave) unchanged."
-    },
-    {
-      "id": "US-037",
-      "title": "Git integration (status + diff + commit)",
-      "description": "As a user, I want to see git status in the file browser and commit from within the IDE.",
-      "acceptanceCriteria": [
-        "File browser shows git status badges (M/A/?) on files",
-        "New Source Control panel with staged/unstaged lists",
-        "Click a file \u2192 diff viewer",
-        "Commit button with message field",
-        "Uses system git binary via child_process",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 37,
-      "passes": true,
-      "notes": "Added pure git helpers in src/renderer/git/gitCore.ts (parseGitStatusPorcelain, parseUnifiedDiff, statusBadge, validateCommitMessage). Main-process gitBridge.ts spawns the system git binary via execFile for status/diff/stage/commit. Four new IPCs (git:status, git:diff, git:stageFile, git:commit) wired through preload. New SourceControlPanel.tsx shows staged/unstaged/untracked lists, a diff viewer on click, and a commit message form. Added as a new dock tab below FileBrowser in the left column via DOCK_TAB_IDS.sourceControl + buildDockLayoutFromVisibility. View menu item toggleSourceControl. FileBrowser now paints a single-letter badge (M/A/D/R/U/?) when gitBadges is provided. App.tsx refreshes the badge map whenever cwd changes. 17 git-core unit tests + 7 Playwright E2E tests exercising real git repo round-trip."
-    },
-    {
-      "id": "US-038",
-      "title": "Extend download-octave.js for macOS",
-      "description": "As a developer, I need the pre-build script to download Octave for macOS so we can bundle it.",
-      "acceptanceCriteria": [
-        "Script downloads Octave.app for macOS",
-        "Extracts to resources/octave/ with mac-specific layout",
-        "getBundledOctavePath in octaveConfig.ts handles mac paths",
-        "build:mac script includes the Octave bundle",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 38,
-      "passes": true,
-      "notes": "Added darwin entry to DOWNLOADS map in scripts/download-octave.js targeting octave-app v9.4.0 .dmg (Octave-9.4.0.dmg from github.com/octave-app/octave-app). Extractor uses hdiutil attach/detach + cp -R to copy Octave.app into resources/octave/Octave.app. Extended getBundledOctavePath() in src/main/octaveConfig.ts with a darwin branch that checks Octave.app/Contents/Resources/usr/bin/octave-cli (and octave). package.json build:mac now runs download:octave before electron-vite build && electron-builder --mac (matches build:win pattern). Added tests/unit/download-octave-mac.test.ts with 5 assertions covering the darwin DOWNLOADS entry, hdiutil extraction, build:mac script ordering, and octaveConfig darwin branch."
-    },
-    {
-      "id": "US-039",
-      "title": "Extend download-octave.js for Linux",
-      "description": "As a developer, I need the pre-build script to download or build Octave for Linux for bundling.",
-      "acceptanceCriteria": [
-        "Script downloads a Linux Octave distribution (AppImage or tarball)",
-        "Extracts to resources/octave/ with linux layout",
-        "getBundledOctavePath handles linux paths",
-        "build:linux script includes the Octave bundle",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 39,
-      "passes": true,
-      "notes": "Added linux entry to DOWNLOADS in scripts/download-octave.js using the octave-appimage AppImage. Extraction shells out to --appimage-extract (after chmod 0o755) to produce squashfs-root/usr/bin/octave-cli under resources/octave/. Updated src/main/octaveConfig.ts getBundledOctavePath to prefer squashfs-root/usr/bin/octave-cli for linux with fallback to legacy bin/ layouts. Updated package.json build:linux to run download:octave before electron-builder (mirrors build:mac/win). Added tests/unit/download-octave-linux.test.ts with 5 assertions (DOWNLOADS.linux entry, AppImage URL + binary path, --appimage-extract + chmod, build:linux runs download:octave before electron-builder, octaveConfig handles squashfs-root/usr/bin layout)."
-    },
-    {
-      "id": "US-040",
-      "title": "Windows code signing",
-      "description": "As a user, I want the Windows installer to be signed so Windows SmartScreen doesn't warn me.",
-      "acceptanceCriteria": [
-        "Electron-builder configured to sign with a provided cert (env-var credentials)",
-        "Build docs explain how to supply signing cert",
-        "CI signs automatically if cert env vars are set",
-        "Unsigned fallback still works for local dev",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 40,
-      "passes": true,
-      "notes": "Added signingHashAlgorithms=['sha256'] + RFC-3161 DigiCert timestamp server to build.win in package.json. Electron-builder auto-detects CSC_LINK/CSC_KEY_PASSWORD env vars for cert + passphrase (supports local file path and base64 blob for CI). Created docs/build-signing.md explaining local dev usage, GitHub Actions secrets flow, unsigned fallback, and signature verification. Added tests/unit/build-signing.test.ts (7 tests) locking the config + docs in place."
-    },
-    {
-      "id": "US-041",
-      "title": "Auto-update channel",
-      "description": "As a user, I want the app to offer updates when a new version is available.",
-      "acceptanceCriteria": [
-        "electron-updater integrated",
-        "Update check on launch, configurable interval",
-        "Notification banner offers 'Install now' / 'Later'",
-        "Update server points to GitHub Releases",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 41,
-      "passes": true,
-      "notes": "Integrated electron-updater as runtime dep with lazy dynamic import so tests/dev without it still run. Pure helpers (normalizeUpdateCheckIntervalHours, shouldCheckForUpdateNow, compareVersions, buildUpdateAvailableStatus, buildDownloadProgressStatus, buildUpdateDownloadedStatus) live in src/main/updateBridge.ts alongside a createUpdateBridge() wrapper that wires electron-updater events to a sendStatus callback and persists lastCheckMs through injected deps. main/index.ts registers IPC handlers (update:checkNow, update:checkIfDue, update:install, update:getState, update:getIntervalHours, update:setIntervalHours, update:getEnabled, update:setEnabled), exposes them via preload, and schedules a checkIfDue() 3s after app.whenReady() when packaged + enabled + not in MATSLOP_USER_DATA_DIR/MATSLOP_SKIP_AUTO_UPDATE. appConfig.ts gained updateCheckIntervalHours + updateCheckEnabled preferences plus getter/setter for updateLastCheckMs. New UpdateBanner React component in src/renderer/panels/UpdateBanner.tsx subscribes to window.matslop.onUpdateStatus, offers Download / Install now / Later / Dismiss buttons depending on UpdateStatus kind, and exposes window.__matslopSimulateUpdateStatus for Playwright. package.json now has build.publish=[{provider:github,owner:matslop,repo:matslop}] pointing updates at GitHub Releases. 20 new unit tests in tests/unit/update-bridge.test.ts cover interval normalization, scheduling, version compare, status builders, createUpdateBridge behavior, and package.json config."
-    },
-    {
-      "id": "US-042",
-      "title": "macOS notarization",
-      "description": "As a macOS user, I want the app to be notarized so it opens without Gatekeeper warnings.",
-      "acceptanceCriteria": [
-        "Notarization step added to build:mac via electron-builder",
-        "Docs explain Apple Developer ID setup",
-        "Skipped gracefully if credentials missing",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 42,
-      "passes": true,
-      "notes": "Added scripts/notarize.cjs as electron-builder afterSign hook. Reads APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD (or legacy APPLE_ID_PASSWORD) / APPLE_TEAM_ID, skips gracefully with a [notarize] message when any are missing (matches US-040 unsigned fallback). Dynamic imports @electron/notarize so Linux CI runners without it also skip. Enabled hardenedRuntime:true on build.mac (required by Apple notary). Added docs/macos-notarization.md covering Developer ID setup, env vars, local+CI usage, graceful skip, troubleshooting. Added tests/unit/macos-notarization.test.ts with 19 assertions covering pkg config, skip matrix, non-darwin short-circuit, darwin-with-missing-creds graceful skip, and doc contents."
     }
   ]
 }

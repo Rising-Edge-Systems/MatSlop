@@ -1,5 +1,4 @@
 import { useState, useMemo, useCallback } from 'react'
-import PanelHeader from './PanelHeader'
 import {
   formatProfileTime,
   sortProfileEntries,
@@ -66,7 +65,6 @@ function ProfilerPanel({
 
   return (
     <div className="profiler-panel" data-testid="profiler-panel">
-      <PanelHeader title="Profiler" onCollapse={onClose} />
       <div className="profiler-toolbar" data-testid="profiler-toolbar">
         <button
           type="button"

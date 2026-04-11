@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import PanelHeader from './PanelHeader'
 import type { WatchEntry } from '../editor/watchesStore'
 
 /**
@@ -67,23 +66,19 @@ function WatchesPanel({
 
   return (
     <div className="watches-panel" data-testid="watches-panel">
-      <PanelHeader
-        title="Watches"
-        onCollapse={onCollapse}
-        actions={
-          onRefresh ? (
-            <button
-              type="button"
-              className="watches-refresh-btn"
-              onClick={onRefresh}
-              title="Refresh values"
-              data-testid="watches-refresh"
-            >
-              ⟳
-            </button>
-          ) : null
-        }
-      />
+      {onRefresh && (
+        <div className="watches-toolbar">
+          <button
+            type="button"
+            className="watches-refresh-btn"
+            onClick={onRefresh}
+            title="Refresh values"
+            data-testid="watches-refresh"
+          >
+            ⟳
+          </button>
+        </div>
+      )}
       <div className="watches-body" data-testid="watches-body">
         {watches.length === 0 ? (
           <div className="watches-empty" data-testid="watches-empty">

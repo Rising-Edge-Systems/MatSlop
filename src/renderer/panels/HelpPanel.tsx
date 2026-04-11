@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import PanelHeader from './PanelHeader'
 import { splitHelpBody, type HelpSegment } from '../editor/helpDoc'
 
 /**
@@ -36,7 +35,6 @@ function HelpPanel({
 
   return (
     <div className="help-panel" data-testid="help-panel">
-      <PanelHeader title={topic ? `Help: ${topic}` : 'Help'} onCollapse={onClose} />
       <div className="help-toolbar" data-testid="help-toolbar">
         <button
           type="button"

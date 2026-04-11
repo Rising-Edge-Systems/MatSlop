@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react'
 import { Download } from 'lucide-react'
-import PanelHeader from './PanelHeader'
 
 export interface FigureData {
   handle: number
@@ -27,7 +26,6 @@ function FigurePanel({ figures, onCollapse, onSaveFigure }: FigurePanelProps): R
 
   return (
     <div className="panel figure-panel" data-testid="figure-panel">
-      <PanelHeader title="Figures" onCollapse={onCollapse} />
       {figures.length === 0 ? (
         <div className="panel-content figure-empty" data-testid="figure-empty">
           <span className="empty-text">No figures</span>
