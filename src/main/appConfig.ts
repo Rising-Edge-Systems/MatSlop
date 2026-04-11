@@ -26,6 +26,16 @@ export interface PanelVisibilityConfig {
 }
 
 export interface LayoutConfig {
+  /**
+   * US-Q07: schema version of the persisted layout. Bump
+   * `LAYOUT_SCHEMA_VERSION` whenever the polished defaults change in a
+   * way that would be visually masked by an old persisted `dockLayout`
+   * tree. On load, configs whose `version` is missing or older than the
+   * current constant have their `dockLayout` discarded (panelVisibility
+   * + panelSizes are preserved where possible) so the new defaults
+   * actually take effect.
+   */
+  version?: number
   panelVisibility: PanelVisibilityConfig
   panelSizes: {
     fileBrowserWidth: number
@@ -41,6 +51,15 @@ export interface LayoutConfig {
    */
   dockLayout?: unknown
 }
+
+/**
+ * US-Q07: Current layout schema version. Bumped from the implicit `1`
+ * (no field) to `2` for the polish-v2 cycle so stale persisted dock
+ * layouts from pre-polish builds are dropped on first launch and the
+ * new polished column ratios / pane backgrounds become visible. Only
+ * the `dockLayout` tree is discarded; visibility + sizes are preserved.
+ */
+export const LAYOUT_SCHEMA_VERSION = 2
 
 /**
  * US-028: a user-saved layout preset. Mirrors the renderer-side
@@ -83,6 +102,7 @@ export interface AppConfig extends AppPreferences {
 }
 
 const defaultLayout: LayoutConfig = {
+  version: LAYOUT_SCHEMA_VERSION,
   panelVisibility: {
     fileBrowser: true,
     workspace: true,
@@ -95,6 +115,49 @@ const defaultLayout: LayoutConfig = {
     bottomHeight: 200,
     commandHistoryWidth: 250,
   },
+}
+
+/**
+ * US-Q07 (pure / exported for unit testing): Migrate a raw layout blob
+ * read from disk to the current schema version.
+ *
+ * - If `raw` is missing or malformed, return the canonical default.
+ * - If `raw.version` is missing or older than `LAYOUT_SCHEMA_VERSION`,
+ *   discard `dockLayout` (defaults will rebuild it) but preserve the
+ *   user's `panelVisibility` and `panelSizes` where possible.
+ * - Otherwise return the raw config as-is (forward-compat: newer
+ *   versions are passed through unmodified — the caller may re-validate).
+ *
+ * The returned config always carries `version: LAYOUT_SCHEMA_VERSION`.
+ */
+export function migrateLayoutConfig(raw: unknown): LayoutConfig {
+  if (!raw || typeof raw !== 'object') {
+    return getDefaultLayout()
+  }
+  const obj = raw as Partial<LayoutConfig> & Record<string, unknown>
+  const storedVersion = typeof obj.version === 'number' ? obj.version : 0
+  const visibility =
+    obj.panelVisibility && typeof obj.panelVisibility === 'object'
+      ? { ...defaultLayout.panelVisibility, ...obj.panelVisibility }
+      : { ...defaultLayout.panelVisibility }
+  const sizes =
+    obj.panelSizes && typeof obj.panelSizes === 'object'
+      ? { ...defaultLayout.panelSizes, ...obj.panelSizes }
+      : { ...defaultLayout.panelSizes }
+  if (storedVersion < LAYOUT_SCHEMA_VERSION) {
+    // Stale schema: drop the persisted dock tree, keep prefs the user picked.
+    return {
+      version: LAYOUT_SCHEMA_VERSION,
+      panelVisibility: visibility,
+      panelSizes: sizes,
+    }
+  }
+  return {
+    version: LAYOUT_SCHEMA_VERSION,
+    panelVisibility: visibility,
+    panelSizes: sizes,
+    dockLayout: obj.dockLayout,
+  }
 }
 
 /**
@@ -208,15 +271,32 @@ export function setPreferences(prefs: Partial<AppPreferences>): void {
 
 // Layout persistence
 export function getLayoutConfig(): LayoutConfig {
-  return store.get('layout', defaultLayout) as LayoutConfig
+  const raw = store.get('layout', defaultLayout) as unknown
+  const migrated = migrateLayoutConfig(raw)
+  // If the on-disk config was stale, persist the migration so the next
+  // launch starts on the new schema and we don't keep dropping dockLayout
+  // forever.
+  const rawObj = raw as Partial<LayoutConfig> | undefined
+  const storedVersion =
+    rawObj && typeof rawObj === 'object' && typeof rawObj.version === 'number'
+      ? rawObj.version
+      : 0
+  if (storedVersion < LAYOUT_SCHEMA_VERSION) {
+    store.set('layout', migrated)
+  }
+  return migrated
 }
 
 export function setLayoutConfig(layout: LayoutConfig): void {
-  store.set('layout', layout)
+  store.set('layout', { ...layout, version: LAYOUT_SCHEMA_VERSION })
 }
 
 export function getDefaultLayout(): LayoutConfig {
-  return { ...defaultLayout, panelVisibility: { ...defaultLayout.panelVisibility }, panelSizes: { ...defaultLayout.panelSizes } }
+  return {
+    ...defaultLayout,
+    panelVisibility: { ...defaultLayout.panelVisibility },
+    panelSizes: { ...defaultLayout.panelSizes },
+  }
 }
 
 // Recent files
