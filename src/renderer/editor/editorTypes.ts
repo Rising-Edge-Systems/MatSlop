@@ -272,6 +272,83 @@ export function getBreakpointsForTab(
 }
 
 /**
+ * US-021: Conditional breakpoint conditions, stored in a structure parallel
+ * to `BreakpointStore` so that the existing toggle logic does not have to
+ * care about conditions. Keys: tabId → (lineNumber → condition-expression).
+ *
+ * A breakpoint line WITHOUT a condition entry is a plain (unconditional)
+ * breakpoint; a line WITH an entry is a conditional breakpoint and gets
+ * rendered with a different glyph color. The expression is sent to Octave
+ * as the `if "<expr>"` suffix on its `dbstop` command.
+ *
+ * Pure and stateless so it can be unit-tested without Monaco.
+ */
+export type BreakpointConditionStore = Record<string, Record<number, string>>
+
+/**
+ * Set (or clear) the condition expression attached to a breakpoint on a
+ * given tab/line. Passing a null/empty/whitespace-only condition REMOVES
+ * the condition, reverting the breakpoint to an unconditional one. Always
+ * returns a new store object so React state comparisons work.
+ */
+export function setBreakpointCondition(
+  store: BreakpointConditionStore,
+  tabId: string,
+  line: number,
+  condition: string | null,
+): BreakpointConditionStore {
+  if (!Number.isFinite(line) || line <= 0) return store
+  const lineInt = Math.floor(line)
+  const trimmed = condition == null ? '' : condition.trim()
+  const existing = store[tabId] ?? {}
+  const hadEntry = lineInt in existing
+  if (!trimmed) {
+    if (!hadEntry) return store
+    const nextForTab = { ...existing }
+    delete nextForTab[lineInt]
+    if (Object.keys(nextForTab).length === 0) {
+      const nextStore = { ...store }
+      delete nextStore[tabId]
+      return nextStore
+    }
+    return { ...store, [tabId]: nextForTab }
+  }
+  if (existing[lineInt] === trimmed) return store
+  return { ...store, [tabId]: { ...existing, [lineInt]: trimmed } }
+}
+
+/**
+ * Return the condition expression on a given tab/line, or null if the
+ * breakpoint is unconditional (or doesn't exist).
+ */
+export function getBreakpointCondition(
+  store: BreakpointConditionStore,
+  tabId: string,
+  line: number,
+): string | null {
+  if (!Number.isFinite(line) || line <= 0) return null
+  const lineInt = Math.floor(line)
+  const forTab = store[tabId]
+  if (!forTab) return null
+  const cond = forTab[lineInt]
+  return cond ?? null
+}
+
+/**
+ * Drop all condition entries for a tab (used when a tab is closed or when
+ * every breakpoint on the tab is toggled off at once).
+ */
+export function clearBreakpointConditionsForTab(
+  store: BreakpointConditionStore,
+  tabId: string,
+): BreakpointConditionStore {
+  if (!(tabId in store)) return store
+  const next = { ...store }
+  delete next[tabId]
+  return next
+}
+
+/**
  * Move the cell at `sourceIndex` so that it lands at `targetIndex` in the
  * sequence of drop-zone slots. Drop-zone slots are the positions *between*
  * cells, numbered 0..cells.length (inclusive).

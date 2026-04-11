@@ -2449,6 +2449,17 @@ body {
   cursor: pointer;
 }
 
+/* US-021: conditional breakpoints render as an orange diamond so they are
+   visually distinct from the plain red circle above. Both share the same
+   base rule so a line that becomes conditional just gets recolored +
+   reshaped via clip-path. */
+.matslop-breakpoint-glyph.matslop-breakpoint-glyph-conditional {
+  background: #f39c12;
+  border-radius: 0;
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  box-shadow: none;
+}
+
 /* ---- Debugger paused marker (US-016) ----------------------------- */
 /* Green right-pointing arrow placed in the glyph margin on the line where
    Octave is currently stopped. Uses a CSS clip-path so it renders without

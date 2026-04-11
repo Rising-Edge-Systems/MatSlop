@@ -7,9 +7,13 @@ import { analyzeMatlabCode, diagnosticsToMarkers } from './matlabDiagnostics'
 import {
   type EditorTab,
   type BreakpointStore,
+  type BreakpointConditionStore,
   toggleBreakpoint as toggleBreakpointStore,
   clearBreakpointsForTab,
   getBreakpointsForTab,
+  setBreakpointCondition as setBreakpointConditionStore,
+  getBreakpointCondition,
+  clearBreakpointConditionsForTab,
 } from './editorTypes'
 import LiveScriptEditor from './LiveScriptEditor'
 import WelcomeTab from './WelcomeTab'
@@ -66,6 +70,11 @@ function TabbedEditor({
   // lost when the panel unmounts, which matches VS Code's behavior for
   // untitled buffers.
   const [breakpoints, setBreakpoints] = useState<BreakpointStore>({})
+  // US-021: conditions attached to breakpoints. Kept in a parallel store so
+  // the existing toggle logic doesn't have to grow a case for conditional
+  // lines. Absent entries = unconditional breakpoint.
+  const [breakpointConditions, setBreakpointConditions] =
+    useState<BreakpointConditionStore>({})
   const breakpointDecorationIdsRef = useRef<string[]>([])
   // US-016: decoration ids for the green-arrow "currently paused" marker.
   const pausedDecorationIdsRef = useRef<string[]>([])
@@ -89,6 +98,15 @@ function TabbedEditor({
       }
       return next
     })
+    setBreakpointConditions((prev) => {
+      let next = prev
+      for (const key of Object.keys(prev)) {
+        if (!liveIds.has(key)) {
+          next = clearBreakpointConditionsForTab(next, key)
+        }
+      }
+      return next
+    })
   }, [tabs])
 
   // Test-only: expose the current breakpoint lines for the active tab on
@@ -102,6 +120,15 @@ function TabbedEditor({
     const w = window as unknown as { __matslopBreakpoints?: BreakpointStore }
     w.__matslopBreakpoints = breakpoints
   }, [breakpoints])
+
+  // Test hook: expose the condition store on window for Playwright.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const w = window as unknown as {
+      __matslopBreakpointConditions?: BreakpointConditionStore
+    }
+    w.__matslopBreakpointConditions = breakpointConditions
+  }, [breakpointConditions])
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
 
@@ -138,12 +165,16 @@ function TabbedEditor({
   // Latest refs for the once-bound Monaco mouse handler (closed over at mount).
   const tabsRef = useRef(tabs)
   const breakpointsRef = useRef(breakpoints)
+  const breakpointConditionsRef = useRef(breakpointConditions)
   useEffect(() => {
     tabsRef.current = tabs
   }, [tabs])
   useEffect(() => {
     breakpointsRef.current = breakpoints
   }, [breakpoints])
+  useEffect(() => {
+    breakpointConditionsRef.current = breakpointConditions
+  }, [breakpointConditions])
 
   // Toggle a breakpoint for the given tab/line, update local state, and
   // forward the change to main via IPC so future stories can hook into
@@ -154,6 +185,13 @@ function TabbedEditor({
     const before = getBreakpointsForTab(breakpointsRef.current, tabId)
     const wasSet = before.includes(Math.floor(line))
     setBreakpoints((prev) => toggleBreakpointStore(prev, tabId, line))
+    // Clearing a breakpoint should also clear any condition attached to it
+    // so a later retoggle starts out unconditional.
+    if (wasSet) {
+      setBreakpointConditions((prev) =>
+        setBreakpointConditionStore(prev, tabId, line, null),
+      )
+    }
     const bridge = (window as unknown as { matslop?: Window['matslop'] }).matslop
     if (bridge) {
       if (wasSet) {
@@ -164,20 +202,94 @@ function TabbedEditor({
     }
   }, [])
 
+  /**
+   * US-021: Attach (or clear) a condition to the breakpoint on `line` in
+   * the given tab. If there isn't yet a breakpoint on that line, this call
+   * *implicitly* creates one (so the user can right-click an empty gutter
+   * line and go straight to "set a conditional breakpoint" in one step).
+   * Passing a null/empty condition reverts the line to a plain breakpoint.
+   */
+  const setConditionForTab = useCallback(
+    (tabId: string, line: number, condition: string | null) => {
+      const tab = tabsRef.current.find((t) => t.id === tabId)
+      if (!tab) return
+      const lineInt = Math.floor(line)
+      if (!Number.isFinite(line) || lineInt <= 0) return
+      // Ensure the bp exists first so the gutter shows a glyph regardless
+      // of whether the user toggled one before right-clicking.
+      const hadBp = getBreakpointsForTab(breakpointsRef.current, tabId).includes(
+        lineInt,
+      )
+      if (!hadBp) {
+        setBreakpoints((prev) => toggleBreakpointStore(prev, tabId, lineInt))
+      }
+      setBreakpointConditions((prev) =>
+        setBreakpointConditionStore(prev, tabId, lineInt, condition),
+      )
+      const bridge = (window as unknown as { matslop?: Window['matslop'] }).matslop
+      if (bridge) {
+        // If this is the very first bp on that line, register it in main's
+        // registry before attaching a condition — `debug:setBreakpointCondition`
+        // is idempotent on the registry but a separate `setBreakpoint` call
+        // keeps the main-side state consistent with existing stories.
+        if (!hadBp) {
+          void bridge.debugSetBreakpoint?.(tab.filePath, lineInt)
+        }
+        void bridge.debugSetBreakpointCondition?.(tab.filePath, lineInt, condition)
+      }
+    },
+    [],
+  )
+
   // Expose a test-only handle so Playwright can drive breakpoint toggles
   // without pixel-hunting Monaco's glyph margin DOM.
   useEffect(() => {
     if (typeof window === 'undefined') return
     const w = window as unknown as {
       __matslopToggleBreakpoint?: (tabId: string, line: number) => void
+      __matslopSetBreakpointCondition?: (
+        tabId: string,
+        line: number,
+        condition: string | null,
+      ) => void
     }
     w.__matslopToggleBreakpoint = toggleBreakpointForTab
+    w.__matslopSetBreakpointCondition = setConditionForTab
     return () => {
       if (w.__matslopToggleBreakpoint === toggleBreakpointForTab) {
         delete w.__matslopToggleBreakpoint
       }
+      if (w.__matslopSetBreakpointCondition === setConditionForTab) {
+        delete w.__matslopSetBreakpointCondition
+      }
     }
-  }, [toggleBreakpointForTab])
+  }, [toggleBreakpointForTab, setConditionForTab])
+
+  /**
+   * Prompt the user for a condition expression and attach it to the
+   * breakpoint on the given line. Uses the host's native prompt() as the
+   * simplest "Edit condition" dialog — Monaco doesn't ship a modal
+   * primitive and the app doesn't yet have a reusable dialog component.
+   * Cancelling the prompt is a no-op; submitting an empty string reverts
+   * the bp to unconditional.
+   */
+  const promptForCondition = useCallback(
+    (tabId: string, line: number) => {
+      const lineInt = Math.floor(line)
+      const existing =
+        getBreakpointCondition(breakpointConditionsRef.current, tabId, lineInt) ??
+        ''
+      const answer = typeof window === 'undefined'
+        ? null
+        : window.prompt(
+            `Breakpoint condition (line ${lineInt})\n\nEnter an Octave expression — the breakpoint will only trigger when it is true. Leave blank to remove the condition.`,
+            existing,
+          )
+      if (answer === null) return // cancelled
+      setConditionForTab(tabId, lineInt, answer)
+    },
+    [setConditionForTab],
+  )
 
   // US-016: compute whether the current paused location maps onto the
   // active tab by basename (or filename minus `.m`). When it does, place a
@@ -229,20 +341,31 @@ function TabbedEditor({
     const editor = editorRef.current
     if (!monaco || !editor) return
     const lines = activeTab ? getBreakpointsForTab(breakpoints, activeTab.id) : []
-    const newDecorations: monacoEditor.IModelDeltaDecoration[] = lines.map((line) => ({
-      range: new monaco.Range(line, 1, line, 1),
-      options: {
-        isWholeLine: false,
-        glyphMarginClassName: 'matslop-breakpoint-glyph',
-        glyphMarginHoverMessage: { value: `Breakpoint on line ${line}` },
-        stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-      },
-    }))
+    const newDecorations: monacoEditor.IModelDeltaDecoration[] = lines.map((line) => {
+      const cond = activeTab
+        ? getBreakpointCondition(breakpointConditions, activeTab.id, line)
+        : null
+      return {
+        range: new monaco.Range(line, 1, line, 1),
+        options: {
+          isWholeLine: false,
+          glyphMarginClassName: cond
+            ? 'matslop-breakpoint-glyph matslop-breakpoint-glyph-conditional'
+            : 'matslop-breakpoint-glyph',
+          glyphMarginHoverMessage: {
+            value: cond
+              ? `Conditional breakpoint on line ${line}: \`${cond}\``
+              : `Breakpoint on line ${line}`,
+          },
+          stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+        },
+      }
+    })
     breakpointDecorationIdsRef.current = editor.deltaDecorations(
       breakpointDecorationIdsRef.current,
       newDecorations,
     )
-  }, [breakpoints, activeTabId, activeTab])
+  }, [breakpoints, breakpointConditions, activeTabId, activeTab])
 
   const handleEditorMount: OnMount = useCallback(
     (editor, monaco) => {
@@ -260,9 +383,32 @@ function TabbedEditor({
           e.target.position
         ) {
           const tabId = activeTabIdRef.current
-          if (tabId) {
-            toggleBreakpointForTab(tabId, e.target.position.lineNumber)
+          if (!tabId) return
+          // Right-click (US-021) → open the "Edit condition" prompt instead
+          // of toggling. Monaco exposes the underlying browser event via
+          // e.event; its `rightButton` flag is the canonical way to detect
+          // a right-click on the glyph margin without suppressing the
+          // editor's normal left-click flow.
+          const ev = e.event as { rightButton?: boolean; preventDefault?: () => void }
+          if (ev?.rightButton) {
+            ev.preventDefault?.()
+            promptForCondition(tabId, e.target.position.lineNumber)
+            return
           }
+          toggleBreakpointForTab(tabId, e.target.position.lineNumber)
+        }
+      })
+
+      // US-021: swallow the native contextmenu event on the glyph margin so
+      // Monaco's right-click menu doesn't pop up over our prompt.
+      editor.onContextMenu((e) => {
+        if (
+          e.target &&
+          e.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN
+        ) {
+          const ev = e.event as { preventDefault?: () => void; stopPropagation?: () => void }
+          ev?.preventDefault?.()
+          ev?.stopPropagation?.()
         }
       })
 
@@ -293,7 +439,7 @@ function TabbedEditor({
       }
     },
     // Only depends on activeTab at mount time
-    [activeTab, onCursorPositionChange, onEditorRef, runDiagnostics]
+    [activeTab, onCursorPositionChange, onEditorRef, runDiagnostics, promptForCondition, toggleBreakpointForTab]
   )
 
   const handleContentChange = useCallback(

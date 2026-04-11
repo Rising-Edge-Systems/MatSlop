@@ -354,8 +354,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 21,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added BreakpointConditionStore (renderer) + breakpointConditions Map (main) parallel to the existing breakpoint store. New pure helpers: setBreakpointCondition/getBreakpointCondition/clearBreakpointConditionsForTab in editorTypes.ts, and formatDbstopConditionalCommand/setBreakpointWithCondition in debugBridge.ts. reapplyAllBreakpoints now accepts an optional conditions map and emits `dbstop in \"file.m\" at LINE if '<expr>'` for conditional lines so they survive Octave restarts. New IPC `debug:setBreakpointCondition` (preload+main) sends dbclear + conditional dbstop and records the condition. TabbedEditor.tsx now tracks conditions in state, clears them on toggle-off/tab-close, exposes `window.__matslopSetBreakpointCondition` + `__matslopBreakpointConditions` test hooks, and adds a right-click handler on the glyph margin that opens `window.prompt` via a new promptForCondition callback. Decorations pick up a new `matslop-breakpoint-glyph-conditional` class (orange diamond via clip-path) when a condition is attached. Tests: tests/unit/breakpoint-conditions.test.ts (12 new cases), tests/unit/debug-bridge.test.ts (9 new cases for formatDbstopConditionalCommand, setBreakpointWithCondition, reapply with conditions), and tests/e2e/conditional-breakpoints.spec.ts (4 Playwright tests covering IPC success, store propagation, conditional glyph class visible, and reverting to plain bp when the condition is cleared). Build + tsc (modulo baseline PATH error) + 60 breakpoint-related unit tests all green."
     },
     {
       "id": "US-022",

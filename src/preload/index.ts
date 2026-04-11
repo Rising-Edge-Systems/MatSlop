@@ -155,6 +155,14 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.invoke('debug:setBreakpoint', filePath, line),
   debugClearBreakpoint: (filePath: string | null, line: number): Promise<{ success: boolean }> =>
     ipcRenderer.invoke('debug:clearBreakpoint', filePath, line),
+  // US-021: attach (or clear) a condition expression on an existing
+  // breakpoint. Pass null/empty-string to revert to an unconditional bp.
+  debugSetBreakpointCondition: (
+    filePath: string | null,
+    line: number,
+    condition: string | null,
+  ): Promise<{ success: boolean }> =>
+    ipcRenderer.invoke('debug:setBreakpointCondition', filePath, line, condition),
   // US-018: Query Octave's current call stack (dbstack()). Returns the
   // frames top-to-bottom, or [] if Octave isn't running.
   debugGetCallStack: (): Promise<Array<{ name: string; file: string; line: number }>> =>

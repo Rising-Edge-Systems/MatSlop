@@ -55,6 +55,33 @@ export function formatDbclearCommand(filePath: string, line: number): string {
 }
 
 /**
+ * US-021: Format a conditional `dbstop in "file.m" at LINE if "condition"`
+ * command. The condition is trimmed and has embedded double-quotes escaped
+ * so that arbitrary expressions (e.g. `i > 10`, `size(x,1) == 3`) can be
+ * round-tripped safely to Octave.
+ *
+ * Returns a plain (non-conditional) dbstop command if the condition is
+ * null/empty/whitespace so callers can use a single code path for both.
+ */
+export function formatDbstopConditionalCommand(
+  filePath: string,
+  line: number,
+  condition: string | null | undefined,
+): string {
+  const name = fileToken(filePath)
+  const lineInt = Math.floor(line)
+  const trimmed = (condition ?? '').trim()
+  if (!trimmed) return `dbstop in "${name}" at ${lineInt}`
+  // Octave's parser accepts either string quoting. We prefer single-quotes
+  // around the condition string so that users can type expressions
+  // containing double-quoted strings (e.g. strcmp(x, "foo")) without
+  // escaping — and double-quotes inside the file name already use the same
+  // escape scheme as plain `dbstop`.
+  const cond = trimmed.replace(/'/g, "''")
+  return `dbstop in "${name}" at ${lineInt} if '${cond}'`
+}
+
+/**
  * Normalize a filePath argument into the map key used to bucket breakpoints.
  * Unsaved tabs all land in `UNSAVED_BUCKET`.
  */
@@ -117,6 +144,43 @@ export function clearBreakpoint(
 }
 
 /**
+ * US-021: Set (or clear) the condition on an existing breakpoint. The
+ * registry already contains the line (callers should ensure the line was
+ * added via `setBreakpoint` first), and this helper:
+ *   1. Sends a `dbclear` for the line so Octave forgets any previous
+ *      plain-or-conditional breakpoint at that location.
+ *   2. Sends a fresh `dbstop` — conditional if `condition` is non-empty,
+ *      unconditional if null/empty.
+ *
+ * Unsaved-bucket tabs only get the condition recorded (no Octave traffic).
+ */
+export function setBreakpointWithCondition(
+  map: BreakpointMapLike,
+  filePath: string | null,
+  line: number,
+  condition: string | null,
+  exec: CommandExecutor | null,
+): boolean {
+  if (!Number.isFinite(line) || line <= 0) return false
+  const lineInt = Math.floor(line)
+  const key = breakpointBucketKey(filePath)
+  const set = map.get(key) ?? new Set<number>()
+  set.add(lineInt)
+  map.set(key, set)
+  if (exec && filePath && filePath.length > 0) {
+    const clearCmd = formatDbclearCommand(filePath, lineInt)
+    const stopCmd = formatDbstopConditionalCommand(filePath, lineInt, condition)
+    void Promise.resolve(exec(clearCmd)).catch(() => {
+      /* swallow */
+    })
+    void Promise.resolve(exec(stopCmd)).catch(() => {
+      /* swallow */
+    })
+  }
+  return true
+}
+
+/**
  * Iterate the registry and send a `dbstop` command for every remembered
  * breakpoint that has a real file path. Unsaved buckets are skipped because
  * Octave cannot address them by name.
@@ -167,9 +231,35 @@ export function parsePausedMarker(text: string): PausedLocation | null {
   return null
 }
 
+/**
+ * Optional conditions map passed to {@link reapplyAllBreakpoints} so that
+ * conditional breakpoints survive an Octave restart. Shape mirrors the
+ * renderer's `BreakpointConditionStore` but keyed by file path so it lines
+ * up with the main-process breakpoint registry.
+ */
+export interface BreakpointConditionsLike {
+  get(key: string): Map<number, string> | Record<number, string> | undefined
+}
+
+function lookupCondition(
+  conds: BreakpointConditionsLike | undefined,
+  key: string,
+  line: number,
+): string | null {
+  if (!conds) return null
+  const forKey = conds.get(key)
+  if (!forKey) return null
+  if (forKey instanceof Map) {
+    return forKey.get(line) ?? null
+  }
+  const v = (forKey as Record<number, string>)[line]
+  return typeof v === 'string' && v.length > 0 ? v : null
+}
+
 export function reapplyAllBreakpoints(
   map: BreakpointMapLike,
   exec: CommandExecutor,
+  conditions?: BreakpointConditionsLike,
 ): string[] {
   const sent: string[] = []
   // Sort keys so reapply order is deterministic (important for tests and for
@@ -181,7 +271,10 @@ export function reapplyAllBreakpoints(
     if (!set || set.size === 0) continue
     const lines = Array.from(set).sort((a, b) => a - b)
     for (const line of lines) {
-      const cmd = formatDbstopCommand(key, line)
+      const cond = lookupCondition(conditions, key, line)
+      const cmd = cond
+        ? formatDbstopConditionalCommand(key, line, cond)
+        : formatDbstopCommand(key, line)
       try {
         void Promise.resolve(exec(cmd)).catch(() => {
           /* swallow */

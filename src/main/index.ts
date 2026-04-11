@@ -13,7 +13,9 @@ import { OctaveProcessManager } from './octaveProcess'
 import {
   setBreakpoint as applySetBreakpoint,
   clearBreakpoint as applyClearBreakpoint,
+  setBreakpointWithCondition as applySetBreakpointWithCondition,
   reapplyAllBreakpoints,
+  breakpointBucketKey,
 } from './debugBridge'
 import {
   formatCallStackQuery,
@@ -521,6 +523,31 @@ ipcMain.handle('plot:_testDetachedCount', () => {
 const debugBreakpoints = new Map<string, Set<number>>()
 
 /**
+ * US-021: Conditions attached to the entries in `debugBreakpoints`. Keys
+ * are the same bucket keys used by the breakpoint registry; values map
+ * 1-based line numbers to condition-expression strings. A breakpoint line
+ * that is absent from this map (or whose entry is an empty string) is
+ * considered unconditional and reapplied via plain `dbstop`. Passed to
+ * `reapplyAllBreakpoints` so conditional breakpoints survive an Octave
+ * restart just like plain ones.
+ */
+const debugBreakpointConditions = new Map<string, Map<number, string>>()
+
+function setConditionEntry(key: string, line: number, condition: string | null): void {
+  const trimmed = (condition ?? '').trim()
+  if (!trimmed) {
+    const inner = debugBreakpointConditions.get(key)
+    if (!inner) return
+    inner.delete(line)
+    if (inner.size === 0) debugBreakpointConditions.delete(key)
+    return
+  }
+  const inner = debugBreakpointConditions.get(key) ?? new Map<number, string>()
+  inner.set(line, trimmed)
+  debugBreakpointConditions.set(key, inner)
+}
+
+/**
  * Return the current Octave command executor if the process is running,
  * otherwise null. Set/clear operations gracefully no-op the dbstop/dbclear
  * side-effect when Octave is down; the in-memory registry still updates so
@@ -546,6 +573,41 @@ ipcMain.handle(
   'debug:clearBreakpoint',
   (_event, filePath: string | null, line: number) => {
     const ok = applyClearBreakpoint(debugBreakpoints, filePath, line, currentOctaveExecutor())
+    if (ok) {
+      // Conditions are keyed parallel to the breakpoint registry — drop any
+      // condition attached to a breakpoint we just cleared so a later
+      // retoggle starts out unconditional.
+      const key = breakpointBucketKey(filePath)
+      const lineInt = Math.floor(line)
+      setConditionEntry(key, lineInt, null)
+    }
+    return { success: ok }
+  },
+)
+
+/**
+ * US-021: Set (or clear) the condition expression attached to a breakpoint.
+ * The line must already exist in the registry — the renderer calls
+ * `debug:setBreakpoint` before this — but we tolerate missing entries by
+ * creating them here so the IPC stays idempotent. A null/empty condition
+ * reverts the breakpoint to unconditional.
+ */
+ipcMain.handle(
+  'debug:setBreakpointCondition',
+  (_event, filePath: string | null, line: number, condition: string | null) => {
+    if (!Number.isFinite(line) || line <= 0) return { success: false }
+    const lineInt = Math.floor(line)
+    const ok = applySetBreakpointWithCondition(
+      debugBreakpoints,
+      filePath,
+      lineInt,
+      condition,
+      currentOctaveExecutor(),
+    )
+    if (ok) {
+      const key = breakpointBucketKey(filePath)
+      setConditionEntry(key, lineInt, condition)
+    }
     return { success: ok }
   },
 )
@@ -583,7 +645,11 @@ function attachBreakpointReapplier(proc: OctaveProcessManager): void {
     if (replayed) return
     if (status !== 'ready') return
     replayed = true
-    reapplyAllBreakpoints(debugBreakpoints, (cmd: string) => proc.executeCommand(cmd))
+    reapplyAllBreakpoints(
+      debugBreakpoints,
+      (cmd: string) => proc.executeCommand(cmd),
+      debugBreakpointConditions,
+    )
   })
 }
 

@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   formatDbstopCommand,
   formatDbclearCommand,
+  formatDbstopConditionalCommand,
   setBreakpoint,
+  setBreakpointWithCondition,
   clearBreakpoint,
   reapplyAllBreakpoints,
   breakpointBucketKey,
@@ -51,6 +53,88 @@ describe('formatDbstopCommand', () => {
     expect(formatDbstopCommand('weird"name.m', 7)).toBe(
       'dbstop in "weird\\"name.m" at 7',
     )
+  })
+})
+
+describe('formatDbstopConditionalCommand (US-021)', () => {
+  it('formats a conditional dbstop with single-quoted expression', () => {
+    expect(formatDbstopConditionalCommand('/abs/foo.m', 12, 'i > 10')).toBe(
+      `dbstop in "foo.m" at 12 if 'i > 10'`,
+    )
+  })
+
+  it('falls back to a plain dbstop when the condition is null or empty', () => {
+    expect(formatDbstopConditionalCommand('/abs/foo.m', 12, null)).toBe(
+      'dbstop in "foo.m" at 12',
+    )
+    expect(formatDbstopConditionalCommand('/abs/foo.m', 12, '')).toBe(
+      'dbstop in "foo.m" at 12',
+    )
+    expect(formatDbstopConditionalCommand('/abs/foo.m', 12, '   ')).toBe(
+      'dbstop in "foo.m" at 12',
+    )
+  })
+
+  it('escapes embedded single quotes in the condition (Octave string escape)', () => {
+    expect(
+      formatDbstopConditionalCommand('/abs/foo.m', 3, "strcmp(s, 'hi')"),
+    ).toBe(`dbstop in "foo.m" at 3 if 'strcmp(s, ''hi'')'`)
+  })
+
+  it('floors fractional lines', () => {
+    expect(formatDbstopConditionalCommand('foo.m', 3.9, 'ok')).toBe(
+      `dbstop in "foo.m" at 3 if 'ok'`,
+    )
+  })
+
+  it('trims surrounding whitespace on the condition', () => {
+    expect(formatDbstopConditionalCommand('foo.m', 1, '   i > 10   ')).toBe(
+      `dbstop in "foo.m" at 1 if 'i > 10'`,
+    )
+  })
+})
+
+describe('setBreakpointWithCondition (US-021)', () => {
+  it('records the line and sends dbclear + conditional dbstop', async () => {
+    const map = new Map<string, Set<number>>()
+    const rec = makeRecorder()
+    const ok = setBreakpointWithCondition(map, '/p/foo.m', 7, 'i > 10', rec.exec)
+    expect(ok).toBe(true)
+    expect(map.get('/p/foo.m')).toEqual(new Set([7]))
+    await Promise.resolve()
+    expect(rec.sent).toEqual([
+      'dbclear in "foo.m" at 7',
+      `dbstop in "foo.m" at 7 if 'i > 10'`,
+    ])
+  })
+
+  it('sends a plain dbstop when the condition is cleared', async () => {
+    const map = new Map<string, Set<number>>()
+    map.set('/p/foo.m', new Set([7]))
+    const rec = makeRecorder()
+    const ok = setBreakpointWithCondition(map, '/p/foo.m', 7, null, rec.exec)
+    expect(ok).toBe(true)
+    await Promise.resolve()
+    expect(rec.sent).toEqual([
+      'dbclear in "foo.m" at 7',
+      'dbstop in "foo.m" at 7',
+    ])
+  })
+
+  it('still records unsaved-tab lines but does NOT forward to Octave', async () => {
+    const map = new Map<string, Set<number>>()
+    const rec = makeRecorder()
+    const ok = setBreakpointWithCondition(map, null, 2, 'true', rec.exec)
+    expect(ok).toBe(true)
+    expect(map.get(UNSAVED_BUCKET)).toEqual(new Set([2]))
+    await Promise.resolve()
+    expect(rec.sent).toEqual([])
+  })
+
+  it('rejects bad lines', () => {
+    const map = new Map<string, Set<number>>()
+    expect(setBreakpointWithCondition(map, '/p/x.m', 0, 'a', null)).toBe(false)
+    expect(setBreakpointWithCondition(map, '/p/x.m', Number.NaN, 'a', null)).toBe(false)
   })
 })
 
@@ -193,6 +277,32 @@ describe('reapplyAllBreakpoints', () => {
     const sent = reapplyAllBreakpoints(new Map(), rec.exec)
     expect(sent).toEqual([])
     expect(rec.sent).toEqual([])
+  })
+
+  it('emits conditional dbstop when a conditions map is provided', async () => {
+    const map = new Map<string, Set<number>>()
+    map.set('/p/foo.m', new Set([5, 12]))
+    const conds = new Map<string, Map<number, string>>()
+    conds.set('/p/foo.m', new Map([[12, 'i > 10']]))
+    const rec = makeRecorder()
+    const sent = reapplyAllBreakpoints(map, rec.exec, conds)
+    expect(sent).toEqual([
+      'dbstop in "foo.m" at 5',
+      `dbstop in "foo.m" at 12 if 'i > 10'`,
+    ])
+    await Promise.resolve()
+    expect(rec.sent).toEqual(sent)
+  })
+
+  it('accepts a plain-object conditions map (e.g. Record<number,string>)', () => {
+    const map = new Map<string, Set<number>>()
+    map.set('/p/a.m', new Set([7]))
+    // Shape: Map<string, Record<number, string>> is also supported
+    const conds = new Map<string, Record<number, string>>()
+    conds.set('/p/a.m', { 7: 'x == 0' })
+    const rec = makeRecorder()
+    const sent = reapplyAllBreakpoints(map, rec.exec, conds)
+    expect(sent).toEqual([`dbstop in "a.m" at 7 if 'x == 0'`])
   })
 
   it('survives a throwing executor and still records the full command list', () => {
