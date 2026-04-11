@@ -68,8 +68,8 @@
         "Tests pass"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Rewrote formatValuePreview in WorkspacePanel.tsx and exported it. New contract: scalars render with 6 sig digits via toPrecision(6) (exponential for |n|<1e-4 or |n|>=1e6), with trimmed trailing zeros so 3.14159/1e-5/42 display cleanly; logical scalars render as true/false; strings (char/string class) truncate at 20 chars + '...' and strip surrounding quotes; struct/cell/function_handle and all non-scalars render uniformly as '[RxC class]'. 21 new tests in tests/unit/format-value-preview.test.ts."
     },
     {
       "id": "US-S05",

@@ -70,3 +70,20 @@ Started: Sat Apr 11 06:46:53 PM EDT 2026
   - interrupt() is intentionally different from stop(): interrupt only sends SIGINT (Octave handles cleanup), stop() writes 'exit' and SIGKILLs after 2s. Never confuse them — the Stop BUTTON calls interrupt(), not stop().
   - Caveat: `debug_on_interrupt(true)` is set in the init script (octaveProcess.ts:126). For commands running inside a user script/function, SIGINT may drop into the debugger instead of cancelling. Top-level prompt commands still cancel normally. If future polish needs a stricter "cancel no matter what" Stop, consider queuing a `dbquit` after SIGINT.
 ---
+
+## 2026-04-11 - US-S04
+- Unified formatValuePreview in WorkspacePanel.tsx and exported it for testing.
+- New contract:
+  - Scalars: 6 sig digits via toPrecision(6), exponential for |n|<1e-4 or |n|>=1e6, trailing zeros trimmed (3.14159, 1e-5, 42). Logical scalars → true/false. Zero → "0". Inf/NaN pass through.
+  - Strings (char/string class): strip surrounding quotes, truncate at 20 visible chars + "...".
+  - Non-scalars (struct, cell, function_handle, any matrix): uniform "[RxC class]" — even at size 1x1 for non-numeric classes.
+- Files changed:
+  - src/renderer/panels/WorkspacePanel.tsx (formatValuePreview rewrite + export + helpers extractValueToken/truncateString/formatNumber + nonScalarClasses guard)
+  - tests/unit/format-value-preview.test.ts (new, 21 tests across scalar/string/matrix/struct/cell cases)
+  - scripts/ralph/prd.json (US-S04 passes: true)
+- Verification: typecheck clean, 559 tests pass (was 538, +21 new).
+- **Learnings for future iterations:**
+  - JS `Number.prototype.toPrecision(6)` only flips to exponential when |n|<1e-6 by default — if you want "1e-5" instead of "0.00001" you must branch on magnitude and call `toExponential(5)` manually.
+  - Order matters in the workspace preview formatter: check string classes FIRST (a 1x3 char is not a "scalar"), then non-scalar object classes (struct/cell — even 1x1 structs aren't numbers), then size === '1x1' for real numeric scalars, then the matrix fallback. Getting this order wrong makes a 1x1 struct render as a bogus number.
+  - formatValuePreview is now exported from WorkspacePanel.tsx alongside parseWhosOutput — both are pure and unit-tested in tests/unit/.
+---

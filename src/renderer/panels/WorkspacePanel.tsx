@@ -90,42 +90,116 @@ export function parseWhosOutput(output: string): WorkspaceVariable[] {
   return variables
 }
 
-function formatValuePreview(variable: WorkspaceVariable, valueOutput: string): string {
+/**
+ * US-S04: Unified value-preview formatter for the Workspace panel.
+ *
+ * Rules:
+ *   • Scalars (size === '1x1' and a numeric class): parse the numeric value
+ *     and render with 6 significant digits via `toPrecision(6)`, trimming
+ *     trailing zeros (3.14159, 1.00000e-5 → 1e-5, 42). Booleans render as
+ *     'true'/'false'. If parsing fails, fall back to the raw trimmed token.
+ *   • Strings (cls === 'char' OR 'string'): render the string truncated at
+ *     20 characters with an ellipsis ('abcdefghijabcdefghij...').
+ *   • Everything else (matrices, structs, cells, objects): '[RxC class]'.
+ */
+export function formatValuePreview(variable: WorkspaceVariable, valueOutput: string): string {
   const { size, class: cls } = variable
 
-  // Check if it's a scalar (1x1)
+  // Strings first — a 1x3 char is still a string, not a "scalar".
+  if (cls === 'char' || cls === 'string') {
+    const raw = extractValueToken(valueOutput)
+    if (raw === null) return `[${size} ${cls}]`
+    // Octave wraps char output in double quotes for `disp` sometimes; strip.
+    const stripped = raw.replace(/^"(.*)"$/s, '$1').replace(/^'(.*)'$/s, '$1')
+    return truncateString(stripped, 20)
+  }
+
+  // Struct/cell/object are never rendered as scalars even at size 1x1 —
+  // their "value" is not a single number, so show the uniform dim+class.
+  const nonScalarClasses = new Set(['struct', 'cell', 'function_handle', 'object', 'class'])
+  if (nonScalarClasses.has(cls)) {
+    return `[${size} ${cls}]`
+  }
+
+  // Scalar numeric / logical
   if (size === '1x1') {
-    // Extract the value from the output
-    // Output format: "ans = 42" or just "42"
-    const match = valueOutput.match(/=\s*(.+)/) ?? valueOutput.match(/^\s*(.+)\s*$/m)
-    if (match) {
-      return match[1].trim()
+    const raw = extractValueToken(valueOutput)
+    if (raw === null) return `[${size} ${cls}]`
+
+    if (cls === 'logical') {
+      if (raw === '1' || raw.toLowerCase() === 'true') return 'true'
+      if (raw === '0' || raw.toLowerCase() === 'false') return 'false'
+      return raw
     }
-    return valueOutput.trim()
-  }
 
-  // For strings (1xN char or string)
-  if (cls === 'char') {
-    const match = valueOutput.match(/=\s*(.+)/) ?? valueOutput.match(/^\s*(.+)\s*$/m)
-    if (match) {
-      const str = match[1].trim()
-      return str.length > 40 ? str.substring(0, 37) + '...' : str
+    const num = Number(raw)
+    if (Number.isFinite(num)) {
+      return formatNumber(num)
     }
+    // Non-finite words Octave emits: Inf, -Inf, NaN
+    return raw
   }
 
-  // For structs
-  if (cls === 'struct') {
-    // Count fields from size or show generic
-    return `[${size} struct]`
-  }
-
-  // For cell arrays
-  if (cls === 'cell') {
-    return `{${size} cell}`
-  }
-
-  // For matrices/vectors, show dimensions
+  // Non-scalar: uniform [RxC class] for matrices, structs, cells, objects.
   return `[${size} ${cls}]`
+}
+
+/**
+ * Extracts the value body from a `disp` / display output. Octave's `disp`
+ * typically emits a bare value ("42\n"), while `display(x)` emits "x = 42".
+ * Strings may arrive as `ans = abc` or just `abc`.
+ */
+function extractValueToken(valueOutput: string): string | null {
+  if (!valueOutput) return null
+  const trimmed = valueOutput.trim()
+  if (trimmed === '') return null
+  // "name = <value>" — take the RHS, which may span multiple lines.
+  const eq = trimmed.indexOf('=')
+  if (eq >= 0) {
+    const rhs = trimmed.slice(eq + 1).trim()
+    if (rhs !== '') return rhs
+  }
+  return trimmed
+}
+
+/** Truncate a string to `max` visible chars, appending '...' when cut. */
+function truncateString(str: string, max: number): string {
+  if (str.length <= max) return str
+  return str.substring(0, max) + '...'
+}
+
+/**
+ * Render a finite number with 6 significant digits. Trims trailing
+ * zeros in both fixed and exponential forms so scalars display cleanly
+ * (3.14159 not 3.14159, 1e-5 not 1.00000e-5, 42 not 42.0000).
+ */
+function formatNumber(n: number): string {
+  if (n === 0) return '0'
+  const abs = Math.abs(n)
+  // Use exponential for very small or very large magnitudes so the preview
+  // cell doesn't show "0.00001" or "1234570". toPrecision(6) picks its own
+  // exponential threshold (abs<1e-6) so we force it via toExponential(5).
+  let precision: string
+  if (abs < 1e-4 || abs >= 1e6) {
+    precision = n.toExponential(5)
+  } else {
+    precision = n.toPrecision(6)
+  }
+  // Exponential form: "1.00000e-5" → "1e-5"
+  if (/e/i.test(precision)) {
+    const [mantissa, exp] = precision.split(/e/i)
+    const trimmedMantissa = mantissa.includes('.')
+      ? mantissa.replace(/0+$/, '').replace(/\.$/, '')
+      : mantissa
+    // Normalise "e+5" → "e+5" (keep sign), "e-05" → "e-5" (strip leading 0s).
+    const normExp = exp.replace(/^([+-]?)0+(\d)/, '$1$2')
+    return `${trimmedMantissa}e${normExp}`
+  }
+  // Fixed form: trim trailing zeros after the decimal point.
+  if (precision.includes('.')) {
+    return precision.replace(/0+$/, '').replace(/\.$/, '')
+  }
+  return precision
 }
 
 function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVariable, onVariablesChanged, debugPaused = false, debugFrameName = null }: WorkspacePanelProps): React.JSX.Element {
