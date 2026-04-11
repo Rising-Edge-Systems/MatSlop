@@ -161,6 +161,70 @@ test('Default layout has no light-theme leaks larger than 100x100 inside dock', 
   expect(leak, `near-white 100x100 leak detected at ${JSON.stringify(leak)}`).toBeNull()
 })
 
+test('US-Q03: panel content fills its parent and the command prompt anchors at bottom', async () => {
+  // .fb-content and .ws-content must fill the panel root horizontally so
+  // there is no gray strip on the right edge.
+  const fbContent = window.locator('[data-testid="file-browser"] .fb-content').first()
+  const wsContent = window.locator('[data-testid="workspace-panel"] .ws-content').first()
+  await expect(fbContent).toBeVisible()
+  await expect(wsContent).toBeVisible()
+
+  const fbWidths = await fbContent.evaluate((el) => {
+    const root = el.closest('.panel') as HTMLElement | null
+    if (!root) return null
+    const a = el.getBoundingClientRect()
+    const b = root.getBoundingClientRect()
+    return { content: a.width, root: b.width }
+  })
+  expect(fbWidths, 'fb-content must have a .panel ancestor').not.toBeNull()
+  if (fbWidths) {
+    expect(
+      Math.abs(fbWidths.content - fbWidths.root),
+      `fb-content width (${fbWidths.content}) should equal panel root width (${fbWidths.root}) within 1px`,
+    ).toBeLessThanOrEqual(1)
+  }
+
+  const wsWidths = await wsContent.evaluate((el) => {
+    const root = el.closest('.panel') as HTMLElement | null
+    if (!root) return null
+    const a = el.getBoundingClientRect()
+    const b = root.getBoundingClientRect()
+    return { content: a.width, root: b.width }
+  })
+  expect(wsWidths, 'ws-content must have a .panel ancestor').not.toBeNull()
+  if (wsWidths) {
+    expect(
+      Math.abs(wsWidths.content - wsWidths.root),
+      `ws-content width (${wsWidths.content}) should equal panel root width (${wsWidths.root}) within 1px`,
+    ).toBeLessThanOrEqual(1)
+  }
+
+  // The Command Window prompt must be anchored at the bottom of the
+  // .cw-output scroll region (no dead space below it). With a fresh
+  // session there is little/no scrollback, so the input line bottom
+  // should sit very close to the cw-output bottom edge.
+  const cwBox = await window.evaluate(() => {
+    const out = document.querySelector(
+      '[data-testid="command-window"] .cw-output',
+    ) as HTMLElement | null
+    const line = document.querySelector(
+      '[data-testid="command-window"] .cw-input-line',
+    ) as HTMLElement | null
+    if (!out || !line) return null
+    const o = out.getBoundingClientRect()
+    const l = line.getBoundingClientRect()
+    return { outBottom: o.bottom, lineBottom: l.bottom, outHeight: o.height }
+  })
+  expect(cwBox, 'cw-output and cw-input-line must exist').not.toBeNull()
+  if (cwBox) {
+    // Allow up to ~16px bottom padding/margin.
+    expect(
+      cwBox.outBottom - cwBox.lineBottom,
+      `cw-input-line bottom must sit within 16px of cw-output bottom (out=${cwBox.outBottom}, line=${cwBox.lineBottom}, height=${cwBox.outHeight})`,
+    ).toBeLessThanOrEqual(16)
+  }
+})
+
 test('Every dock tab fills its parent rc-dock panel content area', async () => {
   const tabs = await window.locator('[data-testid^="dock-tab-"]').all()
   // Filter out the dock-tab-title-* spans (they share the prefix).

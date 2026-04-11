@@ -9,6 +9,8 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
 - DOCK_TAB_TITLES in MatslopDockLayout.tsx provides per-pane title rendered by rc-dock's tab strip.
 - BUILD BROKEN BASELINE: rc-dock, electron-updater, plotly.js-dist-min are listed in package.json dependencies but MISSING from node_modules. `npm run build` fails. dist/renderer on disk predates the polish branch. E2E tests therefore exercise the pre-polish renderer, NOT current source. Do not claim "e2e tests pass" without first reinstalling those packages and rebuilding.
 - To resize the Electron window inside a Playwright test: `await app.evaluate(async ({BrowserWindow}) => { const w = BrowserWindow.getAllWindows().find(x => x.getTitle() === 'MatSlop'); w.unmaximize(); w.setBounds({x:50,y:50,width:1600,height:1000}) })`. `Page.setViewportSize` is a no-op for Electron windows.
+- rc-dock `.dock-content` is transparent — every panel's `*-content` child must explicitly set `background: var(--bg-panel)` or scrollbar gutters / sub-pixel gaps leak gray. Theme `::-webkit-scrollbar*` globally with `--scrollbar-thumb` (already defined per theme).
+- To anchor a child to the bottom of a flex-column scroll container: parent `display: flex; flex-direction: column`, child `margin-top: auto`. Works WITH `overflow-y: auto` because auto-margin collapses to 0 once content overflows.
 
 ---
 
@@ -160,4 +162,19 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
   - electron-store persists to `${userDataDir}/config.json` by default, with each top-level setting as a JSON key. To pre-seed a layout for an e2e test, write `{ theme, layout: { panelVisibility, panelSizes, dockLayout } }` to that path BEFORE launching the app — there is no special preload step required.
   - The savedDockLayout prop on MatslopDockLayout is consumed only by the `useState` initializer on the FIRST render. If a parent updates it later (presets, async layoutGet, redock-from-detached), you MUST add a separate effect that reacts to the prop change, otherwise the new layout is silently dropped on the floor.
   - When the dockVisibility map MatslopDockLayout sees at first paint includes auxiliary flags like callStack/watches/figure that depend on runtime state, the App.tsx migration cannot use that runtime-derived map — it must build a sanitize-time visibility from the persisted panelVisibility shape only (callStack/watches/figure default to false at launch). Otherwise the migration would erroneously strip a callStack tab the user had pinned.
+---
+
+## 2026-04-11 - US-Q03
+- Fixed gray voids inside dock panes by anchoring the Command Window prompt to the bottom and theming the scrollbar gutter so it blends into panel bg.
+- styles.css `.cw-output`: added `display: flex; flex-direction: column` + explicit `background: var(--bg-panel)`. Added `.cw-output > .cw-input-line { margin-top: auto }` so the prompt stays anchored at the bottom when scrollback is short, and naturally flows up when scrollback overflows.
+- styles.css `.fb-content` and `.ws-content`: added `background: var(--bg-panel)` so the content area paints the theme bg explicitly (no inherited gray from rc-dock chrome).
+- styles.css: added a global `::-webkit-scrollbar*` rule set that uses `--scrollbar-thumb` / `--scrollbar-thumb-hover` (already defined in both dark + light themes) with a transparent track. The right-edge gray strip on .fb-content / .ws-content was the default Chromium scrollbar gutter — now invisible against the theme bg.
+- tests/e2e/visual-polish.spec.ts: added a US-Q03 spec that asserts (1) `.fb-content` and `.ws-content` widths equal their `.panel` ancestor width within 1px and (2) the `.cw-input-line` bottom sits within 16px of `.cw-output`'s bottom edge (proves the prompt is anchored).
+- Files changed: src/renderer/styles.css, tests/e2e/visual-polish.spec.ts.
+- Typecheck: same 2 baseline octaveProcess.ts PATH errors only. Vitest: same baseline failures (octave-bundle + octave-plot integration), no new failures from CSS changes.
+- **Learnings for future iterations:**
+  - The "right-edge gray strip" inside dock panes was the default Chromium scrollbar gutter, NOT a layout/width bug. Chromium's default scrollbar track is light gray which only blends in the light theme. Always theme `::-webkit-scrollbar*` with the same vars used for thumb/track elsewhere — the project already has `--scrollbar-thumb` / `--scrollbar-thumb-hover` defined per theme; use them.
+  - To anchor a child to the bottom of a flex column scroll container WITHOUT breaking scroll-into-view for overflowing content, use `display: flex; flex-direction: column` on the parent and `margin-top: auto` on the child you want anchored. When content fits, the auto margin pushes the child down; when content overflows, the auto margin collapses to 0 and content scrolls naturally.
+  - `.cw-output` already auto-scrolls to bottom on new entries via a useEffect in CommandWindow.tsx, so the flex layout above doesn't conflict with the existing scroll-on-new-output behavior.
+  - rc-dock's `.dock-content` does NOT paint a background. Children must paint their own bg explicitly (via `--bg-panel`) — if a content area is transparent, scrollbar gutter / sub-pixel gaps will leak through as gray.
 ---
