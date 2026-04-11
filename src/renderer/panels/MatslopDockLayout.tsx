@@ -52,6 +52,7 @@ export const DOCK_TAB_IDS = {
   callStack: 'matslop-call-stack',
   watches: 'matslop-watches',
   figure: 'matslop-figure',
+  helpBrowser: 'matslop-help-browser',
 } as const
 
 export type MatslopDockTabId = (typeof DOCK_TAB_IDS)[keyof typeof DOCK_TAB_IDS]
@@ -66,6 +67,7 @@ export const DOCK_TAB_TITLES: Record<MatslopDockTabId, string> = {
   [DOCK_TAB_IDS.callStack]: 'Call Stack',
   [DOCK_TAB_IDS.watches]: 'Watches',
   [DOCK_TAB_IDS.figure]: 'Figure',
+  [DOCK_TAB_IDS.helpBrowser]: 'Help',
 }
 
 /**
@@ -80,6 +82,7 @@ export interface DockVisibility {
   callStack: boolean
   watches: boolean
   figure: boolean
+  helpBrowser: boolean
 }
 
 /** Convenience: the "first launch / MATLAB-default" visibility preset. */
@@ -91,6 +94,7 @@ export const DEFAULT_DOCK_VISIBILITY: DockVisibility = {
   callStack: false,
   watches: false,
   figure: false,
+  helpBrowser: false,
 }
 
 // When a `loadTab(tab)` factory is provided to `<DockLayout>`, the tab
@@ -131,13 +135,18 @@ export function buildDockLayoutFromVisibility(
   }
   const wantCmdWindow = vis.commandWindow && !isDetached(DOCK_TAB_IDS.commandWindow)
   const wantCmdHistory = vis.commandHistory && !isDetached(DOCK_TAB_IDS.commandHistory)
-  if (wantCmdWindow || wantCmdHistory) {
+  const wantHelp = vis.helpBrowser && !isDetached(DOCK_TAB_IDS.helpBrowser)
+  if (wantCmdWindow || wantCmdHistory || wantHelp) {
     const bottomTabs: TabData[] = []
     if (wantCmdWindow) bottomTabs.push(idOnly(DOCK_TAB_IDS.commandWindow))
     if (wantCmdHistory) bottomTabs.push(idOnly(DOCK_TAB_IDS.commandHistory))
+    if (wantHelp) bottomTabs.push(idOnly(DOCK_TAB_IDS.helpBrowser))
     centerChildren.push({
       size: 300,
       tabs: bottomTabs,
+      // US-031: when help is opened via `doc <name>`, switch the bottom
+      // panel to the Help tab so the user sees the result immediately.
+      activeId: wantHelp ? DOCK_TAB_IDS.helpBrowser : undefined,
     } as PanelData)
   }
   if (centerChildren.length > 0) {
@@ -208,6 +217,7 @@ export interface MatslopDockLayoutProps {
   callStack: ReactNode
   watches: ReactNode
   figure: ReactNode
+  helpBrowser: ReactNode
   /**
    * US-026: previously-persisted rc-dock layout (from `DockLayout.saveLayout()`).
    * When provided at first render, it is used instead of the visibility-
@@ -226,6 +236,14 @@ export interface MatslopDockLayoutProps {
    * separate OS windows. Detached tabs are omitted from the dock layout
    * tree entirely (same treatment as visibility=false).
    */
+  /**
+   * US-031: additional cache-busting key that forces a layout rebuild
+   * when it changes, even if visibility did not. Used by the Help panel
+   * to refresh cached tab content when the displayed topic changes —
+   * rc-dock's PureComponent panels would otherwise not re-render the
+   * stale JSX captured in `loadTab`.
+   */
+  contentVersion?: string
   detachedPanels?: ReadonlySet<string>
   /**
    * US-027: called when the user picks "Detach" from a tab's context
@@ -243,7 +261,7 @@ export interface MatslopDockLayoutProps {
  * layout and has no content (so its data-testid does not leak into DOM).
  */
 export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.JSX.Element {
-  const { visibility, savedDockLayout, onDockLayoutChange, detachedPanels, onDetachTab } = props
+  const { visibility, savedDockLayout, onDockLayoutChange, detachedPanels, onDetachTab, contentVersion } = props
   const containerRef = useRef<HTMLDivElement>(null)
   const dockRef = useRef<DockLayout>(null)
   // Keep the latest change handler in a ref so we don't need to re-bind
@@ -278,6 +296,7 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
       [DOCK_TAB_IDS.callStack]: props.callStack,
       [DOCK_TAB_IDS.watches]: props.watches,
       [DOCK_TAB_IDS.figure]: props.figure,
+      [DOCK_TAB_IDS.helpBrowser]: props.helpBrowser,
     }),
     [
       props.fileBrowser,
@@ -288,6 +307,7 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
       props.callStack,
       props.watches,
       props.figure,
+      props.helpBrowser,
     ],
   )
   const slotsRef = useRef(slotsById)
@@ -315,18 +335,20 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
   // visibility-effect below knows to rebuild instead of re-applying it.
   const visKey = JSON.stringify(visibility)
   const detachedKey = detachedPanels ? [...detachedPanels].sort().join('|') : ''
-  const prevKeysRef = useRef({ vis: visKey, detached: detachedKey })
+  const versionKey = contentVersion ?? ''
+  const prevKeysRef = useRef({ vis: visKey, detached: detachedKey, version: versionKey })
   useEffect(() => {
     if (
       prevKeysRef.current.vis === visKey &&
-      prevKeysRef.current.detached === detachedKey
+      prevKeysRef.current.detached === detachedKey &&
+      prevKeysRef.current.version === versionKey
     ) {
       return
     }
-    prevKeysRef.current = { vis: visKey, detached: detachedKey }
+    prevKeysRef.current = { vis: visKey, detached: detachedKey, version: versionKey }
     setLayout(buildDockLayoutFromVisibility(visibility, detachedPanels))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visKey, detachedKey])
+  }, [visKey, detachedKey, versionKey])
 
   const loadTab = (tab: TabData): TabData => {
     const id = tab.id as MatslopDockTabId | undefined

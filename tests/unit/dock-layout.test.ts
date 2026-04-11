@@ -165,6 +165,7 @@ describe('buildDockLayoutFromVisibility', () => {
       callStack: true,
       watches: true,
       figure: true,
+      helpBrowser: false,
     }
     const layout = buildDockLayoutFromVisibility(fullVis)
     const ids = collectTabIds(layout.dockbox).sort()
@@ -179,6 +180,28 @@ describe('buildDockLayoutFromVisibility', () => {
         DOCK_TAB_IDS.figure,
       ].sort(),
     )
+  })
+
+  it('adds the help browser as a tab in the center-bottom panel when visible', () => {
+    const vis: DockVisibility = {
+      fileBrowser: true,
+      commandWindow: true,
+      commandHistory: false,
+      workspace: true,
+      callStack: false,
+      watches: false,
+      figure: false,
+      helpBrowser: true,
+    }
+    const layout = buildDockLayoutFromVisibility(vis)
+    const ids = collectTabIds(layout.dockbox)
+    expect(ids).toContain(DOCK_TAB_IDS.helpBrowser)
+    // Help should appear alongside the command window in one panel.
+    const centerBox = layout.dockbox.children?.find(
+      (c): c is { mode: 'vertical'; children: unknown[] } =>
+        (c as { mode?: string }).mode === 'vertical',
+    )
+    expect(centerBox).toBeDefined()
   })
 
   it('drops the right column entirely when no right-side panel is visible', () => {

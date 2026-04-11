@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import PanelHeader from './PanelHeader'
 import type { OctaveEngineStatus } from '../App'
+import { parseDocCommand, parseHelpCommand } from '../editor/helpDoc'
 
 interface OutputEntry {
   type: 'command' | 'output' | 'error'
@@ -28,9 +29,11 @@ interface CommandWindowProps {
   onPasteConsumed?: () => void
   menuAction?: MenuAction | null
   onMenuActionConsumed?: () => void
+  /** US-031: intercept `doc <name>` / `help <name>` inputs. */
+  onDocCommand?: (topic: string) => void
 }
 
-function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExecuted, onHistoryChanged, pasteCommand, onPasteConsumed, menuAction, onMenuActionConsumed }: CommandWindowProps): React.JSX.Element {
+function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExecuted, onHistoryChanged, pasteCommand, onPasteConsumed, menuAction, onMenuActionConsumed, onDocCommand }: CommandWindowProps): React.JSX.Element {
   const [outputEntries, setOutputEntries] = useState<OutputEntry[]>([])
   const [inputValue, setInputValue] = useState('')
   const [commandHistory, setCommandHistory] = useState<string[]>([])
@@ -111,6 +114,20 @@ function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExec
     // Handle clc command locally
     if (command.trim() === 'clc') {
       setOutputEntries([])
+      return
+    }
+
+    // US-031: intercept `doc <name>` / `help <name>` and route to the
+    // Help panel instead of forwarding to Octave (which would open an
+    // external pager or dump huge output into the command window).
+    const docTopic = parseDocCommand(command) ?? parseHelpCommand(command)
+    if (docTopic && onDocCommand) {
+      onDocCommand(docTopic)
+      setOutputEntries((prev) => [
+        ...prev,
+        { type: 'output', text: `Opened help for ${docTopic} in the Help panel.` },
+      ])
+      onCommandExecuted?.()
       return
     }
 

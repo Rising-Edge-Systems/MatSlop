@@ -2797,3 +2797,82 @@ body {
 .watches-refresh-btn:hover {
   color: var(--text-primary);
 }
+
+/* US-031: Help browser panel */
+.help-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+
+.help-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-panel);
+  font-size: 12px;
+}
+
+.help-back-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.help-back-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.help-topic {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.help-body {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.help-empty,
+.help-loading,
+.help-error {
+  color: var(--text-disabled);
+  padding: 8px 2px;
+}
+
+.help-error {
+  color: #d88;
+}
+
+.help-content {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: 'Consolas', 'Courier New', monospace;
+  color: var(--text-primary);
+}
+
+.help-xref {
+  background: transparent;
+  border: none;
+  color: var(--link-color, #5aa1ff);
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.help-xref:hover {
+  color: var(--link-hover, #7fb6ff);
+}

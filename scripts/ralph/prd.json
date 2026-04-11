@@ -519,8 +519,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 31,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added pure helpDoc.ts helper (parseDocCommand, parseHelpCommand, buildHelpFetchCommand, extractHelpBody, extractSeeAlso, splitHelpBody + HelpState reducers). New HelpPanel.tsx component renders topic, body, and clickable See-also cross-refs (data-testid=help-panel/help-topic/help-content/help-xref/help-back-btn). MatslopDockLayout gained a helpBrowser tab id and a contentVersion prop that busts rc-docks PureComponent cache on help state changes. App.tsx owns helpState (EMPTY_HELP_STATE + reducers), wires handleDocCommand into CommandWindow (which intercepts doc <name> / help <name> inputs before forwarding to Octave), and exposes __matslopOpenHelp / __matslopSimulateHelpContent / __matslopSimulateHelpError / __matslopCloseHelp / __matslopHelpState test hooks. 23 unit tests in tests/unit/help-doc.test.ts and 8 e2e tests in tests/e2e/help-browser.spec.ts."
     },
     {
       "id": "US-032",

@@ -11,6 +11,18 @@ import type { CursorPosition } from './panels/StatusBar'
 import DebugToolbar from './editor/DebugToolbar'
 import CallStackPanel, { type CallStackFrame } from './panels/CallStackPanel'
 import WatchesPanel from './panels/WatchesPanel'
+import HelpPanel from './panels/HelpPanel'
+import {
+  EMPTY_HELP_STATE,
+  beginHelpNavigation,
+  completeHelpNavigation,
+  failHelpNavigation,
+  popHelpHistory,
+  closeHelp as closeHelpState,
+  buildHelpFetchCommand,
+  extractHelpBody,
+  type HelpState,
+} from './editor/helpDoc'
 import {
   addWatch as addWatchHelper,
   removeWatch as removeWatchHelper,
@@ -140,6 +152,12 @@ function App(): React.JSX.Element {
     id: number
   } | null>(null)
   const editContinueBannerIdRef = useRef(0)
+  // US-031: Help browser state. `doc <name>` in the Command Window (or
+  // the test-only `__matslopOpenHelp` hook) drives this; the Help panel
+  // auto-shows when `topic !== null`.
+  const [helpState, setHelpState] = useState<HelpState>(EMPTY_HELP_STATE)
+  const helpStateRef = useRef(helpState)
+  helpStateRef.current = helpState
   const [editorSettings, setEditorSettings] = useState({
     fontFamily: "'Consolas', 'Courier New', monospace",
     fontSize: 14,
@@ -1106,6 +1124,104 @@ function App(): React.JSX.Element {
     setPasteCommand(null)
   }, [])
 
+  // US-031: Fetch help for `topic` from Octave, parse out the body from
+  // the delimited command output, and hand it to the reducer. Swallows
+  // IPC failures (shown as an inline error in the panel). Test-only hook
+  // `__matslopOpenHelp` bypasses this function entirely by populating the
+  // state directly with a canned body.
+  const fetchAndShowHelp = useCallback(async (topic: string) => {
+    setHelpState((prev) => beginHelpNavigation(prev, topic))
+    try {
+      const bridge = window.matslop as typeof window.matslop | undefined
+      if (!bridge?.octaveExecute) {
+        setHelpState((prev) =>
+          failHelpNavigation(prev, topic, 'Octave bridge unavailable'),
+        )
+        return
+      }
+      const { output, error } = await bridge.octaveExecute(buildHelpFetchCommand(topic))
+      const body = extractHelpBody(output || '') ?? (error || output || '').trim()
+      if (!body) {
+        setHelpState((prev) => failHelpNavigation(prev, topic, 'No help found.'))
+        return
+      }
+      setHelpState((prev) => completeHelpNavigation(prev, topic, body))
+    } catch (err) {
+      setHelpState((prev) =>
+        failHelpNavigation(prev, topic, err instanceof Error ? err.message : String(err)),
+      )
+    }
+  }, [])
+
+  const handleHelpNavigate = useCallback(
+    (topic: string) => {
+      void fetchAndShowHelp(topic)
+    },
+    [fetchAndShowHelp],
+  )
+
+  const handleHelpBack = useCallback(() => {
+    const { state: popped, previous } = popHelpHistory(helpStateRef.current)
+    setHelpState(popped)
+    if (previous) {
+      // Re-fetch the previous topic (its content isn't cached; popping
+      // the stack just restores the topic id). Fire-and-forget.
+      void fetchAndShowHelp(previous)
+    }
+  }, [fetchAndShowHelp])
+
+  const handleHelpClose = useCallback(() => {
+    setHelpState((prev) => closeHelpState(prev))
+  }, [])
+
+  // US-031: command-window hook — CommandWindow forwards intercepted
+  // `doc <name>` / `help <name>` inputs here so App owns the help flow.
+  const handleDocCommand = useCallback(
+    (topic: string) => {
+      void fetchAndShowHelp(topic)
+    },
+    [fetchAndShowHelp],
+  )
+
+  // US-031: test-only hooks mirroring the call-stack / watches patterns.
+  // `__matslopOpenHelp(topic, rawBody?)` lets Playwright populate the
+  // panel without needing a real Octave process; pass only `topic` to
+  // exercise the loading branch. `__matslopHelpState` mirrors the
+  // current state so tests can inspect history-stack transitions.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const w = window as unknown as {
+      __matslopOpenHelp?: (topic: string, body?: string) => void
+      __matslopSimulateHelpContent?: (topic: string, body: string) => void
+      __matslopSimulateHelpError?: (topic: string, error: string) => void
+      __matslopCloseHelp?: () => void
+      __matslopHelpState?: HelpState
+    }
+    w.__matslopOpenHelp = (topic: string, body?: string) => {
+      setHelpState((prev) => {
+        const next = beginHelpNavigation(prev, topic)
+        if (body != null) {
+          return completeHelpNavigation(next, topic, body)
+        }
+        return next
+      })
+    }
+    w.__matslopSimulateHelpContent = (topic: string, body: string) => {
+      setHelpState((prev) => completeHelpNavigation(prev, topic, body))
+    }
+    w.__matslopSimulateHelpError = (topic: string, error: string) => {
+      setHelpState((prev) => failHelpNavigation(prev, topic, error))
+    }
+    w.__matslopCloseHelp = () => {
+      setHelpState(() => EMPTY_HELP_STATE)
+    }
+    w.__matslopHelpState = helpState
+    return () => {
+      const ww = window as unknown as { __matslopHelpState?: unknown }
+      ww.__matslopHelpState = null
+    }
+  }, [helpState])
+
   // US-025: derive dock visibility from app state. Optional panels
   // (Call Stack, Watches, Figure) are auto-shown based on state
   // transitions — they match the conditional-mount rules that the old
@@ -1119,6 +1235,7 @@ function App(): React.JSX.Element {
       callStack: pausedLocation !== null,
       watches: watches.length > 0 || pausedLocation !== null,
       figure: figures.length > 0,
+      helpBrowser: helpState.topic !== null,
     }),
     [
       visibility.fileBrowser,
@@ -1128,6 +1245,7 @@ function App(): React.JSX.Element {
       pausedLocation,
       watches.length,
       figures.length,
+      helpState.topic,
     ],
   )
 
@@ -1180,6 +1298,10 @@ function App(): React.JSX.Element {
           onDockLayoutChange={handleDockLayoutChange}
           detachedPanels={detachedPanels}
           onDetachTab={handleDetachTab}
+          /* US-031: bust rc-dock's PureComponent cache when the help topic
+             changes — otherwise the cached tab content keeps the old
+             HelpPanel props. */
+          contentVersion={`help:${helpState.topic ?? ''}:${helpState.loading ? 'L' : ''}${helpState.error ? 'E' : ''}${helpState.content ? 'C' : ''}`}
           fileBrowser={
             dockVisibility.fileBrowser ? (
               <FileBrowser
@@ -1223,6 +1345,7 @@ function App(): React.JSX.Element {
                 onPasteConsumed={handlePasteConsumed}
                 menuAction={menuAction}
                 onMenuActionConsumed={handleMenuActionConsumed}
+                onDocCommand={handleDocCommand}
               />
             ) : null
           }
@@ -1271,6 +1394,20 @@ function App(): React.JSX.Element {
           figure={
             dockVisibility.figure ? (
               <FigurePanel figures={figures} onSaveFigure={handleSaveFigure} />
+            ) : null
+          }
+          helpBrowser={
+            dockVisibility.helpBrowser ? (
+              <HelpPanel
+                topic={helpState.topic}
+                content={helpState.content}
+                error={helpState.error}
+                loading={helpState.loading}
+                canGoBack={helpState.history.length > 0}
+                onNavigate={handleHelpNavigate}
+                onBack={handleHelpBack}
+                onClose={handleHelpClose}
+              />
             ) : null
           }
         />
