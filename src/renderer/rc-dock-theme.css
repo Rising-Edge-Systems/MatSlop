@@ -183,7 +183,99 @@
   color: var(--text-bright);
 }
 
-/* rc-tabs internals (rc-dock embeds rc-tabs with prefixCls "rc-tabs") */
+/* US-Q04: rc-dock embeds rc-tabs with prefixCls="dock", so the actual
+ * rendered tab classes are .dock-tab / .dock-tab-active / .dock-tab-btn /
+ * .dock-tabpane / .dock-nav / .dock-ink-bar — NOT .rc-tabs-*. The .rc-tabs-*
+ * block below is kept as a defensive fallback (and to satisfy the AC that
+ * mentions both selectors), but the live styles for active/inactive tab
+ * state come from these .dock-tab rules. */
+.dock-nav {
+  background: var(--bg-header);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+  margin: 0;
+}
+
+.dock-nav::before {
+  border-bottom-color: var(--border-color);
+}
+
+.dock-nav-wrap {
+  background: var(--bg-header);
+}
+
+.dock-nav-list {
+  background: transparent;
+}
+
+.dock-tab {
+  background: var(--bg-header);
+  color: var(--text-secondary);
+  border: none;
+  border-right: 1px solid var(--border-subtle);
+  padding: 4px 12px;
+  margin: 0;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+
+.dock-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Active tab: bright text + accent underline. Because of CSS specificity
+ * and rule order, the .dock-tab-active rule MUST come after .dock-tab:hover
+ * so that an active tab being hovered keeps the active styling. */
+.dock-tab.dock-tab-active,
+.dock-tab-active {
+  background: var(--bg-panel);
+  color: var(--text-bright);
+  /* Belt-and-braces underline in case the dock-ink-bar is hidden by
+   * an ancestor overflow. The ink-bar still wins when visible. */
+  box-shadow: inset 0 -2px 0 0 var(--accent-color);
+}
+
+.dock-tab.dock-tab-active:hover,
+.dock-tab-active:hover {
+  background: var(--bg-panel);
+  color: var(--text-bright);
+}
+
+.dock-tab.dock-tab-active .dock-tab-btn,
+.dock-tab.dock-tab-active .dock-tab-title,
+.dock-tab-active .dock-tab-btn,
+.dock-tab-active .dock-tab-title {
+  color: var(--text-bright);
+}
+
+.dock-tab-btn {
+  color: inherit;
+  background: transparent;
+  outline: none;
+}
+
+.dock-tab-btn:focus,
+.dock-tab-btn:focus-visible {
+  outline: none;
+  color: var(--text-bright);
+}
+
+.dock-ink-bar {
+  background: var(--accent-color);
+  height: 2px;
+  bottom: 0;
+}
+
+.dock-tabpane,
+.dock-tabpane-active {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+}
+
+/* rc-tabs internals (legacy fallback selectors — see note above) */
 .rc-tabs {
   background: transparent;
   color: var(--text-secondary);
