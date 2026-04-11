@@ -240,14 +240,15 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
     }
     refreshingRef.current = true
 
-    // Watchdog: if the first whos call never resolves (the process
-    // manager has been observed to hang on the very first command after
-    // a renderer reload), force-unlock and bail so the next refresh
-    // triggered by a user command can run cleanly.
+    // Safety net: if a refresh somehow never settles (e.g. Octave is
+    // wedged on a long-running user command), force-unlock after 30s so
+    // the next refresh triggered by a user command can run cleanly. The
+    // previous 5s watchdog masked a real process-manager race that was
+    // fixed at the source in OctaveProcessManager.start(); see US-T02.
     const watchdog = setTimeout(() => {
       refreshingRef.current = false
       pendingRefreshRef.current = false
-    }, 5000)
+    }, 30000)
 
     try {
       // Retry whos up to 3x when the process manager is returning empty

@@ -7,7 +7,26 @@ Started: Sat Apr 11 07:38:25 PM EDT 2026
 - Unsafe user input into Octave commands: strip to `[A-Za-z0-9_.]` (see buildHelpFetchCommand)
 - Test Octave directly at /tmp/octave-root/octave-cli-wrap when validating Octave command snippets
 - Existing lint errors (6, all pre-existing: 5x react-hooks/exhaustive-deps rule missing, 1x prefer-const) are NOT from current work — do not try to fix unrelated to story
+- OctaveProcessManager: `processQueue()` only re-enters from (a) executeCommand() calls or (b) a command resolver's setImmediate. Any custom `pendingResolve` must chain processQueue() on completion or queued commands will hang.
+- Unit-testing OctaveProcessManager: mock `child_process.spawn` with a FakeChildProcess that has `stdin.write`, stdout/stderr EventEmitters. Emit `___MATSLOP_CMD_DONE___\n` on stdout to simulate a completed command.
+- `octave:start` IPC creates a NEW OctaveProcessManager every time the renderer invokes it (e.g. on HMR/reload), so the init-handshake path runs fresh on every reload.
 
+---
+
+## 2026-04-11 - US-T02
+- Fixed WorkspacePanel first-refresh hang at its root cause in OctaveProcessManager.start()
+- Root cause: the init handshake's pendingResolve was a noop that did not chain processQueue(). If the renderer queued a command (e.g. `whos`) before the init delimiter arrived, the command sat in commandQueue forever because nothing re-entered processQueue once pendingResolve was nulled. This happens on every renderer reload since `octave:start` constructs a fresh OctaveProcessManager.
+- Fix: init pendingResolve now schedules `processQueue()` via setImmediate, draining any queued commands immediately after the init delimiter.
+- Also reduced WorkspacePanel watchdog from 5s to 30s (safety net only — no longer masking the bug).
+- Files changed:
+  - src/main/octaveProcess.ts (init pendingResolve now chains processQueue)
+  - src/renderer/panels/WorkspacePanel.tsx (watchdog 5s → 30s safety net)
+  - tests/unit/octave-process-init-race.test.ts (new — reproduces the race with a mocked spawn)
+- Tests: 584 passed / 0 failed. Typecheck clean.
+- **Learnings for future iterations:**
+  - When adding a custom pendingResolve anywhere in OctaveProcessManager, always chain `setImmediate(() => this.processQueue())` or queued commands will hang
+  - On renderer reload, `octave:start` creates a fresh manager — anything that depends on "already-initialized" state must be idempotent
+  - OctaveProcessManager is testable end-to-end by mocking `child_process.spawn` with a FakeChildProcess EventEmitter (see octave-interrupt.test.ts and octave-process-init-race.test.ts for templates)
 ---
 
 ## 2026-04-11 - US-T01

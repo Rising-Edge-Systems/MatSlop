@@ -33,8 +33,8 @@
         "Tests pass"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Fixed in OctaveProcessManager.start(): the init-handshake pendingResolve now schedules processQueue() via setImmediate, so commands queued before the init delimiter arrives are drained. WorkspacePanel watchdog reduced from 5s to 30s as a safety net only."
     },
     {
       "id": "US-T03",

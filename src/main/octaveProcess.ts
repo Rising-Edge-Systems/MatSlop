@@ -131,9 +131,14 @@ export class OctaveProcessManager extends EventEmitter {
     this.process.stdin?.write(initScript + '\n')
     this.process.stdin?.write(DELIMITER_COMMAND)
 
-    // Wait for initial ready signal
-    this.pendingResolve = () => {
-      // Initial ready - discard output
+    // Wait for initial ready signal. Critical: after the init delimiter
+    // arrives, drain anything the renderer queued while we were warming up.
+    // Without this, an `executeCommand('whos')` issued by the renderer in
+    // the same tick as `octave:start` (happens after every HMR reload or
+    // fresh launch) sits in `commandQueue` forever because nothing kicks
+    // `processQueue()` once the init handler nulls `pendingResolve`.
+    this.pendingResolve = (): void => {
+      setImmediate(() => this.processQueue())
     }
   }
 
