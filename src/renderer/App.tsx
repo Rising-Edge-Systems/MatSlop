@@ -159,7 +159,12 @@ function App(): React.JSX.Element {
   const [menuAction, setMenuAction] = useState<{ action: string; id: number } | null>(null)
   const menuActionIdRef = useRef(0)
   const [showAbout, setShowAbout] = useState(false)
-  const [themeMode, setThemeMode] = useState<ThemeMode>('system')
+  // US-Q01: Seed initial theme to 'dark' (matching the main-process default
+  // in DEFAULT_THEME) so the very first paint never lands on light even if
+  // configGetTheme() resolves a beat later. Stored preferences (including
+  // a user-chosen 'system' or 'light') still override via the load effect
+  // below.
+  const [themeMode, setThemeMode] = useState<ThemeMode>('dark')
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('dark')
   const [errorCount, setErrorCount] = useState(0)
   const [showPreferences, setShowPreferences] = useState(false)

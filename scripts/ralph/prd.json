@@ -1,17 +1,17 @@
 {
   "project": "MatSlop",
   "branchName": "ralph/matslop-polish-v2",
-  "description": "Look-and-feel polish pass on the ROADMAP branch (rc-dock based). Fix duplicate panel headers, collapsed dock content, light-theme leak from rc-dock, blocking Octave modal, tiny default window, and ghost tabs. See tasks/prd-matslop-polish.md for the narrative PRD with root-cause findings. IMPORTANT: this branch is based on ralph/matslop-roadmap (42 stories already merged). The codebase uses rc-dock via src/renderer/panels/MatslopDockLayout.tsx, NOT Allotment. If you find both, rc-dock is the live one.",
+  "description": "Polish cycle 3 on top of cycle 2. Remaining issues after manual rc-dock overlay hotfix (5f4e08d): dark theme not default, Command History ghost tab still renders from persisted layouts, panel content voids inside panes, active-tab state unclear, tab bar filler looks disconnected, workspace clipping. See tasks/prd-matslop-polish-3.md for narrative with reference screenshot /tmp/polish-cdp-03.png.",
   "userStories": [
     {
-      "id": "US-P01",
-      "title": "Remove legacy PanelHeader from every dock-hosted panel",
-      "description": "As a user, I want exactly one header per dock pane (the rc-dock tab header), not two stacked headers. Inspection showed FileBrowser, EditorPanel, WorkspacePanel, CommandWindow, etc. each render their own <PanelHeader> on top of rc-dock's tab strip.",
+      "id": "US-Q01",
+      "title": "Change default theme mode from system to dark",
+      "description": "As a user, I want the app to open in dark mode by default even if my OS is set to light mode, matching the project's design baseline. First-launch inspection showed data-theme='light' applied because prefers-color-scheme returned light.",
       "acceptanceCriteria": [
-        "PanelHeader import/usage removed from every panel hosted inside MatslopDockLayout: FileBrowser, EditorPanel, WorkspacePanel, CommandWindow, CommandHistoryPanel, CallStackPanel, WatchesPanel, FigurePanel, HelpPanel, FindInFilesPanel, ProfilerPanel, SourceControlPanel",
-        "PanelHeader.tsx is kept only if DetachedPanel (outside rc-dock) still needs it; otherwise it is deleted",
-        "The pane still shows its title in rc-dock's tab strip via DOCK_TAB_TITLES in MatslopDockLayout.tsx",
-        "Playwright smoke: only one element matching a panel's title text per pane",
+        "The seeded default for users with no stored preference is 'dark' (not 'system')",
+        "First launch with no config does not set data-theme='light' even when OS prefers-color-scheme is light",
+        "Users who previously picked light or system keep their stored preference",
+        "A unit or Playwright test documents the seeded default",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
@@ -21,156 +21,115 @@
       "notes": ""
     },
     {
-      "id": "US-P02",
-      "title": "Fix dock tab content sizing so panels fill their pane",
-      "description": "As a user, I want every panel to fill the full area of the dock pane it lives in, not collapse to intrinsic content size leaving ugly gray voids. Inspection showed MatslopDockLayout.tsx loadTab() wraps tab content in display:flex without giving child flex:1, so .panel shrinks to its intrinsic width.",
+      "id": "US-Q02",
+      "title": "Actually kill the Command History ghost tab for persisted layouts",
+      "description": "US-P06 added sanitizeSavedDockLayout but the ghost tab still renders. Either the sanitizer is not applied on the load path, or only during visibility-driven rebuilds that skip the first render.",
       "acceptanceCriteria": [
-        "In MatslopDockLayout.tsx the tab-content wrapper at loadTab() either drops display:flex or gives its child flex: 1 1 auto; min-width: 0; min-height: 0",
-        ".panel selector in styles.css gets width: 100% alongside height: 100%",
-        "Resizing the window stretches file-tree, monaco editor, workspace table, and command window to fill their pane with no gray void on the right or bottom",
-        "Playwright: dock-tab-matslop-file-browser bounding box equals its parent rc-dock panel bounding box within 2px on all four sides",
+        "sanitizeSavedDockLayout is applied to savedDockLayout in the useState initializer of MatslopDockLayout (first render) AND on every later rebuild",
+        "Migration: if an existing session.json or layout persistence file contains a tab id whose visibility is currently false, strip it on load and write the sanitized layout back",
+        "Playwright: load a fixture layout that includes matslop-command-history and assert the rendered DOM has zero [data-testid='dock-tab-matslop-command-history'] when commandHistory is false",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-P03",
-      "title": "Replace rc-dock light CSS with project dark theme",
-      "description": "As a user, I want dock panels to match the project's dark theme instead of rendering with rc-dock's default light chrome. Inspection showed MatslopDockLayout.tsx imports rc-dock/dist/rc-dock.css (light), overriding the project's CSS vars inside the dock tree.",
+      "id": "US-Q03",
+      "title": "Fill panel content to pane edges (no gray voids inside panes)",
+      "description": "Cycle 2 made .panel fill the pane but inner containers still leave visible gaps. Screenshot /tmp/polish-cdp-03.png shows thin gray strips on the right edge of File Browser and Workspace and dead space below the Command Window prompt.",
       "acceptanceCriteria": [
-        "Import changed from rc-dock/dist/rc-dock.css to rc-dock/dist/rc-dock-dark.css OR a new src/renderer/rc-dock-theme.css maps every rc-dock selector (.dock-tab, .dock-panel, .dock-bar, .dock-nav-wrap, .dock-divider, .dock-drop-indicator) to CSS variables (--bg-panel, --bg-header, --border-color, --text-primary, --accent-color)",
-        "Dark theme is the visible default at first launch",
-        "Switching to light theme via data-theme='light' still works",
-        "Playwright: screenshot of main window in dark mode has no contiguous #f3f3f3 or #ffffff region larger than 100x100 pixels inside the dock area",
+        ".fb-content fills its pane horizontally with no gray strip on the right",
+        ".ws-content fills its pane horizontally",
+        ".cw-output fills its pane vertically; the >> prompt anchors at the bottom with scrollable history above",
+        "Any padding/margin comes from the theme, not from a visible background mismatch",
+        "Playwright screenshot in dark mode: no contiguous rectangle larger than 4x4 inside any dock pane that is NOT part of the intended content background",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-P04",
-      "title": "Make 'Octave Not Found' non-blocking (banner, not modal)",
-      "description": "As a first-time user, I want to see the MatSlop UI on launch even if Octave isn't detected yet. Currently a modal blocks interaction on every launch.",
+      "id": "US-Q04",
+      "title": "Distinguish active dock tabs visually",
+      "description": "Every tab in every strip currently looks underlined (all appear active). rc-dock exposes both .dock-tab.dock-tab-active AND .rc-tabs-tab-active; US-P09 only targeted rc-tabs.",
       "acceptanceCriteria": [
-        "On launch with no detected Octave, the full dock layout mounts and a dismissible warning banner appears above the status bar with a short message, a 'Browse for octave-cli...' button, and a 'Dismiss' button",
-        "The previous modal dialog is removed from the first-run path (still reachable from Preferences > Octave path)",
-        "Running an Octave-dependent command with no path set shows an inline error in the Command Window, not a modal",
+        "Only the active tab has the accent-color underline and bright text (both .dock-tab.dock-tab-active and .rc-tabs-tab.rc-tabs-tab-active selectors covered)",
+        "Inactive tabs use --text-secondary with no underline",
+        "Hover on an inactive tab uses --bg-hover + --text-primary",
+        "Playwright: in a pane with 2+ tabs, exactly one has dock-tab-active and exactly one has the inset box-shadow",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-P05",
-      "title": "Maximize or honor work-area size on first launch",
-      "description": "As a user, I want MatSlop to open at a reasonable size on first launch instead of a small centered box.",
+      "id": "US-Q05",
+      "title": "Dock bar filler blends into tab strip",
+      "description": "The empty area to the right of the last tab currently looks like a disconnected gray box because the filler has a different background from the tab bar.",
       "acceptanceCriteria": [
-        "BrowserWindow creation in src/main/index.ts uses screen.getPrimaryDisplay().workAreaSize for default width/height (capped at 1920x1200) OR calls win.maximize() before first show",
-        "User-resized dimensions still persist across launches via existing window-state persistence",
-        "E2E tests that set their own viewport are not affected (process.env.E2E guard if needed)",
+        "The area after the last tab in every dock-bar uses the same background as .dock-bar (visual continuation of the strip)",
+        "The rc-tabs overflow button (.rc-tabs-nav-more / .dock-extra-content) is themed to match",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-P06",
-      "title": "Remove stale Command History ghost tab",
-      "description": "As a user, I don't want a disconnected Command History tab floating over the Command Window when Command History is not visible. Inspection screenshot matslop-06.png shows this ghost tab at ~(150, 320).",
+      "id": "US-Q06",
+      "title": "Workspace column min-width and overflow",
+      "description": "The Workspace header text 'No variables in workspace' is partially clipped at the right edge when the column is narrow.",
       "acceptanceCriteria": [
-        "buildDockLayoutFromVisibility in MatslopDockLayout.tsx never emits a Command History tab entry unless visibility.commandHistory is true",
-        "Saved-layout hydration (US-026 path) drops unknown or hidden tab ids from the loaded LayoutBase before passing it to rc-dock",
-        "Playwright: launching with default visibility shows zero elements with data-testid='dock-tab-matslop-command-history'",
+        ".ws-content has overflow: auto so long text can scroll instead of hard-clipping",
+        "Workspace column has a minSize in the rc-dock layout so it cannot shrink below ~180px",
+        "Header text wraps or truncates with an ellipsis rather than hard-clipping",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-P07",
-      "title": "Initial dock sizes use flex weights, not fixed pixels",
-      "description": "As a user, I want the three-column dock to split proportionally as the window resizes. Current sizes (220/900/280) sum to 1400 which is the legacy window width, so wider windows leave dead space.",
+      "id": "US-Q07",
+      "title": "Clear stale persisted layout on version bump",
+      "description": "As a user upgrading from a pre-polish build, I don't want a stale persisted layout to override the new polished defaults.",
       "acceptanceCriteria": [
-        "In buildDockLayoutFromVisibility the column size fields are chosen so rc-dock distributes leftover space to the editor column proportionally",
-        "At 1920x1080 File Browser is ~15%, Editor+Command column ~65%, Workspace column ~20%, with no unused space",
-        "Resizing the window shrinks/grows the center column proportionally",
-        "Existing 'reset layout' preset still places panels in the Phase 1 positions",
+        "The layout persistence file stores a schema version field",
+        "On load, if the stored version is older than the current constant, the layout is discarded and defaults are applied (visibility preferences preserved where possible)",
+        "The constant is bumped by 1 in this story",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 7,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-P08",
-      "title": "Audit every .panel child for width: 100%; height: 100%",
-      "description": "As a developer, I need every panel's root element to propagate full width/height to its content (Monaco, file tree, xterm, grid) so no sub-component collapses independently.",
+      "id": "US-Q08",
+      "title": "Run visual-polish E2E spec as exit gate",
+      "description": "The visual-polish spec from US-P10 must pass as the exit gate for this cycle.",
       "acceptanceCriteria": [
-        "All panel root elements and their direct .panel-content children set width: 100%; height: 100%; min-width: 0; min-height: 0",
-        "EditorPanel Monaco wrapper explicitly sizes to 100%/100% and Monaco auto-layout fills the pane",
-        "CommandWindow xterm element fills its pane and FitAddon still triggers on resize",
-        "WorkspacePanel grid fills its pane horizontally",
-        "Playwright screenshot at 1920x1080: no empty #252526-over-nothing rectangles larger than 4px inside any dock pane",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 8,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-P09",
-      "title": "Style pass on rc-dock tab strips to match project theme",
-      "description": "As a user, I want the dock tab strips to use the project's accent color and typography, not rc-dock defaults.",
-      "acceptanceCriteria": [
-        "Active tab underline uses --accent-color (#007acc)",
-        "Tab font size and padding match the existing status bar (12px, system UI font)",
-        "Inactive tabs use --text-secondary; active tab uses --text-bright",
-        "Hover state uses --bg-hover",
-        "Close-tab X in the dock-bar still works (only legacy per-panel inner X is removed in US-P01)",
-        "Any leftover checkbox glyph next to tab titles (visible in current screenshots) is removed",
-        "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 9,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-P10",
-      "title": "Visual-regression Playwright spec for polished layout",
-      "description": "As a maintainer, I want a Playwright test that renders the default layout at a known viewport and fails if anything regresses visually.",
-      "acceptanceCriteria": [
-        "New spec tests/e2e/visual-polish.spec.ts launches at 1600x1000, waits for dock idle, takes a fullPage screenshot",
-        "Test asserts no contiguous #f3f3f3 or #ffffff region larger than 100x100 inside the dock area",
-        "Test asserts every data-testid^='dock-tab-' element has bounding box equal to its parent panel content area",
-        "Baseline screenshot committed to repo",
-        "Test runs in CI",
+        "npm run test:e2e -- visual-polish passes on the polish-v2 branch after the cycle-3 fixes",
+        "Baseline screenshot updated to match the dark-theme polished state",
         "Typecheck passes",
         "Tests pass"
       ],
-      "priority": 10,
-      "passes": true,
+      "priority": 8,
+      "passes": false,
       "notes": ""
     }
   ]

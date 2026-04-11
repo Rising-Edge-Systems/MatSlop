@@ -135,3 +135,16 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
   - rc-dock's tab content is wrapped by `.dock-content` (or `.dock-content-holder` in some versions) — that's the right ancestor to compare against when asserting "tab fills its pane".
   - There is no `.github/workflows/` in this repo. The "test runs in CI" AC is satisfied by the spec being placed in `tests/e2e/` (which `npm run test:e2e` discovers via Playwright's testDir glob); whoever sets up CI in the future just needs to invoke that command.
 ---
+
+## 2026-04-11 - US-Q01
+- Changed seeded default theme from 'system' to 'dark' so a fresh install always opens in the project's dark baseline regardless of OS prefers-color-scheme.
+- src/main/appConfig.ts: introduced exported `DEFAULT_THEME: ThemeMode = 'dark'` constant; `defaults.theme` now references it. electron-store still returns any persisted value first, so existing 'light'/'system' users are unaffected.
+- src/renderer/App.tsx: useState initial themeMode now 'dark' (was 'system') so the first paint never lands on data-theme='light' before configGetTheme resolves.
+- src/renderer/dialogs/PreferencesDialog.tsx: matched the local `prefs` initial state to 'dark' for consistency before the persisted load completes.
+- tests/unit/theme-default.test.ts (new): mocks electron-store and asserts DEFAULT_THEME === 'dark', getStoredTheme() === 'dark' and getPreferences().theme === 'dark' on a fresh store. 3/3 passing.
+- Typecheck: only the same 2 pre-existing octaveProcess.ts PATH errors remain — no new errors.
+- **Learnings for future iterations:**
+  - electron-store can be mocked in vitest with a tiny `vi.mock('electron-store', ...)` returning a `default` class with `get(key, fallback)`/`set(key, value)`. Avoids pulling in electron's `app.getPath` from a node test.
+  - The renderer's first paint runs the theme `useEffect` with whatever the `useState` initial value is — `configGetTheme()` is async and resolves later. Always seed renderer state to the same default the main process uses, otherwise there's a visible flash.
+  - electron-store's `get(key, fallback)` only returns the fallback when the key is missing — changing a default in code never overrides a user's saved preference. Safe migration is automatic.
+---

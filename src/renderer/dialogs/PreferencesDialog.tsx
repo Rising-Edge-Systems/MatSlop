@@ -40,7 +40,9 @@ export default function PreferencesDialog({
   onPreferencesChanged,
 }: PreferencesDialogProps): React.JSX.Element {
   const [prefs, setPrefs] = useState<EditorPreferences>({
-    theme: 'system',
+    // US-Q01: matches DEFAULT_THEME in main/appConfig.ts so the dialog opens
+    // showing the real seeded default before the persisted prefs load in.
+    theme: 'dark',
     fontFamily: "'Consolas', 'Courier New', monospace",
     fontSize: 14,
     tabSize: 4,

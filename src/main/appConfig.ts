@@ -97,8 +97,19 @@ const defaultLayout: LayoutConfig = {
   },
 }
 
+/**
+ * US-Q01: Seeded default theme for users with no stored preference.
+ *
+ * This is intentionally `'dark'` rather than `'system'` so that a fresh
+ * install opens in the project's dark baseline regardless of the host OS's
+ * `prefers-color-scheme`. Users who previously saved `'light'` or
+ * `'system'` keep their stored value because electron-store only falls
+ * back to this default when no value is persisted.
+ */
+export const DEFAULT_THEME: ThemeMode = 'dark'
+
 const defaults: AppPreferences = {
-  theme: 'system',
+  theme: DEFAULT_THEME,
   fontFamily: "'Consolas', 'Courier New', monospace",
   fontSize: 14,
   tabSize: 4,
