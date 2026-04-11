@@ -18,6 +18,14 @@ export interface WorkspacePanelProps {
   refreshTrigger: number
   onInspectVariable?: (variable: { name: string; size: string; class: string }) => void
   onVariablesChanged?: (variables: Array<{ name: string; size: string; class: string }>) => void
+  /** US-019: True when Octave is paused in the debugger. When true the
+   * panel surfaces a "Debug scope" indicator so the user knows `whos` is
+   * reporting locals of the paused stack frame, not the top workspace. */
+  debugPaused?: boolean
+  /** US-019: Optional function / script name of the currently selected
+   * call-stack frame — used purely for display alongside the debug-scope
+   * indicator. `null` renders a generic "Debug frame" label. */
+  debugFrameName?: string | null
 }
 
 export function parseWhosOutput(output: string): WorkspaceVariable[] {
@@ -121,7 +129,7 @@ function formatValuePreview(variable: WorkspaceVariable, valueOutput: string): s
   return `[${size} ${cls}]`
 }
 
-function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVariable, onVariablesChanged }: WorkspacePanelProps): React.JSX.Element {
+function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVariable, onVariablesChanged, debugPaused = false, debugFrameName = null }: WorkspacePanelProps): React.JSX.Element {
   const [variables, setVariables] = useState<WorkspaceVariable[]>([])
   const [sortColumn, setSortColumn] = useState<'name' | 'size' | 'class'>('name')
   const [sortAsc, setSortAsc] = useState(true)
@@ -218,14 +226,28 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
     sortColumn === col ? (sortAsc ? ' ▲' : ' ▼') : ''
 
   return (
-    <div className="panel workspace-panel" data-testid="workspace-panel">
+    <div
+      className={debugPaused ? 'panel workspace-panel ws-debug-scope' : 'panel workspace-panel'}
+      data-testid="workspace-panel"
+      data-debug-scope={debugPaused ? 'true' : 'false'}
+    >
       <PanelHeader title="Workspace" onCollapse={onCollapse} />
+      {debugPaused && (
+        <div className="ws-scope-banner" data-testid="workspace-debug-scope">
+          <span className="ws-scope-dot" />
+          <span className="ws-scope-label">
+            Debug scope{debugFrameName ? `: ${debugFrameName}` : ''}
+          </span>
+        </div>
+      )}
       <div className="panel-content ws-content">
         {variables.length === 0 ? (
           <p className="placeholder-text">
             {engineStatus === 'disconnected'
               ? 'Octave not connected'
-              : 'No variables in workspace'}
+              : debugPaused
+                ? 'No local variables in this frame'
+                : 'No variables in workspace'}
           </p>
         ) : (
           <table className="ws-table">

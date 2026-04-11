@@ -713,6 +713,36 @@ body {
   overflow: auto;
 }
 
+/* US-019: Debug-scope banner shown above the whos table when Octave is
+   paused at a breakpoint. Signals the user that the listed variables are
+   locals of the current stack frame, not the top-level workspace. */
+.ws-scope-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--debug-paused-bg, rgba(255, 176, 0, 0.12));
+  border-bottom: 1px solid var(--debug-paused-border, rgba(255, 176, 0, 0.4));
+  font-size: 11px;
+  color: var(--debug-paused-fg, #d48806);
+}
+
+.ws-scope-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d48806;
+  box-shadow: 0 0 0 2px rgba(212, 136, 6, 0.25);
+  flex-shrink: 0;
+}
+
+.ws-scope-label {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .ws-table {
   width: 100%;
   border-collapse: collapse;

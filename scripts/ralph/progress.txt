@@ -36,6 +36,8 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
 - Debug/simulation test hooks: for UI tied to main-process events that are hard to synthesize in Playwright (e.g. Octave pause), expose a dedicated `window.__matslopSimulateX(...)` function via a `useEffect` in App.tsx that writes directly to the same React state the real IPC listener would set. Guard cleanup in the effect return. This sidesteps contextBridge's frozen-proxy limitation (you can't monkey-patch preload bridge methods) and keeps the test hook co-located with the real subscription.
 - Clicks on elements covered by `.octave-setup-overlay` (shown in dev e2e when no Octave is configured) can't be reached by `locator.click({ force: true })` — Playwright hit-tests the coordinate. Use `locator.dispatchEvent('click')` to fire a synthetic event directly on the target; React's listener fires normally.
 - To override an existing global keyboard shortcut contextually (e.g. F5 = run normally, but F5 = continue while paused), add a `useEffect` that attaches a window keydown listener in the capture phase (`window.addEventListener('keydown', fn, true)`) only while the override condition holds. Capture-phase handlers run before the bubble-phase shortcut manager so preventDefault/stopPropagation blocks it.
+- `WorkspacePanel` refreshes whenever the parent-owned `workspaceRefreshTrigger` counter increments. To re-query `whos` on some new event, bump the counter from App.tsx via `setWorkspaceRefreshTrigger(prev => prev + 1)` in a useEffect keyed on the trigger state — WorkspacePanel's internal effect handles the rest. For e2e verification without a real Octave, App.tsx mirrors the counter onto `window.__matslopWorkspaceRefreshCount` so tests can assert monotonic increments.
+- **IMPORTANT:** E2E tests run against the BUILT app in `dist/` (see `tests/e2e/helpers/launch.ts`), NOT the dev server. Edits to `src/renderer/**` do not appear in Playwright tests until you `npm run build`. If a test sees stale DOM (e.g. missing data attributes you just added), rebuild.
 
 ## 2026-04-10 - US-001 Restructure main layout
 - Refactored src/renderer/App.tsx from vertical(top-horizontal+bottom) into 3 outer horizontal columns: FileBrowser | CenterColumn | RightColumn(Workspace+Figure)
@@ -325,4 +327,21 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
   - Test-only window hooks pattern: set `__matslopSimulateX` / `__matslopClearX` from a useEffect that depends on the state it reads, and mirror state back into a `__matslopX` observation variable for assertions
   - `pausedLocation` is the single source of truth for "which file/line does the editor show the green arrow on" — reuse it for any debug-frame navigation; EditorPanel activates the matching tab, TabbedEditor scrolls + decorates the line
   - When chaining async IPC refreshes from useEffect, guard "don't clobber existing state with empty result" so synthetic test seeds survive a concurrent real-IPC call
+---
+
+## 2026-04-10 - US-019 Variables at current scope shown in Workspace panel
+- Added a `useEffect` in App.tsx keyed on `pausedKey = "${file}:${line}"` that bumps `workspaceRefreshTrigger` whenever the debugger's paused location transitions (null → paused or paused → null or paused → another line). This causes `WorkspacePanel` to re-run `whos`, which in Octave debug mode naturally reports variables of the currently paused stack frame.
+- Added a "Debug scope" banner inside `WorkspacePanel` (data-testid=`workspace-debug-scope`) with an optional frame name. The wrapper div gains `.ws-debug-scope` class and `data-debug-scope="true"|"false"` for test selectors. New props: `debugPaused?: boolean`, `debugFrameName?: string | null`.
+- App.tsx passes `debugPaused={pausedLocation !== null}` and `debugFrameName={pausedLocation ? (callStack[callStackSelected]?.name ?? null) : null}` so the banner reflects the currently selected call-stack frame's function/script name.
+- Exposed a read-only `window.__matslopWorkspaceRefreshCount` e2e hook that mirrors `workspaceRefreshTrigger` so tests can assert the counter ticks on pause/unpause without a real Octave process.
+- Added `tests/e2e/workspace-debug-scope.spec.ts` with 2 tests: (1) simulateP aused bumps counter, flips `data-debug-scope="true"`, shows banner, then clearPaused bumps counter again and removes banner; (2) seeding a synthetic call stack via `__matslopSimulateCallStack` then pausing surfaces the top frame's name inside the banner.
+- Added `.ws-scope-banner` / `.ws-scope-dot` / `.ws-scope-label` CSS in `src/renderer/styles.css` styled in the MATLAB-amber debug-paused palette.
+- Files changed: src/renderer/App.tsx, src/renderer/panels/WorkspacePanel.tsx, src/renderer/styles.css, tests/e2e/workspace-debug-scope.spec.ts, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- Typecheck clean (only pre-existing octaveProcess.ts env.PATH baseline noise). Full e2e: 30 passed, 16 failed — ALL 16 failures are pre-existing Octave-dependent tests that can't run in dev envs without bundled Octave (waitForOctaveReady times out). 0 new regressions.
+- **Learnings for future iterations:**
+  - When the debugger pauses, Octave's `whos` at prompt automatically reports the CURRENT debug-frame's locals — you don't need `evalin`/`dbup` gymnastics to get frame-scoped variables. Just re-querying whos on pause transitions is enough for the basic "current frame context" UX.
+  - If you want frame-switch support (clicking a non-top stack frame), issue `dbup`/`dbdown` before/after `whos` to navigate. Not needed for US-019's acceptance criteria though.
+  - E2E tests run against the BUILT app in `dist/`, not the dev server — if a new `data-testid` or attribute is missing from a Playwright assertion, run `npm run build` first. Wasted one cycle on this.
+  - The paused→unpaused useEffect in App.tsx already clears the call stack, so chaining multiple refresh effects onto `pausedLocation` is safe — they all run together on the state transition.
+  - `WorkspacePanel` uses `refreshingRef` to guard against concurrent refreshes; if you need to force an immediate refresh, just bump the counter from the parent (don't call the private refresh fn).
 ---

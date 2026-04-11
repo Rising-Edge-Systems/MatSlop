@@ -214,6 +214,17 @@ function App(): React.JSX.Element {
     [callStack],
   )
 
+  // US-019: Re-query the Workspace panel whenever the debugger's paused
+  // state transitions. Entering a paused state means `whos` now reports
+  // variables of the current (paused) stack frame; leaving the paused
+  // state means we should snap back to the top scope. Bumping
+  // `workspaceRefreshTrigger` is enough — WorkspacePanel's existing
+  // refresh hook picks it up.
+  const pausedKey = pausedLocation ? `${pausedLocation.file}:${pausedLocation.line}` : ''
+  useEffect(() => {
+    setWorkspaceRefreshTrigger((prev) => prev + 1)
+  }, [pausedKey])
+
   // US-016: expose a test-only hook so Playwright can simulate a paused
   // event without spinning up a real Octave process. Gated on
   // MATSLOP_USER_DATA_DIR (set by the e2e launcher) but harmless elsewhere.
@@ -236,6 +247,17 @@ function App(): React.JSX.Element {
       ww.__matslopPausedLocation = null
     }
   }, [pausedLocation])
+
+  // US-019: expose the workspace refresh counter so e2e tests can assert
+  // that entering/leaving a paused state causes the panel to re-query.
+  useEffect(() => {
+    const w = window as unknown as { __matslopWorkspaceRefreshCount?: number }
+    w.__matslopWorkspaceRefreshCount = workspaceRefreshTrigger
+    return () => {
+      const ww = window as unknown as { __matslopWorkspaceRefreshCount?: unknown }
+      ww.__matslopWorkspaceRefreshCount = undefined
+    }
+  }, [workspaceRefreshTrigger])
 
   const octaveInitRef = useRef(false)
   useEffect(() => {
@@ -765,7 +787,7 @@ function App(): React.JSX.Element {
         >
           <Allotment vertical>
             <Allotment.Pane minSize={100} visible={visibility.workspace}>
-              <WorkspacePanel onCollapse={() => togglePanel('workspace')} engineStatus={octaveStatus.engineStatus} refreshTrigger={workspaceRefreshTrigger} onInspectVariable={handleInspectVariable} onVariablesChanged={handleVariablesChanged} />
+              <WorkspacePanel onCollapse={() => togglePanel('workspace')} engineStatus={octaveStatus.engineStatus} refreshTrigger={workspaceRefreshTrigger} onInspectVariable={handleInspectVariable} onVariablesChanged={handleVariablesChanged} debugPaused={pausedLocation !== null} debugFrameName={pausedLocation ? (callStack[callStackSelected]?.name ?? null) : null} />
             </Allotment.Pane>
             {/* US-018: Call Stack panel — auto-shown when execution is paused.
                 We conditionally mount the panel so the `call-stack-panel`

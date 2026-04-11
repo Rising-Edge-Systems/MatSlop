@@ -321,8 +321,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 19,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added useEffect in App.tsx that bumps workspaceRefreshTrigger whenever pausedLocation transitions (null<->paused). While paused, Octave's 'whos' naturally reports variables of the current (paused) stack frame, so re-querying on pause/unpause satisfies the 'current frame context' requirement and 'snap back to top scope once debugging ends'. Added a 'Debug scope' banner in WorkspacePanel (data-testid='workspace-debug-scope') with an optional frame name from callStack[callStackSelected]. Wrapper div exposes data-debug-scope='true'/'false' and a ws-debug-scope class. Exposed window.__matslopWorkspaceRefreshCount as a read-only test hook so Playwright can verify the trigger increments without needing a real Octave. Added tests/e2e/workspace-debug-scope.spec.ts with 2 tests: (1) simulateP aused bumps the counter, flips data-debug-scope to 'true', shows the banner, then clearPaused bumps counter again and hides banner; (2) seeding a synthetic call stack then pausing surfaces the top frame's name inside the banner."
     },
     {
       "id": "US-020",
