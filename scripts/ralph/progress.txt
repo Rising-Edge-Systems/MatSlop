@@ -43,3 +43,17 @@ Started: Sat Apr 11 07:38:25 PM EDT 2026
   - Fixture tests should use REAL captured output (including warning lines) not hand-crafted ideal output
   - Pre-existing lint errors in the tree: 5x react-hooks/exhaustive-deps (plugin not loaded) + 1x prefer-const. Ignore when reviewing new changes.
 ---
+
+## 2026-04-11 - US-T03
+- Gated debug hooks `__matslopRefreshWorkspace`, `__matslopResetWsGuard`, `__matslopWsRefs` behind `import.meta.env.DEV` in WorkspacePanel.tsx
+- Used early `if (!import.meta.env.DEV) return` inside the existing useEffect so Vite's define substitution + tree-shaking strips the block (and the string literals) from the production bundle
+- Verified: after `npm run build`, `grep -r __matslopRefreshWorkspace dist/` returns empty — no hook name strings in the production JS
+- Files changed:
+  - src/renderer/panels/WorkspacePanel.tsx
+  - scripts/ralph/prd.json (US-T03 passes: true)
+- Tests: 584 passed / 0 failed. Typecheck clean. Build clean.
+- **Learnings for future iterations:**
+  - Vite replaces `import.meta.env.DEV` with `false` at build time. `if (!import.meta.env.DEV) return` inside a function gives full dead-code elimination — any subsequent string literals / code disappear from the production bundle
+  - To verify prod bundle purity, `npm run build` then `grep -r <needle> dist/` — if the grep is empty, the needle is gone
+  - No E2E tests currently use the `__matslopWs*` hooks (only source-control has `__matslopOpenSourceControl` etc.); the workspace debug hooks were pure dev-only diagnostics
+---

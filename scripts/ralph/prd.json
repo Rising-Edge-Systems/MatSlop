@@ -48,8 +48,8 @@
         "Tests pass"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Wrapped the test-hook useEffect body in `if (!import.meta.env.DEV) return`. Vite's define-plugin substitutes DEV=false in production, dead-code elimination strips the entire block (strings included). Verified: `grep __matslopRefreshWorkspace dist/` returns empty after `npm run build`."
     },
     {
       "id": "US-T04",

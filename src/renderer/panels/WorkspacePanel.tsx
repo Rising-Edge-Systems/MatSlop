@@ -310,7 +310,11 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
 
   // Test hook: expose a direct refresh call so Playwright and hand-testing
   // can sync the panel to Octave state without waiting for a command cycle.
+  // Gated on `import.meta.env.DEV` so Vite's define-plugin + tree-shaking
+  // strips the entire block (including the hook-name string literals) from
+  // production bundles. US-T03.
   useEffect(() => {
+    if (!import.meta.env.DEV) return
     const w = window as unknown as {
       __matslopRefreshWorkspace?: () => Promise<void>
       __matslopResetWsGuard?: () => void
