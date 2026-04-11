@@ -158,6 +158,25 @@ interface Window {
     recentFilesClear: () => Promise<string[]>
     // Shell helpers
     openExternal: (url: string) => Promise<void>
+    // US-032: Find in Files
+    findInFiles: (
+      cwd: string,
+      query: string,
+      options?: {
+        glob?: string
+        caseInsensitive?: boolean
+        regex?: boolean
+        wholeWord?: boolean
+        maxResults?: number
+        maxFiles?: number
+        maxDepth?: number
+      },
+    ) => Promise<{
+      matches: Array<{ file: string; line: number; column: number; text: string }>
+      filesScanned: number
+      truncated: boolean
+      error?: string
+    }>
     // Debugger (US-014+)
     debugSetBreakpoint: (filePath: string | null, line: number) => Promise<{ success: boolean }>
     debugClearBreakpoint: (filePath: string | null, line: number) => Promise<{ success: boolean }>

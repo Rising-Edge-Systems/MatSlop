@@ -192,6 +192,25 @@ contextBridge.exposeInMainWorld('matslop', {
   // Shell helpers
   openExternal: (url: string): Promise<void> =>
     ipcRenderer.invoke('shell:openExternal', url),
+  // US-032: Find in Files
+  findInFiles: (
+    cwd: string,
+    query: string,
+    options?: {
+      glob?: string
+      caseInsensitive?: boolean
+      regex?: boolean
+      wholeWord?: boolean
+      maxResults?: number
+      maxFiles?: number
+      maxDepth?: number
+    },
+  ): Promise<{
+    matches: Array<{ file: string; line: number; column: number; text: string }>
+    filesScanned: number
+    truncated: boolean
+    error?: string
+  }> => ipcRenderer.invoke('find:inFiles', cwd, query, options ?? {}),
   // Debugger: breakpoint bridge (US-014)
   // filePath may be null for unsaved tabs; main-side handler accepts it and
   // (for now) just records it so future stories can wire to Octave's dbstop.

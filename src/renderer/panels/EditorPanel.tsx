@@ -30,6 +30,8 @@ interface EditorPanelProps {
   panelVisibility: PanelVisibility
   onTogglePanel: (panel: keyof PanelVisibility) => void
   openFilePath?: string | null
+  /** US-032: when opening via Find-in-Files, reveal/position at this line. */
+  openFileLine?: number | null
   onFileOpened?: () => void
   onCursorPositionChange?: (line: number, column: number) => void
   onErrorCountChange?: (count: number) => void
@@ -62,6 +64,7 @@ function EditorPanel({
   panelVisibility,
   onTogglePanel,
   openFilePath,
+  openFileLine,
   onFileOpened,
   onCursorPositionChange,
   onErrorCountChange,
@@ -533,6 +536,26 @@ function EditorPanel({
         break
     }
   }, [menuAction, activeTabId, handleNewFile, handleNewLiveScript, handleOpenFile, handleSave, handleSaveAs, handlePublishHtml, handleTabClose, handleRun, handleRunSection, handleRunAndAdvance, onMenuActionConsumed])
+
+  // US-032: Reveal/position at a target line when navigating in from a
+  // Find-in-Files result. Runs after the open-file effect below has
+  // mounted the editor for the target tab. A small timeout gives Monaco
+  // a chance to finish initial layout/measure before we call revealLine.
+  useEffect(() => {
+    if (openFileLine == null) return
+    const id = window.setTimeout(() => {
+      const editor = editorInstanceRef.current
+      if (!editor) return
+      try {
+        editor.revealLineInCenterIfOutsideViewport(openFileLine)
+        editor.setPosition({ lineNumber: openFileLine, column: 1 })
+        editor.focus()
+      } catch {
+        /* editor tearing down — ignore */
+      }
+    }, 150)
+    return () => window.clearTimeout(id)
+  }, [openFileLine, activeTabId])
 
   // Open file from File Browser
   useEffect(() => {

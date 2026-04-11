@@ -11,6 +11,7 @@ export type MenuAction =
   | 'closeTab'
   | 'find'
   | 'findReplace'
+  | 'findInFiles'
   | 'goToLine'
   | 'toggleComment'
   | 'toggleCommandWindow'
@@ -144,6 +145,11 @@ export function buildAppMenu(
           label: 'Find & Replace',
           accelerator: 'CmdOrCtrl+H',
           click: () => send('findReplace'),
+        },
+        {
+          label: 'Find in Files...',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          click: () => send('findInFiles'),
         },
         {
           label: 'Go to Line...',

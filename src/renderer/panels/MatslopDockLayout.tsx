@@ -53,6 +53,7 @@ export const DOCK_TAB_IDS = {
   watches: 'matslop-watches',
   figure: 'matslop-figure',
   helpBrowser: 'matslop-help-browser',
+  findInFiles: 'matslop-find-in-files',
 } as const
 
 export type MatslopDockTabId = (typeof DOCK_TAB_IDS)[keyof typeof DOCK_TAB_IDS]
@@ -68,6 +69,7 @@ export const DOCK_TAB_TITLES: Record<MatslopDockTabId, string> = {
   [DOCK_TAB_IDS.watches]: 'Watches',
   [DOCK_TAB_IDS.figure]: 'Figure',
   [DOCK_TAB_IDS.helpBrowser]: 'Help',
+  [DOCK_TAB_IDS.findInFiles]: 'Find in Files',
 }
 
 /**
@@ -83,6 +85,7 @@ export interface DockVisibility {
   watches: boolean
   figure: boolean
   helpBrowser: boolean
+  findInFiles: boolean
 }
 
 /** Convenience: the "first launch / MATLAB-default" visibility preset. */
@@ -95,6 +98,7 @@ export const DEFAULT_DOCK_VISIBILITY: DockVisibility = {
   watches: false,
   figure: false,
   helpBrowser: false,
+  findInFiles: false,
 }
 
 // When a `loadTab(tab)` factory is provided to `<DockLayout>`, the tab
@@ -136,17 +140,25 @@ export function buildDockLayoutFromVisibility(
   const wantCmdWindow = vis.commandWindow && !isDetached(DOCK_TAB_IDS.commandWindow)
   const wantCmdHistory = vis.commandHistory && !isDetached(DOCK_TAB_IDS.commandHistory)
   const wantHelp = vis.helpBrowser && !isDetached(DOCK_TAB_IDS.helpBrowser)
-  if (wantCmdWindow || wantCmdHistory || wantHelp) {
+  const wantFind = vis.findInFiles && !isDetached(DOCK_TAB_IDS.findInFiles)
+  if (wantCmdWindow || wantCmdHistory || wantHelp || wantFind) {
     const bottomTabs: TabData[] = []
     if (wantCmdWindow) bottomTabs.push(idOnly(DOCK_TAB_IDS.commandWindow))
     if (wantCmdHistory) bottomTabs.push(idOnly(DOCK_TAB_IDS.commandHistory))
     if (wantHelp) bottomTabs.push(idOnly(DOCK_TAB_IDS.helpBrowser))
+    if (wantFind) bottomTabs.push(idOnly(DOCK_TAB_IDS.findInFiles))
+    // Choose the most-recently-opened auxiliary tab as the active one so
+    // `doc foo` or Ctrl+Shift+F immediately shows its own panel rather
+    // than leaving focus on the Command Window.
+    const activeId = wantFind
+      ? DOCK_TAB_IDS.findInFiles
+      : wantHelp
+        ? DOCK_TAB_IDS.helpBrowser
+        : undefined
     centerChildren.push({
       size: 300,
       tabs: bottomTabs,
-      // US-031: when help is opened via `doc <name>`, switch the bottom
-      // panel to the Help tab so the user sees the result immediately.
-      activeId: wantHelp ? DOCK_TAB_IDS.helpBrowser : undefined,
+      activeId,
     } as PanelData)
   }
   if (centerChildren.length > 0) {
@@ -218,6 +230,7 @@ export interface MatslopDockLayoutProps {
   watches: ReactNode
   figure: ReactNode
   helpBrowser: ReactNode
+  findInFiles: ReactNode
   /**
    * US-026: previously-persisted rc-dock layout (from `DockLayout.saveLayout()`).
    * When provided at first render, it is used instead of the visibility-
@@ -297,6 +310,7 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
       [DOCK_TAB_IDS.watches]: props.watches,
       [DOCK_TAB_IDS.figure]: props.figure,
       [DOCK_TAB_IDS.helpBrowser]: props.helpBrowser,
+      [DOCK_TAB_IDS.findInFiles]: props.findInFiles,
     }),
     [
       props.fileBrowser,
@@ -308,6 +322,7 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
       props.watches,
       props.figure,
       props.helpBrowser,
+      props.findInFiles,
     ],
   )
   const slotsRef = useRef(slotsById)

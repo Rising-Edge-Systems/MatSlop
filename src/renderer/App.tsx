@@ -12,6 +12,7 @@ import DebugToolbar from './editor/DebugToolbar'
 import CallStackPanel, { type CallStackFrame } from './panels/CallStackPanel'
 import WatchesPanel from './panels/WatchesPanel'
 import HelpPanel from './panels/HelpPanel'
+import FindInFilesPanel from './panels/FindInFilesPanel'
 import {
   EMPTY_HELP_STATE,
   beginHelpNavigation,
@@ -106,6 +107,13 @@ function App(): React.JSX.Element {
   const [detachedPanels, setDetachedPanels] = useState<Set<string>>(() => new Set())
   const [layoutLoaded, setLayoutLoaded] = useState(false)
   const [pendingOpenPath, setPendingOpenPath] = useState<string | null>(null)
+  // US-032: Find in Files. `findInFilesOpen` drives the dock-visibility
+  // flag; when toggled on, the panel mounts into the center-bottom dock
+  // and MatslopDockLayout auto-activates its tab. A pending reveal line
+  // is routed through EditorPanel so a clicked result jumps to the
+  // matched line in Monaco.
+  const [findInFilesOpen, setFindInFilesOpen] = useState(false)
+  const [pendingOpenLine, setPendingOpenLine] = useState<number | null>(null)
   const [octaveStatus, setOctaveStatus] = useState<OctaveStatus>({ path: null, version: null, configured: false, engineStatus: 'disconnected' })
   const [showOctaveSetup, setShowOctaveSetup] = useState(false)
   const [cwd, setCwd] = useState('')
@@ -813,6 +821,7 @@ function App(): React.JSX.Element {
 
   const handleFileOpened = useCallback(() => {
     setPendingOpenPath(null)
+    setPendingOpenLine(null)
   }, [])
 
   const octaveEngineStatusRef = useRef<OctaveEngineStatus>('disconnected')
@@ -969,6 +978,10 @@ function App(): React.JSX.Element {
           break
         case 'clearRecentFiles':
           window.matslop.recentFilesClear()
+          break
+        case 'findInFiles':
+          // US-032: toggle the Find-in-Files panel (Ctrl+Shift+F menu item).
+          setFindInFilesOpen((prev) => !prev)
           break
         default: {
           // Handle recent file open actions
@@ -1222,6 +1235,42 @@ function App(): React.JSX.Element {
     }
   }, [helpState])
 
+  // US-032: Global Ctrl+Shift+F shortcut toggles the Find-in-Files
+  // panel. Registered in capture phase so it wins over Monaco's built-in
+  // shortcuts (Monaco binds Ctrl+Shift+F to "format document" by default).
+  useEffect(() => {
+    const handler = (e: KeyboardEvent): void => {
+      const ctrl = e.ctrlKey || e.metaKey
+      if (ctrl && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+        e.preventDefault()
+        e.stopPropagation()
+        setFindInFilesOpen((prev) => !prev)
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [])
+
+  // US-032: test hooks for Find in Files. Mirrors the help-panel pattern
+  // so Playwright can open the panel, inspect its mounted state, and
+  // drive the "click a result" path without synthesizing keyboard events
+  // (which don't always propagate through Monaco's shadow DOM in tests).
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const w = window as unknown as {
+      __matslopOpenFindInFiles?: () => void
+      __matslopCloseFindInFiles?: () => void
+      __matslopFindInFilesOpen?: boolean
+    }
+    w.__matslopOpenFindInFiles = () => setFindInFilesOpen(true)
+    w.__matslopCloseFindInFiles = () => setFindInFilesOpen(false)
+    w.__matslopFindInFilesOpen = findInFilesOpen
+    return () => {
+      const ww = window as unknown as { __matslopFindInFilesOpen?: boolean }
+      ww.__matslopFindInFilesOpen = undefined
+    }
+  }, [findInFilesOpen])
+
   // US-025: derive dock visibility from app state. Optional panels
   // (Call Stack, Watches, Figure) are auto-shown based on state
   // transitions — they match the conditional-mount rules that the old
@@ -1236,6 +1285,7 @@ function App(): React.JSX.Element {
       watches: watches.length > 0 || pausedLocation !== null,
       figure: figures.length > 0,
       helpBrowser: helpState.topic !== null,
+      findInFiles: findInFilesOpen,
     }),
     [
       visibility.fileBrowser,
@@ -1246,6 +1296,7 @@ function App(): React.JSX.Element {
       watches.length,
       figures.length,
       helpState.topic,
+      findInFilesOpen,
     ],
   )
 
@@ -1301,7 +1352,7 @@ function App(): React.JSX.Element {
           /* US-031: bust rc-dock's PureComponent cache when the help topic
              changes — otherwise the cached tab content keeps the old
              HelpPanel props. */
-          contentVersion={`help:${helpState.topic ?? ''}:${helpState.loading ? 'L' : ''}${helpState.error ? 'E' : ''}${helpState.content ? 'C' : ''}`}
+          contentVersion={`help:${helpState.topic ?? ''}:${helpState.loading ? 'L' : ''}${helpState.error ? 'E' : ''}${helpState.content ? 'C' : ''}|fif:${findInFilesOpen ? 'O' : ''}:${cwd}`}
           fileBrowser={
             dockVisibility.fileBrowser ? (
               <FileBrowser
@@ -1317,6 +1368,7 @@ function App(): React.JSX.Element {
               panelVisibility={visibility}
               onTogglePanel={togglePanel}
               openFilePath={pendingOpenPath}
+              openFileLine={pendingOpenLine}
               onFileOpened={handleFileOpened}
               onCursorPositionChange={handleCursorPositionChange}
               onErrorCountChange={handleErrorCountChange}
@@ -1394,6 +1446,18 @@ function App(): React.JSX.Element {
           figure={
             dockVisibility.figure ? (
               <FigurePanel figures={figures} onSaveFigure={handleSaveFigure} />
+            ) : null
+          }
+          findInFiles={
+            dockVisibility.findInFiles ? (
+              <FindInFilesPanel
+                cwd={cwd}
+                onOpenMatch={(filePath, line) => {
+                  setPendingOpenLine(line)
+                  setPendingOpenPath(filePath)
+                }}
+                onClose={() => setFindInFilesOpen(false)}
+              />
             ) : null
           }
           helpBrowser={

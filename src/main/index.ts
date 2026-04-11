@@ -24,6 +24,7 @@ import {
   type CallStackFrame,
 } from './callStack'
 import { buildAppMenu } from './appMenu'
+import { findInFiles, type FindInFilesOptions } from './findInFilesWalker'
 import {
   getStoredTheme,
   setStoredTheme,
@@ -271,6 +272,31 @@ ipcMain.handle('fs:createFolder', async (_event, dirPath: string, name: string) 
     return { success: false, error: String(err) }
   }
 })
+
+// US-032: Find in Files — walk `cwd` filtered by `glob`, search every
+// matching file's text content for `query`, and return the results plus
+// a scan summary (counts, truncated flag).
+ipcMain.handle(
+  'find:inFiles',
+  async (
+    _event,
+    cwd: string,
+    query: string,
+    options: FindInFilesOptions = {},
+  ) => {
+    if (!cwd || typeof cwd !== 'string') {
+      return { matches: [], filesScanned: 0, truncated: false, error: 'cwd required' }
+    }
+    if (!query || typeof query !== 'string') {
+      return { matches: [], filesScanned: 0, truncated: false }
+    }
+    try {
+      return findInFiles(cwd, query, options)
+    } catch (err) {
+      return { matches: [], filesScanned: 0, truncated: false, error: String(err) }
+    }
+  },
+)
 
 ipcMain.handle('fs:confirmDelete', async (_event, name: string, isDirectory: boolean) => {
   const result = await dialog.showMessageBox({
