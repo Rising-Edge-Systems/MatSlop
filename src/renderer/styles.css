@@ -3305,3 +3305,242 @@ body {
 .profiler-function-link:hover {
   text-decoration: underline;
 }
+
+/* US-037: Source Control panel */
+.source-control-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-size: 12px;
+}
+.sc-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border, #3a3a3d);
+}
+.sc-branch {
+  font-weight: 600;
+  color: var(--text, #ddd);
+}
+.sc-refresh-btn {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border, #3a3a3d);
+  color: inherit;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+.sc-not-repo {
+  color: #888;
+  font-style: italic;
+}
+.sc-commit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border, #3a3a3d);
+}
+.sc-commit-message {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 12px;
+  background: var(--input-bg, #1e1e1e);
+  color: inherit;
+  border: 1px solid var(--border, #3a3a3d);
+  border-radius: 3px;
+  padding: 4px 6px;
+}
+.sc-commit-btn {
+  align-self: flex-end;
+  background: #0e639c;
+  color: white;
+  border: none;
+  padding: 4px 14px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.sc-commit-btn:disabled {
+  background: #444;
+  color: #888;
+  cursor: not-allowed;
+}
+.sc-commit-error {
+  padding: 4px 10px;
+  color: #e06c75;
+  font-size: 11px;
+}
+.sc-commit-success {
+  padding: 4px 10px;
+  color: #98c379;
+  font-size: 11px;
+}
+.sc-lists {
+  flex: 1;
+  overflow-y: auto;
+}
+.sc-section {
+  padding: 4px 0;
+}
+.sc-section-header {
+  padding: 4px 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  color: #888;
+}
+.sc-section ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sc-entry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+}
+.sc-entry:hover {
+  background: var(--hover-bg, #2a2d2e);
+}
+.sc-entry-selected {
+  background: var(--selection-bg, #094771);
+}
+.sc-entry-name {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+  font: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sc-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sc-badge {
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+  font-weight: 700;
+  color: #e5c07b;
+}
+.sc-stage-btn {
+  background: transparent;
+  border: 1px solid var(--border, #3a3a3d);
+  color: inherit;
+  cursor: pointer;
+  width: 22px;
+  height: 20px;
+  border-radius: 3px;
+  padding: 0;
+}
+.sc-stage-btn:hover {
+  background: var(--border, #3a3a3d);
+}
+.sc-clean {
+  padding: 10px;
+  color: #888;
+  font-style: italic;
+}
+.sc-diff {
+  border-top: 1px solid var(--border, #3a3a3d);
+  max-height: 50%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sc-diff-header {
+  display: flex;
+  padding: 4px 10px;
+  background: var(--panel-bg, #252526);
+  font-size: 11px;
+  border-bottom: 1px solid var(--border, #3a3a3d);
+}
+.sc-diff-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sc-diff-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+}
+.sc-diff-body {
+  flex: 1;
+  overflow: auto;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 11px;
+}
+.sc-hunk {
+  margin-bottom: 6px;
+}
+.sc-hunk-header {
+  padding: 2px 10px;
+  color: #61afef;
+  background: rgba(97, 175, 239, 0.08);
+}
+.sc-hunk-lines {
+  margin: 0;
+  padding: 0;
+}
+.sc-diff-line {
+  padding: 0 10px;
+  white-space: pre;
+}
+.sc-diff-add {
+  background: rgba(88, 160, 100, 0.15);
+  color: #98c379;
+}
+.sc-diff-del {
+  background: rgba(224, 108, 117, 0.15);
+  color: #e06c75;
+}
+.sc-diff-marker {
+  display: inline-block;
+  width: 12px;
+  color: #888;
+}
+.sc-diff-empty,
+.sc-diff-loading,
+.sc-diff-error {
+  padding: 8px 10px;
+  color: #888;
+}
+.sc-diff-error {
+  color: #e06c75;
+}
+
+/* US-037: File Browser git status badges */
+.fb-git-badge {
+  display: inline-block;
+  margin-left: auto;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 2px;
+}
+.fb-git-badge-M { color: #e5c07b; }
+.fb-git-badge-A { color: #98c379; }
+.fb-git-badge-D { color: #e06c75; }
+.fb-git-badge-R { color: #61afef; }
+.fb-git-badge-U { color: #c678dd; }
+.fb-git-badge-\? { color: #888; }

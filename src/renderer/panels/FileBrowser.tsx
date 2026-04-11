@@ -24,9 +24,11 @@ interface FileBrowserProps {
   onOpenFile: (filePath: string) => void
   onCwdChange?: (cwd: string) => void
   externalCwd?: string
+  /** US-037: absolute-path → single-letter git status badge. */
+  gitBadges?: ReadonlyMap<string, string>
 }
 
-function FileBrowser({ onCollapse, onOpenFile, onCwdChange, externalCwd }: FileBrowserProps): React.JSX.Element {
+function FileBrowser({ onCollapse, onOpenFile, onCwdChange, externalCwd, gitBadges }: FileBrowserProps): React.JSX.Element {
   const [cwd, setCwd] = useState<string>('')
   const [entries, setEntries] = useState<DirEntry[]>([])
   const [treeState, setTreeState] = useState<Record<string, TreeNodeState>>({})
@@ -219,12 +221,15 @@ function FileBrowser({ onCollapse, onOpenFile, onCwdChange, externalCwd }: FileB
     const nodeState = treeState[entry.path]
     const isExpanded = nodeState?.expanded ?? false
     const isRenaming = renaming === entry.path
+    const badge = gitBadges?.get(entry.path) ?? ''
 
     return (
       <div key={entry.path}>
         <div
           className="fb-entry"
           style={{ paddingLeft: `${depth * 16 + 4}px` }}
+          data-git-badge={badge || undefined}
+          data-file-path={entry.path}
           onDoubleClick={() => handleDoubleClick(entry)}
           onClick={() => entry.isDirectory && toggleDir(entry)}
           onContextMenu={(e) => handleContextMenu(e, entry)}
@@ -248,6 +253,15 @@ function FileBrowser({ onCollapse, onOpenFile, onCwdChange, externalCwd }: FileB
             />
           ) : (
             <span className="fb-name">{entry.name}</span>
+          )}
+          {badge && (
+            <span
+              className={`fb-git-badge fb-git-badge-${badge}`}
+              data-testid="fb-git-badge"
+              title={`git: ${badge}`}
+            >
+              {badge}
+            </span>
           )}
         </div>
         {entry.isDirectory && isExpanded && nodeState?.children && (

@@ -622,8 +622,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 37,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added pure git helpers in src/renderer/git/gitCore.ts (parseGitStatusPorcelain, parseUnifiedDiff, statusBadge, validateCommitMessage). Main-process gitBridge.ts spawns the system git binary via execFile for status/diff/stage/commit. Four new IPCs (git:status, git:diff, git:stageFile, git:commit) wired through preload. New SourceControlPanel.tsx shows staged/unstaged/untracked lists, a diff viewer on click, and a commit message form. Added as a new dock tab below FileBrowser in the left column via DOCK_TAB_IDS.sourceControl + buildDockLayoutFromVisibility. View menu item toggleSourceControl. FileBrowser now paints a single-letter badge (M/A/D/R/U/?) when gitBadges is provided. App.tsx refreshes the badge map whenever cwd changes. 17 git-core unit tests + 7 Playwright E2E tests exercising real git repo round-trip."
     },
     {
       "id": "US-038",

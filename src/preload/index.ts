@@ -277,6 +277,14 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.invoke('session:getRestoreEnabled'),
   sessionSetRestoreEnabled: (enabled: boolean): Promise<void> =>
     ipcRenderer.invoke('session:setRestoreEnabled', enabled),
+  // US-037: Git integration
+  gitStatus: (cwd: string) => ipcRenderer.invoke('git:status', cwd),
+  gitDiff: (cwd: string, filePath: string, staged: boolean, untracked: boolean) =>
+    ipcRenderer.invoke('git:diff', cwd, filePath, staged, untracked),
+  gitStageFile: (cwd: string, filePath: string, stage: boolean) =>
+    ipcRenderer.invoke('git:stageFile', cwd, filePath, stage),
+  gitCommit: (cwd: string, message: string) =>
+    ipcRenderer.invoke('git:commit', cwd, message),
   // Test-only helper
   _testMenuAction: (action: string): Promise<void> =>
     ipcRenderer.invoke('test:menuAction', action),

@@ -14,6 +14,7 @@ import WatchesPanel from './panels/WatchesPanel'
 import HelpPanel from './panels/HelpPanel'
 import FindInFilesPanel from './panels/FindInFilesPanel'
 import ProfilerPanel from './panels/ProfilerPanel'
+import SourceControlPanel from './panels/SourceControlPanel'
 import {
   buildProfileStartCommand,
   buildProfileStopCommand,
@@ -125,6 +126,10 @@ function App(): React.JSX.Element {
   // is routed through EditorPanel so a clicked result jumps to the
   // matched line in Monaco.
   const [findInFilesOpen, setFindInFilesOpen] = useState(false)
+  // US-037: Source Control panel visibility.
+  const [sourceControlOpen, setSourceControlOpen] = useState(false)
+  // US-037: absolute-path → single-letter badge for File Browser overlay.
+  const [gitBadges, setGitBadges] = useState<Map<string, string>>(() => new Map())
   // US-033: Profiler panel state. `profilerOpen` gates dock visibility;
   // `profilerMode` tracks whether `profile on` has been sent so the Start
   // button can disable itself; `profilerEntries` holds the last parsed
@@ -1008,6 +1013,10 @@ function App(): React.JSX.Element {
           // US-033: toggle the Profiler panel.
           setProfilerOpen((prev) => !prev)
           break
+        case 'toggleSourceControl':
+          // US-037: toggle the Source Control panel.
+          setSourceControlOpen((prev) => !prev)
+          break
         default: {
           // Handle recent file open actions
           if (action.startsWith('recentFile:')) {
@@ -1415,6 +1424,61 @@ function App(): React.JSX.Element {
     }
   }, [findInFilesOpen])
 
+  // US-037: refresh git status badges whenever cwd changes or the
+  // source-control panel commits/stages. Writes absolute-path → badge
+  // into `gitBadges` which FileBrowser consumes for overlay paint.
+  const refreshGitBadges = useCallback(async () => {
+    if (!cwd) {
+      setGitBadges(new Map())
+      return
+    }
+    try {
+      const result = await window.matslop.gitStatus(cwd)
+      if (!result.isRepo) {
+        setGitBadges(new Map())
+        return
+      }
+      const map = new Map<string, string>()
+      for (const entry of result.entries) {
+        if (entry.badge) map.set(entry.path, entry.badge)
+      }
+      setGitBadges(map)
+    } catch {
+      setGitBadges(new Map())
+    }
+  }, [cwd])
+
+  useEffect(() => {
+    void refreshGitBadges()
+  }, [refreshGitBadges])
+
+  useEffect(() => {
+    const w = window as unknown as { __matslopRefreshGitBadges?: () => Promise<void> }
+    w.__matslopRefreshGitBadges = async () => {
+      await refreshGitBadges()
+    }
+    return () => {
+      delete (window as unknown as { __matslopRefreshGitBadges?: unknown }).__matslopRefreshGitBadges
+    }
+  }, [refreshGitBadges])
+
+  // US-037: test hooks for Source Control panel.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const w = window as unknown as {
+      __matslopOpenSourceControl?: () => void
+      __matslopCloseSourceControl?: () => void
+      __matslopSourceControlOpen?: boolean
+    }
+    w.__matslopOpenSourceControl = () => setSourceControlOpen(true)
+    w.__matslopCloseSourceControl = () => setSourceControlOpen(false)
+    w.__matslopSourceControlOpen = sourceControlOpen
+    return () => {
+      const ww = window as unknown as { __matslopSourceControlOpen?: boolean }
+      ww.__matslopSourceControlOpen = undefined
+    }
+  }, [sourceControlOpen])
+
   // US-025: derive dock visibility from app state. Optional panels
   // (Call Stack, Watches, Figure) are auto-shown based on state
   // transitions — they match the conditional-mount rules that the old
@@ -1431,6 +1495,7 @@ function App(): React.JSX.Element {
       helpBrowser: helpState.topic !== null,
       findInFiles: findInFilesOpen,
       profiler: profilerOpen,
+      sourceControl: sourceControlOpen,
     }),
     [
       visibility.fileBrowser,
@@ -1443,6 +1508,7 @@ function App(): React.JSX.Element {
       helpState.topic,
       findInFilesOpen,
       profilerOpen,
+      sourceControlOpen,
     ],
   )
 
@@ -1506,6 +1572,7 @@ function App(): React.JSX.Element {
                 onOpenFile={handleFileBrowserOpen}
                 onCwdChange={handleCwdChange}
                 externalCwd={cwd}
+                gitBadges={gitBadges}
               />
             ) : null
           }
@@ -1606,6 +1673,14 @@ function App(): React.JSX.Element {
                 onReport={handleProfilerReport}
                 onNavigate={handleProfilerNavigate}
                 onClose={() => setProfilerOpen(false)}
+              />
+            ) : null
+          }
+          sourceControl={
+            dockVisibility.sourceControl ? (
+              <SourceControlPanel
+                cwd={cwd}
+                onClose={() => setSourceControlOpen(false)}
               />
             ) : null
           }

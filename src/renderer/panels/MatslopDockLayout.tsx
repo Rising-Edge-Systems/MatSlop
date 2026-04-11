@@ -55,6 +55,7 @@ export const DOCK_TAB_IDS = {
   helpBrowser: 'matslop-help-browser',
   findInFiles: 'matslop-find-in-files',
   profiler: 'matslop-profiler',
+  sourceControl: 'matslop-source-control',
 } as const
 
 export type MatslopDockTabId = (typeof DOCK_TAB_IDS)[keyof typeof DOCK_TAB_IDS]
@@ -72,6 +73,7 @@ export const DOCK_TAB_TITLES: Record<MatslopDockTabId, string> = {
   [DOCK_TAB_IDS.helpBrowser]: 'Help',
   [DOCK_TAB_IDS.findInFiles]: 'Find in Files',
   [DOCK_TAB_IDS.profiler]: 'Profiler',
+  [DOCK_TAB_IDS.sourceControl]: 'Source Control',
 }
 
 /**
@@ -89,6 +91,7 @@ export interface DockVisibility {
   helpBrowser: boolean
   findInFiles: boolean
   profiler: boolean
+  sourceControl: boolean
 }
 
 /** Convenience: the "first launch / MATLAB-default" visibility preset. */
@@ -103,6 +106,7 @@ export const DEFAULT_DOCK_VISIBILITY: DockVisibility = {
   helpBrowser: false,
   findInFiles: false,
   profiler: false,
+  sourceControl: false,
 }
 
 // When a `loadTab(tab)` factory is provided to `<DockLayout>`, the tab
@@ -125,12 +129,30 @@ export function buildDockLayoutFromVisibility(
   const isDetached = (id: string): boolean => !!detached && detached.has(id)
   const dockboxChildren: (BoxData | PanelData)[] = []
 
-  // Left column: File Browser (optional)
+  // Left column: File Browser on top, Source Control beneath (both optional)
+  const leftChildren: PanelData[] = []
   if (vis.fileBrowser && !isDetached(DOCK_TAB_IDS.fileBrowser)) {
-    dockboxChildren.push({
-      size: 220,
+    leftChildren.push({
+      size: 400,
       tabs: [idOnly(DOCK_TAB_IDS.fileBrowser)],
     } as PanelData)
+  }
+  if (vis.sourceControl && !isDetached(DOCK_TAB_IDS.sourceControl)) {
+    leftChildren.push({
+      size: 400,
+      tabs: [idOnly(DOCK_TAB_IDS.sourceControl)],
+    } as PanelData)
+  }
+  if (leftChildren.length > 0) {
+    if (leftChildren.length === 1) {
+      dockboxChildren.push({ ...leftChildren[0], size: 220 } as PanelData)
+    } else {
+      dockboxChildren.push({
+        mode: 'vertical',
+        size: 220,
+        children: leftChildren,
+      } as BoxData)
+    }
   }
 
   // Center column: Editor on top, Command Window / History panel beneath
@@ -240,6 +262,7 @@ export interface MatslopDockLayoutProps {
   helpBrowser: ReactNode
   findInFiles: ReactNode
   profiler: ReactNode
+  sourceControl: ReactNode
   /**
    * US-026: previously-persisted rc-dock layout (from `DockLayout.saveLayout()`).
    * When provided at first render, it is used instead of the visibility-
@@ -321,6 +344,7 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
       [DOCK_TAB_IDS.helpBrowser]: props.helpBrowser,
       [DOCK_TAB_IDS.findInFiles]: props.findInFiles,
       [DOCK_TAB_IDS.profiler]: props.profiler,
+      [DOCK_TAB_IDS.sourceControl]: props.sourceControl,
     }),
     [
       props.fileBrowser,
@@ -334,6 +358,7 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
       props.helpBrowser,
       props.findInFiles,
       props.profiler,
+      props.sourceControl,
     ],
   )
   const slotsRef = useRef(slotsById)

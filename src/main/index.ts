@@ -25,6 +25,7 @@ import {
 } from './callStack'
 import { buildAppMenu } from './appMenu'
 import { findInFiles, type FindInFilesOptions } from './findInFilesWalker'
+import { getGitStatus, getGitDiff, stageFile as gitStageFile, gitCommit } from './gitBridge'
 import {
   getStoredTheme,
   setStoredTheme,
@@ -306,6 +307,53 @@ ipcMain.handle(
     }
   },
 )
+
+// US-037: Git integration IPC handlers.
+ipcMain.handle('git:status', async (_event, cwd: string) => {
+  if (!cwd || typeof cwd !== 'string') {
+    return { isRepo: false, repoRoot: null, branch: null, entries: [], error: 'cwd required' }
+  }
+  try {
+    return await getGitStatus(cwd)
+  } catch (err) {
+    return { isRepo: false, repoRoot: null, branch: null, entries: [], error: String(err) }
+  }
+})
+
+ipcMain.handle(
+  'git:diff',
+  async (_event, cwd: string, filePath: string, staged: boolean, untracked: boolean) => {
+    if (!cwd || !filePath) {
+      return { isRepo: false, diff: null, error: 'cwd and filePath required' }
+    }
+    try {
+      return await getGitDiff(cwd, filePath, !!staged, !!untracked)
+    } catch (err) {
+      return { isRepo: false, diff: null, error: String(err) }
+    }
+  },
+)
+
+ipcMain.handle(
+  'git:stageFile',
+  async (_event, cwd: string, filePath: string, stage: boolean) => {
+    if (!cwd || !filePath) return { success: false, error: 'cwd and filePath required' }
+    try {
+      return await gitStageFile(cwd, filePath, !!stage)
+    } catch (err) {
+      return { success: false, error: String(err) }
+    }
+  },
+)
+
+ipcMain.handle('git:commit', async (_event, cwd: string, message: string) => {
+  if (!cwd) return { success: false, error: 'cwd required' }
+  try {
+    return await gitCommit(cwd, message ?? '')
+  } catch (err) {
+    return { success: false, error: String(err) }
+  }
+})
 
 ipcMain.handle('fs:confirmDelete', async (_event, name: string, isDirectory: boolean) => {
   const result = await dialog.showMessageBox({

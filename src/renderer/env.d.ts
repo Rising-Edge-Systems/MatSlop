@@ -226,6 +226,47 @@ interface Window {
     sessionClear: () => Promise<void>
     sessionGetRestoreEnabled: () => Promise<boolean>
     sessionSetRestoreEnabled: (enabled: boolean) => Promise<void>
+    // US-037: Git integration
+    gitStatus: (cwd: string) => Promise<{
+      isRepo: boolean
+      repoRoot: string | null
+      branch: string | null
+      entries: Array<{
+        path: string
+        origPath?: string
+        indexStatus: string
+        workTreeStatus: string
+        staged: boolean
+        unstaged: boolean
+        untracked: boolean
+        badge: string
+      }>
+      error?: string
+    }>
+    gitDiff: (
+      cwd: string,
+      filePath: string,
+      staged: boolean,
+      untracked: boolean,
+    ) => Promise<{
+      isRepo: boolean
+      diff: {
+        oldPath: string | null
+        newPath: string | null
+        hunks: Array<{
+          header: string
+          oldStart: number
+          oldLines: number
+          newStart: number
+          newLines: number
+          lines: Array<{ kind: 'context' | 'add' | 'del'; text: string; oldLine?: number; newLine?: number }>
+        }>
+        empty: boolean
+      } | null
+      error?: string
+    }>
+    gitStageFile: (cwd: string, filePath: string, stage: boolean) => Promise<{ success: boolean; error?: string }>
+    gitCommit: (cwd: string, message: string) => Promise<{ success: boolean; commit?: string; error?: string }>
     // Test-only
     _testMenuAction?: (action: string) => Promise<void>
   }

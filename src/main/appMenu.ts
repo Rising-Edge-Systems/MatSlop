@@ -32,6 +32,7 @@ export type MenuAction =
   | 'preferences'
   | 'about'
   | 'toggleProfiler'
+  | 'toggleSourceControl'
 
 // US-028: The Layouts submenu is driven by these constants (mirrored in
 // src/renderer/editor/layoutPresets.ts). Kept inline here so appMenu.ts
@@ -233,6 +234,10 @@ export function buildAppMenu(
         {
           label: 'Profiler',
           click: () => send('toggleProfiler'),
+        },
+        {
+          label: 'Source Control',
+          click: () => send('toggleSourceControl'),
         },
         { type: 'separator' },
         {

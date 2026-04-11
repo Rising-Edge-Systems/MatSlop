@@ -168,6 +168,7 @@ describe('buildDockLayoutFromVisibility', () => {
       helpBrowser: false,
       findInFiles: false,
       profiler: false,
+      sourceControl: false,
     }
     const layout = buildDockLayoutFromVisibility(fullVis)
     const ids = collectTabIds(layout.dockbox).sort()
@@ -196,6 +197,7 @@ describe('buildDockLayoutFromVisibility', () => {
       helpBrowser: true,
       findInFiles: false,
       profiler: false,
+      sourceControl: false,
     }
     const layout = buildDockLayoutFromVisibility(vis)
     const ids = collectTabIds(layout.dockbox)
