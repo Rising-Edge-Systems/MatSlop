@@ -105,6 +105,26 @@ describe('buildDefaultDockLayout', () => {
     expect(a).not.toBe(b)
     expect(a.dockbox).not.toBe(b.dockbox)
   })
+
+  it('US-P07: top-level column sizes are flex weights of ~15% / 65% / 20%', () => {
+    // rc-dock uses each child's `size` as a flex-grow/flex-basis value, so the
+    // ratio between siblings determines how the dockbox distributes available
+    // space. The polish target is File Browser ~15%, Editor column ~65%,
+    // Workspace column ~20% so wider windows do not leave dead space.
+    const layout = buildDefaultDockLayout()
+    const sizes = layout.dockbox.children.map(
+      (c) => (c as { size?: number }).size ?? 0,
+    )
+    expect(sizes.length).toBe(3)
+    const total = sizes[0] + sizes[1] + sizes[2]
+    const ratios = sizes.map((s) => s / total)
+    expect(ratios[0]).toBeGreaterThanOrEqual(0.13)
+    expect(ratios[0]).toBeLessThanOrEqual(0.18)
+    expect(ratios[1]).toBeGreaterThanOrEqual(0.6)
+    expect(ratios[1]).toBeLessThanOrEqual(0.7)
+    expect(ratios[2]).toBeGreaterThanOrEqual(0.17)
+    expect(ratios[2]).toBeLessThanOrEqual(0.23)
+  })
 })
 
 describe('buildDockLayoutFromVisibility', () => {

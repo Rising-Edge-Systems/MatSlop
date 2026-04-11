@@ -149,12 +149,17 @@ export function buildDockLayoutFromVisibility(
     } as PanelData)
   }
   if (leftChildren.length > 0) {
+    // US-P07: use small proportional weights so rc-dock distributes available
+    // width as 15% / 65% / 20% (left / center / right) instead of treating
+    // these as fixed pixel widths. rc-dock's flex math is
+    // `flex: ${flex*size} ${flex*1e6} ${size}px`, so the relative ratio of
+    // sibling sizes determines how leftover space is distributed.
     if (leftChildren.length === 1) {
-      dockboxChildren.push({ ...leftChildren[0], size: 220 } as PanelData)
+      dockboxChildren.push({ ...leftChildren[0], size: 150 } as PanelData)
     } else {
       dockboxChildren.push({
         mode: 'vertical',
-        size: 220,
+        size: 150,
         children: leftChildren,
       } as BoxData)
     }
@@ -199,7 +204,7 @@ export function buildDockLayoutFromVisibility(
   if (centerChildren.length > 0) {
     dockboxChildren.push({
       mode: 'vertical',
-      size: 900,
+      size: 650,
       children: centerChildren,
     } as BoxData)
   }
@@ -233,7 +238,7 @@ export function buildDockLayoutFromVisibility(
   if (rightChildren.length > 0) {
     dockboxChildren.push({
       mode: 'vertical',
-      size: 280,
+      size: 200,
       children: rightChildren,
     } as BoxData)
   }

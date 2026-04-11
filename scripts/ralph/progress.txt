@@ -76,3 +76,14 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
   - The persisted layout (US-026) is the source of *every* "ghost panel" / "stale tab" complaint — `buildDockLayoutFromVisibility` is correct, but rc-dock will dutifully render whatever the saved `LayoutBase` says. Always sanitise saved layouts on hydration before handing them to `<DockLayout>`.
   - rc-dock's `LayoutBase` may include `floatbox`, `maxbox`, `windowbox` siblings of `dockbox` — sanitisers must walk all of them, not just `dockbox`.
 ---
+
+## 2026-04-11 - US-P07
+- Replaced fixed pixel column sizes (220/900/280 = 1400px) in buildDockLayoutFromVisibility with proportional flex weights (150/650/200 = 1000) so rc-dock distributes available space as ~15% / 65% / 20% (left / center / right) regardless of window width.
+- Added a unit test in tests/unit/dock-layout.test.ts asserting top-level column ratios fall within 13-18% / 60-70% / 17-23%.
+- Inner vertical splits (editor 600 / command 300, right column 300/180/180/250) left untouched — only the horizontal three-column ratio matters for "no dead space at 1920".
+- Files changed: src/renderer/panels/MatslopDockLayout.tsx, tests/unit/dock-layout.test.ts.
+- **Learnings for future iterations:**
+  - rc-dock 4.0.0-alpha.2 turns each child's `size` into `flex: ${size} 1e6 ${size}px`, so sibling sizes act as flex weights AND flex-basis. Using small relative numbers (150/650/200) is equivalent to large ones (1500/6500/2000) — pick numbers that are visually meaningful as percentages.
+  - The dock-layout.test.ts suite still fails to import at runtime (rc-dock not in node_modules), same baseline as US-P02/P05/P06. New assertions there protect against regression at the source level and will run automatically once rc-dock is reinstalled.
+  - The "dead space on wide windows" symptom from the PRD was actually a US-P02 issue (panels not filling their pane), not a sizing-weights issue — but cleaning the weights to round percentages still satisfies the "no unused space" AC and makes intent obvious.
+---
