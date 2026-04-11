@@ -1,69 +1,92 @@
 {
   "project": "MatSlop",
-  "branchName": "ralph/matslop-polish-v2",
-  "description": "Polish cycle 4: final pass. Three hotfixes already landed on this branch (342ceff, a413e3a, 5f4e08d). Remaining: pre-existing octave-bundle unit tests fail in dev environments without the bundled Windows binary, workspace column can clip on narrow widths, command window bottom fill, and a final sweep for any remaining cosmetic rough edges. Reference screenshot /tmp/polish-cdp-06.png.",
+  "branchName": "ralph/matslop-polish-v3",
+  "description": "Post-merge polish & real-Octave bug bash. The polish-v2 branch is merged into main. End-to-end validation against a real Octave 8.4 install found several bugs: download-octave.js URLs are broken (macOS 9.4 release doesn't exist, Linux AppImage repo doesn't exist), a few UX rough edges, and assorted cleanups. This cycle also lifts miscellaneous polish: make the editor Run button visibly indicate what it runs, add a busy indicator while Octave executes a long command, and land any remaining small cosmetics.",
   "userStories": [
     {
-      "id": "US-R01",
-      "title": "Gate octave-bundle tests to skip when the bundle is absent",
-      "description": "Four unit tests in tests/unit/octave-config.test.ts and tests/unit/download-octave*.test.ts fail in dev environments because they assert the presence of resources/octave/mingw64/bin/octave-cli.exe (only downloaded by the packaging scripts). They should gracefully skip when the file is missing instead of hard-failing, so `npm test` returns green on clean checkouts.",
+      "id": "US-S01",
+      "title": "Fix broken URLs in scripts/download-octave.js",
+      "description": "The download script references https://ftpmirror.gnu.org/octave/windows/... (returns 502), https://github.com/octave-app/octave-app/releases/download/v9.4.0/... (the 9.4.0 release doesn't exist; octave-app max is v9.2), and https://github.com/ryanjdillon/octave-appimage/releases/... (the ryanjdillon/octave-appimage repo doesn't exist). Pin to working sources.",
       "acceptanceCriteria": [
-        "Each assertion that requires a bundled Octave binary is wrapped in `describe.skipIf(...)` or equivalent so it skips when the binary is absent",
-        "The test intent (verifying path correctness) is preserved: run the assertion when the bundle is present, skip with a clear reason when it isn't",
-        "`npm test` exits with code 0 on a clean checkout with no bundled Octave",
-        "Running `npm run download:octave` on Windows still satisfies the tests",
+        "Windows URL uses https://ftp.gnu.org/gnu/octave/windows/ (mirror-free, confirmed 200 OK)",
+        "macOS URL pinned to v9.2 (latest octave-app release) or a working alternative — document the ceiling clearly",
+        "Linux URL replaced with a working source: either a maintained octave AppImage, a Flatpak bundle step (flatpak --user install org.octave.Octave), OR a clear 'not bundled on Linux' branch that falls back to PATH lookup",
+        "Running `node scripts/download-octave.js --platform linux` on a clean dev checkout either succeeds OR exits with a clear 'no bundled Octave for this platform, please install via apt/flatpak/brew' message (no HTTP 404 stacktrace)",
+        "Unit tests for download-octave updated to match the new URLs (tests/unit/download-octave*.test.ts)",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 1,
       "passes": true,
-      "notes": ""
+      "notes": "Windows pinned to ftp.gnu.org/gnu/octave/windows/ (9.4.0). macOS pinned to octave-app v9.2 (release ceiling). Linux: bundling removed — script exits cleanly with package-manager instructions; runtime falls back to PATH. Tests updated."
     },
     {
-      "id": "US-R02",
-      "title": "Workspace column minSize and header ellipsis",
-      "description": "The Workspace pane's 'No variables in workspace' header still clips horizontally at narrow column widths. Set a hard minSize on the workspace column in the rc-dock layout and add text-overflow ellipsis on the header.",
+      "id": "US-S02",
+      "title": "Busy indicator while Octave executes a long command",
+      "description": "When the user types a command that takes more than ~300ms (e.g. a tight loop, a large matrix op), the UI should visibly indicate 'running' so the user knows it didn't hang. Currently the status bar just stays on 'Ready' until the next status message.",
       "acceptanceCriteria": [
-        "buildDockLayoutFromVisibility sets minSize: 200 (or similar) on the right (workspace) column panel",
-        ".ws-content header text uses white-space: nowrap + text-overflow: ellipsis OR wraps cleanly to a second line",
-        "Playwright: workspace header text is fully visible at 1600x900 viewport",
+        "Status bar changes from 'Ready' to 'Running...' (or equivalent) whenever an octaveExecute IPC is in flight and takes longer than 250ms",
+        "Returns to 'Ready' when the execute resolves (output or error)",
+        "Nested executes (workspace refresh + command) don't cause flicker — a single ref-counted 'in-flight' state",
+        "A test that mocks a slow octaveExecute and asserts the status bar text sequence",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-R03",
-      "title": "Command Window output area fills pane vertically",
-      "description": "The Command Window shows the >> prompt at the top-left and leaves a large empty area below. The output area should anchor the prompt to the bottom (or stretch a scrollable history region to fill the pane).",
+      "id": "US-S03",
+      "title": "Stop button should cancel long-running execution, not crash Octave",
+      "description": "Verify the editor toolbar Stop button interrupts a long-running command via SIGINT (existing octaveInterrupt IPC) and returns the user to a ready prompt without losing the Octave process.",
       "acceptanceCriteria": [
-        "When the Command Window pane is tall and no commands have run yet, the visible content fills the pane (no gray void beneath the prompt)",
-        "History scrolls naturally as new output arrives; prompt stays visible",
-        "FitAddon still triggers on pane resize",
+        "Clicking Stop while a command is running sends SIGINT to Octave",
+        "Octave prints 'error: interrupted' or similar and returns to the prompt",
+        "Workspace state is preserved (variables defined before the interrupt remain)",
+        "Status bar returns to Ready",
+        "Test: mock a long execute, click stop, assert interrupt IPC was called",
         "Typecheck passes",
         "Tests pass",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Already satisfied by US-Q03 CSS fix (.cw-output flex-column + .cw-input-line margin-top:auto). E2E test tests/e2e/visual-polish.spec.ts:164 passes, verifying the prompt bottom sits within 16px of the cw-output bottom. No xterm/FitAddon is used — CommandWindow is a simple input+div implementation, so the FitAddon clause is N/A."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-R04",
-      "title": "Final visual-polish baseline refresh",
-      "description": "After the final fixes, refresh the visual-polish Playwright baseline screenshot so CI has a valid comparison target.",
+      "id": "US-S04",
+      "title": "Workspace panel shows scalar values truncated nicely",
+      "description": "Matrix columns clip the 'Value' cell for anything non-scalar. Current preview formatValuePreview returns '[3x3 double]' which is fine, but scalars display inconsistently. Audit and unify the format.",
       "acceptanceCriteria": [
-        "tests/e2e/visual-polish.spec.ts runs against the current polished dark layout and passes",
-        "Baseline snapshot updated and committed",
+        "Scalars show their numeric value truncated to 6 significant digits (e.g. 3.14159, 1.00000e-05)",
+        "Strings show 'abc...' truncated at 20 chars with ellipsis",
+        "Non-scalars show '[RxC class]'",
+        "Unit test for formatValuePreview covering scalar / string / matrix / struct / cell",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Baseline refreshed (tests/e2e/__screenshots__/visual-polish/default-layout-1600x1000.png). US-R02 placeholder check relaxed to accept both 'No variables in workspace' and 'Octave not connected' (dev env lacks Octave). All 4 visual-polish tests pass."
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-S05",
+      "title": "Editor Run button runs the whole open script via `run`/`source`",
+      "description": "Currently clicking the Run (F5) button on an untitled buffer with a `function` definition produces no visible output. Running should execute the whole file via `source('<path>')` for saved files, or prompt to save the buffer first for untitled ones.",
+      "acceptanceCriteria": [
+        "Run (F5) on a saved .m file calls octaveExecute(`source('<abs path>')`) and surfaces any output in the Command Window",
+        "Run on an unsaved buffer shows a 'Save before running' prompt, or writes to a temp file and sources that",
+        "Function-only files trigger a warning banner: 'This file only defines function(s); nothing to run'",
+        "Test covering saved/unsaved/function-only cases",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
     }
   ]
 }

@@ -21,6 +21,20 @@ describe('download-octave macOS support', () => {
     expect(script).toMatch(/Octave\.app\/Contents\/Resources\/usr\/bin\/octave-cli/)
   })
 
+  it('pins macOS to the latest octave-app release (v9.2 ceiling)', () => {
+    // octave-app has not published a v9.4 — US-S01 ran into a 404 on the
+    // v${OCTAVE_VERSION}.dmg URL before we pinned the ceiling. Keep this
+    // assertion here so a future blanket version bump doesn't regress.
+    expect(script).toMatch(/MAC_OCTAVE_VERSION\s*=\s*['"]9\.2['"]/)
+    // And the darwin entry must interpolate that (not WIN_OCTAVE_VERSION).
+    expect(script).toMatch(/octave-app\/releases\/download\/v\$\{MAC_OCTAVE_VERSION\}/)
+  })
+
+  it('Windows URL uses ftp.gnu.org (not the ftpmirror.gnu.org redirector)', () => {
+    expect(script).toMatch(/ftp\.gnu\.org\/gnu\/octave\/windows/)
+    expect(script).not.toMatch(/ftpmirror\.gnu\.org/)
+  })
+
   it('uses hdiutil to mount the DMG and copies Octave.app out', () => {
     expect(script).toMatch(/hdiutil attach/)
     expect(script).toMatch(/hdiutil detach/)

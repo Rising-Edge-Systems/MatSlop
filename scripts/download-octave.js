@@ -18,41 +18,39 @@ const __dirname = path.dirname(__filename)
 const ROOT = path.join(__dirname, '..')
 const OCTAVE_DIR = path.join(ROOT, 'resources', 'octave')
 
-const OCTAVE_VERSION = '9.4.0'
-
+// Per-platform pinned versions. Windows uses the current GNU Octave release
+// hosted directly on ftp.gnu.org (the GNU mirror redirector returned
+// 502 during v3 polish validation). macOS is pinned to the latest octave-app
+// release (v9.2 — octave-app has not published a v9.4). Linux is
+// intentionally NOT bundled: no maintained, stable AppImage / static tarball
+// source exists upstream, so Linux users install via their package manager
+// (apt, dnf, pacman, flatpak, brew) and MatSlop falls back to PATH lookup at
+// runtime.
+//
 // NOTE: macOS doesn't have a "portable" Octave archive the way Windows does,
 // but the octave-app project ships a notarized Octave.app bundle as a .dmg
 // (https://github.com/octave-app/octave-app/releases). We download that .dmg
 // and extract Octave.app into resources/octave/ so packaging ends up with
 // resources/octave/Octave.app/Contents/Resources/usr/bin/octave-cli.
-//
-// Linux: the GNU Octave project doesn't ship an official static tarball, but
-// the community-maintained octave-appimage project publishes AppImage builds
-// (https://github.com/ryanjdillon/octave-appimage). An AppImage self-extracts
-// via `./octave.AppImage --appimage-extract`, producing a `squashfs-root/`
-// directory that contains `usr/bin/octave-cli`. We unpack into
-// resources/octave/ so packaging ends up with
-// resources/octave/squashfs-root/usr/bin/octave-cli.
+const WIN_OCTAVE_VERSION = '9.4.0'
+// octave-app release ceiling — do not bump past the latest tag at
+// https://github.com/octave-app/octave-app/releases (currently v9.2).
+const MAC_OCTAVE_VERSION = '9.2'
+
 const DOWNLOADS = {
   win32: {
-    url: `https://ftpmirror.gnu.org/octave/windows/octave-${OCTAVE_VERSION}-w64.zip`,
-    filename: `octave-${OCTAVE_VERSION}-w64.zip`,
-    extractedDir: `octave-${OCTAVE_VERSION}`,
+    url: `https://ftp.gnu.org/gnu/octave/windows/octave-${WIN_OCTAVE_VERSION}-w64.zip`,
+    filename: `octave-${WIN_OCTAVE_VERSION}-w64.zip`,
+    extractedDir: `octave-${WIN_OCTAVE_VERSION}-w64`,
     binary: 'mingw64/bin/octave-cli.exe'
   },
   darwin: {
-    url: `https://github.com/octave-app/octave-app/releases/download/v${OCTAVE_VERSION}/Octave-${OCTAVE_VERSION}.dmg`,
-    filename: `Octave-${OCTAVE_VERSION}.dmg`,
+    url: `https://github.com/octave-app/octave-app/releases/download/v${MAC_OCTAVE_VERSION}/Octave-${MAC_OCTAVE_VERSION}.dmg`,
+    filename: `Octave-${MAC_OCTAVE_VERSION}.dmg`,
     // Relative to OCTAVE_DIR, this is the binary we expect after extraction.
     binary: 'Octave.app/Contents/Resources/usr/bin/octave-cli'
-  },
-  linux: {
-    url: `https://github.com/ryanjdillon/octave-appimage/releases/download/v${OCTAVE_VERSION}/octave-${OCTAVE_VERSION}-x86_64.AppImage`,
-    filename: `octave-${OCTAVE_VERSION}-x86_64.AppImage`,
-    // Relative to OCTAVE_DIR, this is the binary we expect after
-    // `./octave.AppImage --appimage-extract` unpacks squashfs-root/.
-    binary: 'squashfs-root/usr/bin/octave-cli'
   }
+  // Linux: intentionally absent. See main() for the fallback message.
 }
 
 function download(url, dest) {
@@ -110,23 +108,40 @@ async function main() {
   const platformArg = process.argv.find((a) => a.startsWith('--platform='))
   const platform = platformArg ? platformArg.split('=')[1] : process.platform
 
+  if (platform === 'linux') {
+    // We deliberately do not bundle Octave on Linux — there is no upstream
+    // static tarball / maintained AppImage we can pin to. Linux packages
+    // (apt/dnf/pacman/flatpak/brew) ship a working Octave, and MatSlop's
+    // runtime PATH lookup (src/main/octaveConfig.ts) will find it.
+    console.log('No bundled Octave for Linux.')
+    console.log('Please install GNU Octave via your distribution\'s package manager, e.g.:')
+    console.log('  Debian/Ubuntu:  sudo apt install octave')
+    console.log('  Fedora:         sudo dnf install octave')
+    console.log('  Arch:           sudo pacman -S octave')
+    console.log('  Flatpak:        flatpak --user install flathub org.octave.Octave')
+    console.log('  Homebrew:       brew install octave')
+    console.log('MatSlop will locate Octave on PATH at runtime.')
+    return
+  }
+
   if (!DOWNLOADS[platform]) {
     console.log(`No bundled Octave distribution configured for platform: ${platform}`)
-    console.log('Supported platforms: ' + Object.keys(DOWNLOADS).join(', '))
+    console.log('Supported bundled platforms: ' + Object.keys(DOWNLOADS).join(', '))
     console.log('Users will need to install GNU Octave manually on this platform.')
-    process.exit(0)
+    return
   }
 
   const config = DOWNLOADS[platform]
+  const version = platform === 'win32' ? WIN_OCTAVE_VERSION : MAC_OCTAVE_VERSION
   const binaryPath = path.join(OCTAVE_DIR, config.binary)
 
   // Check if already downloaded
   if (fs.existsSync(binaryPath)) {
-    console.log(`Octave ${OCTAVE_VERSION} already downloaded at: ${binaryPath}`)
+    console.log(`Octave ${version} already downloaded at: ${binaryPath}`)
     return
   }
 
-  console.log(`Downloading GNU Octave ${OCTAVE_VERSION} for ${platform}...`)
+  console.log(`Downloading GNU Octave ${version} for ${platform}...`)
   fs.mkdirSync(OCTAVE_DIR, { recursive: true })
 
   const archivePath = path.join(OCTAVE_DIR, config.filename)
@@ -152,7 +167,7 @@ async function main() {
       // Find Octave.app inside the mounted volume (it's usually at the root).
       const appSrcCandidates = [
         path.join(mountPoint, 'Octave.app'),
-        path.join(mountPoint, `Octave-${OCTAVE_VERSION}.app`)
+        path.join(mountPoint, `Octave-${MAC_OCTAVE_VERSION}.app`)
       ]
       const appSrc = appSrcCandidates.find((p) => fs.existsSync(p))
       if (!appSrc) {
@@ -180,25 +195,6 @@ async function main() {
         }
       }
     }
-  } else if (platform === 'linux') {
-    // AppImage self-extracts when invoked with --appimage-extract. It writes
-    // `squashfs-root/` into the current working directory, so we chdir into
-    // OCTAVE_DIR first. The AppImage must be executable.
-    fs.chmodSync(archivePath, 0o755)
-    const squashRoot = path.join(OCTAVE_DIR, 'squashfs-root')
-    if (fs.existsSync(squashRoot)) {
-      fs.rmSync(squashRoot, { recursive: true, force: true })
-    }
-    execSync(`"${archivePath}" --appimage-extract`, {
-      stdio: 'inherit',
-      timeout: 1200000,
-      cwd: OCTAVE_DIR
-    })
-    if (!fs.existsSync(squashRoot)) {
-      throw new Error(
-        `AppImage extraction did not produce squashfs-root at: ${squashRoot}`
-      )
-    }
   } else if (platform === 'win32') {
     // Use PowerShell to extract on Windows
     execSync(
@@ -225,7 +221,7 @@ async function main() {
 
   // Verify
   if (fs.existsSync(binaryPath)) {
-    console.log(`  Octave ${OCTAVE_VERSION} ready at: ${binaryPath}`)
+    console.log(`  Octave ${version} ready at: ${binaryPath}`)
   } else {
     console.error('  ERROR: Binary not found after extraction:', binaryPath)
     console.log('  Directory contents:', fs.readdirSync(OCTAVE_DIR))
