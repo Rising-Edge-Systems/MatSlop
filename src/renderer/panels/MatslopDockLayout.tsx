@@ -254,6 +254,115 @@ export function buildDefaultDockLayout(): LayoutData {
   return buildDockLayoutFromVisibility(DEFAULT_DOCK_VISIBILITY)
 }
 
+/**
+ * US-P06: compute the set of tab ids that are *allowed* to appear in the
+ * dock layout for the given visibility / detached state. The "ghost"
+ * Command History tab seen on screenshots is the result of a previously
+ * persisted saved layout (via US-026) that referenced a tab whose
+ * visibility flag is now `false`. We use this set to filter such tabs
+ * out of the saved layout before handing it to rc-dock.
+ *
+ * Note: the editor is treated as always-visible (no flag), to mirror the
+ * behaviour of `buildDockLayoutFromVisibility`.
+ */
+function computeAllowedTabIds(
+  vis: DockVisibility,
+  detached?: ReadonlySet<string>,
+): Set<string> {
+  const allowed = new Set<string>()
+  // editor has no visibility flag — always present unless detached
+  allowed.add(DOCK_TAB_IDS.editor)
+  if (vis.fileBrowser) allowed.add(DOCK_TAB_IDS.fileBrowser)
+  if (vis.commandWindow) allowed.add(DOCK_TAB_IDS.commandWindow)
+  if (vis.commandHistory) allowed.add(DOCK_TAB_IDS.commandHistory)
+  if (vis.workspace) allowed.add(DOCK_TAB_IDS.workspace)
+  if (vis.callStack) allowed.add(DOCK_TAB_IDS.callStack)
+  if (vis.watches) allowed.add(DOCK_TAB_IDS.watches)
+  if (vis.figure) allowed.add(DOCK_TAB_IDS.figure)
+  if (vis.helpBrowser) allowed.add(DOCK_TAB_IDS.helpBrowser)
+  if (vis.findInFiles) allowed.add(DOCK_TAB_IDS.findInFiles)
+  if (vis.profiler) allowed.add(DOCK_TAB_IDS.profiler)
+  if (vis.sourceControl) allowed.add(DOCK_TAB_IDS.sourceControl)
+  if (detached) {
+    for (const d of detached) allowed.delete(d)
+  }
+  return allowed
+}
+
+/**
+ * US-P06: walk a persisted `LayoutBase` and remove tab entries whose ids
+ * are unknown to MatSlop or whose visibility flag is currently off.
+ * Empty panels are dropped, and boxes that become empty after their
+ * children are filtered are dropped too. Returns `null` if the result
+ * would be an empty dockbox (callers should fall back to the
+ * visibility-derived default in that case).
+ *
+ * This is the fix for the "ghost Command History tab" reported in
+ * matslop-06.png: a previously-saved layout still referenced
+ * `matslop-command-history` even after the panel was hidden, and
+ * rc-dock dutifully rendered it.
+ */
+export function sanitizeSavedDockLayout(
+  saved: LayoutBase,
+  vis: DockVisibility,
+  detached?: ReadonlySet<string>,
+): LayoutBase | null {
+  const allowed = computeAllowedTabIds(vis, detached)
+
+  type AnyNode = Record<string, unknown>
+
+  function sanitizeNode(node: unknown): AnyNode | null {
+    if (!node || typeof node !== 'object') return null
+    const n = node as AnyNode
+    // Panel: filter `tabs`
+    if (Array.isArray(n.tabs)) {
+      const tabs = (n.tabs as AnyNode[]).filter((t) => {
+        if (!t || typeof t !== 'object') return false
+        const id = (t as { id?: unknown }).id
+        return typeof id === 'string' && allowed.has(id)
+      })
+      if (tabs.length === 0) return null
+      const next: AnyNode = { ...n, tabs }
+      const activeId = (n as { activeId?: unknown }).activeId
+      if (typeof activeId === 'string' && !allowed.has(activeId)) {
+        next.activeId = (tabs[0] as { id: string }).id
+      }
+      return next
+    }
+    // Box: recursively filter `children`
+    if (Array.isArray(n.children)) {
+      const children = (n.children as unknown[])
+        .map((c) => sanitizeNode(c))
+        .filter((c): c is AnyNode => c !== null)
+      if (children.length === 0) return null
+      return { ...n, children }
+    }
+    return n
+  }
+
+  const dockbox = sanitizeNode((saved as unknown as { dockbox?: unknown }).dockbox)
+  if (!dockbox) return null
+  // Floatbox / maxbox / windowbox are also part of LayoutBase. We sanitize
+  // them too so floating windows don't end up containing ghost tabs.
+  const out: AnyNode = { ...(saved as unknown as AnyNode), dockbox }
+  for (const key of ['floatbox', 'maxbox', 'windowbox'] as const) {
+    if ((saved as unknown as AnyNode)[key]) {
+      const cleaned = sanitizeNode((saved as unknown as AnyNode)[key])
+      if (cleaned) {
+        out[key] = cleaned
+      } else {
+        delete out[key]
+      }
+    }
+  }
+  // Final guard: if the dockbox has no children left, treat as empty.
+  const dockboxChildren = (dockbox as { children?: unknown[] }).children
+  if (!Array.isArray(dockboxChildren) || dockboxChildren.length === 0) {
+    return null
+  }
+  return out as unknown as LayoutBase
+}
+
 export interface MatslopDockLayoutProps {
   visibility: DockVisibility
   fileBrowser: ReactNode
@@ -378,9 +487,17 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
   const [layout, setLayout] = useState<LayoutData>(() => {
     if (savedDockLayout) {
       try {
-        // `LayoutBase` is a subset of `LayoutData`; rc-dock's `loadTab`
-        // factory will hydrate id-only tabs on render.
-        return savedDockLayout as LayoutData
+        // US-P06: strip any ghost tabs (unknown ids, or ids whose
+        // visibility flag is now false) before handing the saved layout
+        // to rc-dock. Otherwise a stale `matslop-command-history` entry
+        // in window-state would render a disconnected ghost tab over
+        // the Command Window.
+        const cleaned = sanitizeSavedDockLayout(savedDockLayout, visibility, detachedPanels)
+        if (cleaned) {
+          // `LayoutBase` is a subset of `LayoutData`; rc-dock's `loadTab`
+          // factory will hydrate id-only tabs on render.
+          return cleaned as LayoutData
+        }
       } catch {
         // fall through to default
       }

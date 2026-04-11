@@ -2,12 +2,13 @@ import { describe, it, expect } from 'vitest'
 import {
   buildDefaultDockLayout,
   buildDockLayoutFromVisibility,
+  sanitizeSavedDockLayout,
   DEFAULT_DOCK_VISIBILITY,
   DOCK_TAB_IDS,
   DOCK_TAB_TITLES,
   type DockVisibility,
 } from '../../src/renderer/panels/MatslopDockLayout'
-import type { BoxData, PanelData } from 'rc-dock'
+import type { BoxData, LayoutBase, PanelData } from 'rc-dock'
 
 /**
  * Unit tests for the pure dock-layout helpers that back the US-025
@@ -269,6 +270,137 @@ describe('buildDockLayoutFromVisibility – US-027 detached panels', () => {
     expect(collectTabIds(withEmpty.dockbox).sort()).toEqual(
       collectTabIds(baseline.dockbox).sort(),
     )
+  })
+})
+
+describe('sanitizeSavedDockLayout (US-P06)', () => {
+  function panel(...ids: string[]): PanelData {
+    return { tabs: ids.map((id) => ({ id })) } as unknown as PanelData
+  }
+  function vbox(...children: (BoxData | PanelData)[]): BoxData {
+    return { mode: 'vertical', children } as BoxData
+  }
+  function hbox(...children: (BoxData | PanelData)[]): BoxData {
+    return { mode: 'horizontal', children } as BoxData
+  }
+
+  it('drops a hidden command-history tab from a saved layout', () => {
+    const saved: LayoutBase = {
+      dockbox: hbox(
+        panel(DOCK_TAB_IDS.fileBrowser),
+        vbox(panel(DOCK_TAB_IDS.editor), panel(DOCK_TAB_IDS.commandWindow, DOCK_TAB_IDS.commandHistory)),
+        panel(DOCK_TAB_IDS.workspace),
+      ),
+    } as unknown as LayoutBase
+
+    const cleaned = sanitizeSavedDockLayout(saved, DEFAULT_DOCK_VISIBILITY)
+    expect(cleaned).not.toBeNull()
+    const ids = collectTabIds((cleaned as unknown as { dockbox: BoxData }).dockbox)
+    expect(ids).not.toContain(DOCK_TAB_IDS.commandHistory)
+    expect(ids).toContain(DOCK_TAB_IDS.commandWindow)
+    expect(ids).toContain(DOCK_TAB_IDS.editor)
+  })
+
+  it('drops unknown tab ids from a saved layout', () => {
+    const saved: LayoutBase = {
+      dockbox: hbox(panel(DOCK_TAB_IDS.fileBrowser, 'matslop-bogus-tab'), panel(DOCK_TAB_IDS.editor)),
+    } as unknown as LayoutBase
+    const cleaned = sanitizeSavedDockLayout(saved, DEFAULT_DOCK_VISIBILITY)
+    const ids = collectTabIds((cleaned as unknown as { dockbox: BoxData }).dockbox)
+    expect(ids).not.toContain('matslop-bogus-tab')
+  })
+
+  it('drops empty panels and empty boxes left after filtering', () => {
+    const saved: LayoutBase = {
+      dockbox: hbox(
+        panel('matslop-bogus-tab'),
+        vbox(panel(DOCK_TAB_IDS.editor)),
+      ),
+    } as unknown as LayoutBase
+    const cleaned = sanitizeSavedDockLayout(saved, DEFAULT_DOCK_VISIBILITY)
+    expect(cleaned).not.toBeNull()
+    const dockbox = (cleaned as unknown as { dockbox: BoxData }).dockbox
+    // bogus panel removed -> only the vbox remains
+    expect(dockbox.children.length).toBe(1)
+  })
+
+  it('returns null when sanitisation leaves an empty dockbox', () => {
+    const saved: LayoutBase = {
+      dockbox: hbox(panel('a'), panel('b')),
+    } as unknown as LayoutBase
+    expect(sanitizeSavedDockLayout(saved, DEFAULT_DOCK_VISIBILITY)).toBeNull()
+  })
+
+  it('rewrites activeId when the previously active tab was removed', () => {
+    const saved: LayoutBase = {
+      dockbox: hbox(
+        panel(DOCK_TAB_IDS.fileBrowser),
+        vbox(
+          panel(DOCK_TAB_IDS.editor),
+          {
+            tabs: [{ id: DOCK_TAB_IDS.commandWindow }, { id: DOCK_TAB_IDS.commandHistory }],
+            activeId: DOCK_TAB_IDS.commandHistory,
+          } as unknown as PanelData,
+        ),
+      ),
+    } as unknown as LayoutBase
+    const cleaned = sanitizeSavedDockLayout(saved, DEFAULT_DOCK_VISIBILITY)
+    expect(cleaned).not.toBeNull()
+    // Find the panel that used to host both command tabs
+    const stack: (BoxData | PanelData)[] = [
+      (cleaned as unknown as { dockbox: BoxData }).dockbox,
+    ]
+    let found: PanelData | null = null
+    while (stack.length > 0) {
+      const node = stack.pop() as BoxData | PanelData
+      if ('tabs' in node) {
+        if (node.tabs.some((t) => t.id === DOCK_TAB_IDS.commandWindow)) {
+          found = node
+          break
+        }
+      } else if ('children' in node) {
+        stack.push(...(node.children as (BoxData | PanelData)[]))
+      }
+    }
+    expect(found).not.toBeNull()
+    if (found) {
+      const activeId = (found as unknown as { activeId?: string }).activeId
+      expect(activeId).toBe(DOCK_TAB_IDS.commandWindow)
+    }
+  })
+
+  it('keeps the command-history tab when its visibility flag is true', () => {
+    const saved: LayoutBase = {
+      dockbox: hbox(
+        panel(DOCK_TAB_IDS.fileBrowser),
+        vbox(panel(DOCK_TAB_IDS.editor), panel(DOCK_TAB_IDS.commandWindow, DOCK_TAB_IDS.commandHistory)),
+      ),
+    } as unknown as LayoutBase
+    const cleaned = sanitizeSavedDockLayout(saved, {
+      ...DEFAULT_DOCK_VISIBILITY,
+      commandHistory: true,
+    })
+    const ids = collectTabIds((cleaned as unknown as { dockbox: BoxData }).dockbox)
+    expect(ids).toContain(DOCK_TAB_IDS.commandHistory)
+  })
+
+  it('drops detached tabs from the saved layout', () => {
+    const saved: LayoutBase = {
+      dockbox: hbox(
+        panel(DOCK_TAB_IDS.fileBrowser),
+        vbox(panel(DOCK_TAB_IDS.editor), panel(DOCK_TAB_IDS.commandWindow)),
+        panel(DOCK_TAB_IDS.workspace),
+      ),
+    } as unknown as LayoutBase
+    const cleaned = sanitizeSavedDockLayout(
+      saved,
+      DEFAULT_DOCK_VISIBILITY,
+      new Set([DOCK_TAB_IDS.workspace]),
+    )
+    expect(cleaned).not.toBeNull()
+    const ids = collectTabIds((cleaned as unknown as { dockbox: BoxData }).dockbox)
+    expect(ids).not.toContain(DOCK_TAB_IDS.workspace)
+    expect(ids).toContain(DOCK_TAB_IDS.fileBrowser)
   })
 })
 

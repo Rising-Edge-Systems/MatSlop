@@ -10,6 +10,28 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
 
 ---
 
+## 2026-04-11 - US-P04
+- Replaced the blocking OctaveSetupDialog modal with a dismissible banner above the status bar. On first launch with no detected Octave, the full dock layout now mounts and the user sees a non-blocking warning with "Browse for octave-cli..." and "Dismiss" buttons.
+- Removed `OctaveSetupDialog` import + render from App.tsx; added `octaveBannerVisible` / `octaveBannerError` state and `handleOctaveBannerBrowse` / `handleOctaveBannerDismiss` callbacks. Browse uses the same `octaveBrowse` → `octaveValidate` → `octaveSetPath` flow as the old dialog and shows inline errors inside the banner if validation fails.
+- Inline command-window error path was already in place: `ipcMain.handle('octave:execute')` returns `{ error: 'Octave is not running' }` and `CommandWindow.tsx` renders that as an inline error entry. No modal is shown when the user runs an Octave-dependent command without a configured path.
+- Added `.octave-not-found-banner` styles to styles.css (modeled after the existing `.edit-continue-banner` pattern; primary action uses `--accent-color`).
+- Files changed: src/renderer/App.tsx, src/renderer/styles.css.
+- **Learnings for future iterations:**
+  - The `.edit-continue-banner` rendered just above `<StatusBar>` is the pattern to copy for any new dismissible banner — keeps the dock area untouched and stacks naturally with `DebugToolbar`.
+  - `octave:execute` IPC handler in src/main/index.ts already gracefully returns an error object instead of throwing when Octave isn't running, so renderer call sites do NOT need to gate on `octaveStatus.configured` to avoid modals.
+  - Preferences > Octave path lives in `PreferencesDialog.tsx` and writes via `onPreferencesChanged` — it's the supported way to set the path post-dismissal; no need to keep `OctaveSetupDialog` reachable.
+---
+
+## 2026-04-11 - US-P03
+- Created src/renderer/rc-dock-theme.css overriding rc-dock + embedded rc-tabs selectors with project CSS vars (--bg-panel, --bg-header, --border-color, --text-primary, --accent-color, etc.).
+- Imported it from MatslopDockLayout.tsx after `rc-dock/dist/rc-dock.css` so it wins the cascade. Dark theme is now visible default; flips correctly with data-theme.
+- Files changed: src/renderer/panels/MatslopDockLayout.tsx, src/renderer/rc-dock-theme.css (new).
+- **Learnings for future iterations:**
+  - rc-dock 4.0.0-alpha.2 embeds rc-tabs internally with prefixCls "rc-tabs" — overriding `.dock-*` alone is not enough, you must also restyle `.rc-tabs`, `.rc-tabs-nav`, `.rc-tabs-tab`, `.rc-tabs-tab-active`, `.rc-tabs-content-holder`, `.rc-tabs-ink-bar`, `.rc-tabs-dropdown*`, etc.
+  - rc-dock package directory is NOT present in node_modules (only the prebuilt .vite/deps copy exists locally). The TS error "Cannot find module 'rc-dock'" is expected baseline; do not try to fix by reinstalling.
+  - To list runtime class names emitted by a vendored library, grep its `.vite/deps/*.js` bundle for `className: "..."` and `prefixCls`.
+---
+
 ## 2026-04-11 - US-P02
 - Removed `display: flex` from the loadTab() content wrapper in MatslopDockLayout.tsx so the inner `.panel` (which is itself flex column with height:100%) is no longer a flex item shrinking to intrinsic width.
 - Added `width: 100%; min-width: 0; min-height: 0` to the `.panel` selector in styles.css alongside the existing `height: 100%`.
@@ -30,4 +52,27 @@ Started: Sat Apr 11 01:30:12 PM EDT 2026
   - Keep CSS rules for `.panel-header` etc. in styles.css alone — harmless and may still be referenced by other detached/legacy components.
   - The .panel CSS selector is in styles.css around line 302 — needs `width: 100%` added for US-P02.
   - MatslopDockLayout.tsx loadTab wrapper at ~line 441 wraps each tab in display:flex without giving child flex:1 — the cause of collapsed panels in US-P02.
+---
+
+## 2026-04-11 - US-P05
+- Added src/main/windowStateStore.ts (read/write/normalize for window-state.json in userData; pure normalize() exported for testability, mirrors sessionStore pattern).
+- Reworked createWindow() in src/main/index.ts: imports `screen` from electron, computes initial bounds via `computeInitialWindowState()` (persisted > workAreaSize capped 1920x1200 > 1400x900 fallback), calls `mainWindow.maximize()` if persisted state was maximized, and persists bounds on resize/move/maximize/unmaximize/close (debounced 300ms via setTimeout).
+- E2E guard: `MATSLOP_USER_DATA_DIR` already set by tests/e2e/helpers/launch.ts triggers the legacy 1400x900 default so tests stay deterministic regardless of host display size.
+- Files changed: src/main/index.ts, src/main/windowStateStore.ts (new).
+- **Learnings for future iterations:**
+  - Playwright launcher (tests/e2e/helpers/launch.ts) sets `MATSLOP_USER_DATA_DIR` per test for isolation — that env var doubles as a reliable "running under E2E" marker for main-process logic, no need for a separate E2E flag.
+  - Use `mainWindow.getNormalBounds()` (not `getBounds()`) when persisting while maximized — the latter returns the maximized rectangle and would lose the user's last restored size.
+  - Storage modules in this project follow a consistent shape: dependency-free fs + lazy `getApp()` so pure helpers can be unit-tested without electron. Use sessionStore.ts as the template.
+---
+
+## 2026-04-11 - US-P06
+- Added `sanitizeSavedDockLayout(saved, vis, detached)` to MatslopDockLayout.tsx — walks the persisted `LayoutBase` tree, drops tab entries whose ids are unknown or whose visibility flag is currently off, drops empty panels and empty boxes, and rewrites `activeId` if the previously active tab was filtered out. Also sanitizes `floatbox`/`maxbox`/`windowbox` for completeness.
+- Wired the sanitizer into the `useState` initial-layout hydration path so a previously persisted layout containing a stale `matslop-command-history` reference no longer renders the ghost tab over the Command Window. Falls back to `buildDockLayoutFromVisibility` if sanitisation leaves an empty dockbox.
+- `buildDockLayoutFromVisibility` already gated `commandHistory` on `vis.commandHistory` (verified) so the only remaining leak path was the saved-layout hydration — now closed.
+- Added 7 unit tests in tests/unit/dock-layout.test.ts covering: hidden command-history removal, unknown tab id removal, empty panel/box pruning, null on empty dockbox, activeId rewrite, keep-when-visible, detached-tab removal.
+- Files changed: src/renderer/panels/MatslopDockLayout.tsx, tests/unit/dock-layout.test.ts.
+- **Learnings for future iterations:**
+  - The dock-layout unit-test suite (tests/unit/dock-layout.test.ts) currently fails to import at all because rc-dock isn't in node_modules — same baseline as US-P02/P05. New tests added to that file will run as soon as rc-dock is restored; until then they only protect against future regressions at the source-code level.
+  - The persisted layout (US-026) is the source of *every* "ghost panel" / "stale tab" complaint — `buildDockLayoutFromVisibility` is correct, but rc-dock will dutifully render whatever the saved `LayoutBase` says. Always sanitise saved layouts on hydration before handing them to `<DockLayout>`.
+  - rc-dock's `LayoutBase` may include `floatbox`, `maxbox`, `windowbox` siblings of `dockbox` — sanitisers must walk all of them, not just `dockbox`.
 ---
