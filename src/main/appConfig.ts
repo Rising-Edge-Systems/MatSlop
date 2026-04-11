@@ -27,6 +27,13 @@ export interface LayoutConfig {
     bottomHeight: number
     commandHistoryWidth: number
   }
+  /**
+   * US-026: persisted rc-dock layout tree (a rc-dock `LayoutBase` object,
+   * serialized as plain JSON). Present when the user has rearranged tabs
+   * via drag between docks; absent on first launch. Kept as `unknown`
+   * here so appConfig does not need to import rc-dock types.
+   */
+  dockLayout?: unknown
 }
 
 export interface AppConfig extends AppPreferences {
@@ -59,7 +66,28 @@ const defaults: AppPreferences = {
   showWelcome: true,
 }
 
-const store = new Store<AppConfig>()
+// Lazily create the electron-store instance. Creating it at module load
+// time is dangerous because ESM hoists imports above top-level statements
+// like `app.setPath('userData', ...)` — so the store would latch onto the
+// production user data dir even when MATSLOP_USER_DATA_DIR has been set
+// for test isolation. Lazy construction ensures the store is built only
+// after the userData override has taken effect.
+let _store: Store<AppConfig> | null = null
+function store$(): Store<AppConfig> {
+  if (_store === null) {
+    _store = new Store<AppConfig>()
+  }
+  return _store
+}
+// Backwards-compatible local alias kept for callers below.
+const store = new Proxy({} as Store<AppConfig>, {
+  get(_t, prop) {
+    const s = store$()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const v = (s as any)[prop]
+    return typeof v === 'function' ? v.bind(s) : v
+  },
+})
 
 export function getStoredTheme(): ThemeMode {
   return store.get('theme', defaults.theme) as ThemeMode

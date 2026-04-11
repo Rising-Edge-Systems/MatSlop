@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import DockLayout, {
   type BoxData,
+  type DropDirection,
+  type LayoutBase,
   type LayoutData,
   type PanelData,
   type TabData,
@@ -197,6 +199,19 @@ export interface MatslopDockLayoutProps {
   callStack: ReactNode
   watches: ReactNode
   figure: ReactNode
+  /**
+   * US-026: previously-persisted rc-dock layout (from `DockLayout.saveLayout()`).
+   * When provided at first render, it is used instead of the visibility-
+   * derived default tree so user drag-rearrangements survive across
+   * sessions. Subsequent visibility toggles still rebuild from scratch.
+   */
+  savedDockLayout?: LayoutBase | null
+  /**
+   * US-026: called whenever rc-dock emits an `onLayoutChange` for an
+   * INTERACTIVE change (drag/drop, close, etc). Receives the serialized
+   * `LayoutBase` — host persists it via the existing layout IPC.
+   */
+  onDockLayoutChange?: (layout: LayoutBase, direction?: DropDirection) => void
 }
 
 /**
@@ -206,8 +221,13 @@ export interface MatslopDockLayoutProps {
  * layout and has no content (so its data-testid does not leak into DOM).
  */
 export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.JSX.Element {
-  const { visibility } = props
+  const { visibility, savedDockLayout, onDockLayoutChange } = props
   const containerRef = useRef<HTMLDivElement>(null)
+  const dockRef = useRef<DockLayout>(null)
+  // Keep the latest change handler in a ref so we don't need to re-bind
+  // the DockLayout `onLayoutChange` prop each render.
+  const onDockLayoutChangeRef = useRef(onDockLayoutChange)
+  onDockLayoutChangeRef.current = onDockLayoutChange
 
   // Stable map id -> React content. Lives in a ref so `loadTab` (which
   // rc-dock may call at any time during a layout update) always sees the
@@ -237,13 +257,31 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
   const slotsRef = useRef(slotsById)
   slotsRef.current = slotsById
 
-  // Controlled layout state. Rebuilt whenever visibility changes.
-  const [layout, setLayout] = useState<LayoutData>(() =>
-    buildDockLayoutFromVisibility(visibility),
-  )
-  // JSON key so the effect only fires when the *values* actually change.
+  // Controlled layout state.
+  //
+  // Initial value: if the host supplied a saved `LayoutBase` (US-026), use
+  // it so a prior drag-rearrangement survives a restart. Otherwise fall
+  // back to the visibility-derived default tree. After mount, visibility
+  // changes rebuild from scratch (so panel toggles still work).
+  const [layout, setLayout] = useState<LayoutData>(() => {
+    if (savedDockLayout) {
+      try {
+        // `LayoutBase` is a subset of `LayoutData`; rc-dock's `loadTab`
+        // factory will hydrate id-only tabs on render.
+        return savedDockLayout as LayoutData
+      } catch {
+        // fall through to default
+      }
+    }
+    return buildDockLayoutFromVisibility(visibility)
+  })
+  // Track whether we already consumed the initial saved layout so the
+  // visibility-effect below knows to rebuild instead of re-applying it.
   const visKey = JSON.stringify(visibility)
+  const prevVisKeyRef = useRef(visKey)
   useEffect(() => {
+    if (prevVisKeyRef.current === visKey) return
+    prevVisKeyRef.current = visKey
     setLayout(buildDockLayoutFromVisibility(visibility))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visKey])
@@ -296,6 +334,55 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
     }
   })
 
+  // US-026: expose a test-only global for Playwright that calls
+  // `DockLayout.dockMove(source, target, direction)` to simulate a
+  // drag-and-drop between docks without synthesizing pointer events
+  // (which are flaky on rc-dock's internal DragDropDiv). Gated on the
+  // same env var the other `__matslop*` hooks use.
+  useEffect(() => {
+    const w = window as unknown as {
+      __matslopDockMove?: (sourceId: string, targetId: string, direction: DropDirection) => boolean
+      __matslopDockSaveLayout?: () => LayoutBase | null
+    }
+    w.__matslopDockMove = (sourceId, targetId, direction) => {
+      const dock = dockRef.current
+      if (!dock) return false
+      const src = dock.find(sourceId) as TabData | PanelData | undefined
+      const tgt = dock.find(targetId) as TabData | PanelData | undefined
+      if (!src || !tgt) return false
+      dock.dockMove(src, tgt, direction)
+      return true
+    }
+    w.__matslopDockSaveLayout = () => {
+      const dock = dockRef.current
+      if (!dock) return null
+      return dock.saveLayout()
+    }
+    // US-026: return a stable id for the rc-dock panel that currently
+    // contains the given tab id. Used by tests to assert that two tabs
+    // live in the same panel (merged) vs different panels (separate).
+    ;(
+      w as unknown as {
+        __matslopDockGetTabPanelId?: (tabId: string) => string | null
+      }
+    ).__matslopDockGetTabPanelId = (tabId: string) => {
+      const dock = dockRef.current
+      if (!dock) return null
+      const found = dock.find(tabId) as TabData | undefined
+      const parent = found?.parent as PanelData | undefined
+      return parent?.id ?? null
+    }
+    return () => {
+      delete w.__matslopDockMove
+      delete w.__matslopDockSaveLayout
+      delete (
+        w as unknown as {
+          __matslopDockGetTabPanelId?: unknown
+        }
+      ).__matslopDockGetTabPanelId
+    }
+  }, [])
+
   return (
     <div
       ref={containerRef}
@@ -303,8 +390,17 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
       style={{ width: '100%', height: '100%', position: 'relative' }}
     >
       <DockLayout
+        ref={dockRef}
         layout={layout}
-        onLayoutChange={(newLayout) => setLayout(newLayout as LayoutData)}
+        onLayoutChange={(newLayout, _currentTabId, direction) => {
+          setLayout(newLayout as LayoutData)
+          // Persist interactive layout changes (drag between docks, close,
+          // maximize, ...) but skip rc-dock's internal housekeeping
+          // directions that fire during initial mount.
+          if (direction && direction !== 'update' && direction !== 'active') {
+            onDockLayoutChangeRef.current?.(newLayout, direction)
+          }
+        }}
         loadTab={loadTab}
         style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}
         groups={{

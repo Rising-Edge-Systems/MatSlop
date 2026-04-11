@@ -110,10 +110,12 @@ interface Window {
     layoutGet: () => Promise<{
       panelVisibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
       panelSizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+      dockLayout?: unknown
     }>
     layoutSet: (layout: {
       panelVisibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
       panelSizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+      dockLayout?: unknown
     }) => Promise<void>
     layoutGetDefault: () => Promise<{
       panelVisibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }

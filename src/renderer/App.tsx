@@ -74,6 +74,11 @@ const defaultSizes: PanelSizes = {
 function App(): React.JSX.Element {
   const [visibility, setVisibility] = useState<PanelVisibility>(defaultVisibility)
   const [panelSizes, setPanelSizes] = useState<PanelSizes>(defaultSizes)
+  // US-026: persisted rc-dock layout tree. Loaded from the existing
+  // layout IPC on mount and saved on every interactive rc-dock change
+  // (drag between docks, tab close, ...).
+  const [savedDockLayout, setSavedDockLayout] = useState<unknown>(null)
+  const savedDockLayoutRef = useRef<unknown>(null)
   const [layoutLoaded, setLayoutLoaded] = useState(false)
   const [pendingOpenPath, setPendingOpenPath] = useState<string | null>(null)
   const [octaveStatus, setOctaveStatus] = useState<OctaveStatus>({ path: null, version: null, configured: false, engineStatus: 'disconnected' })
@@ -540,6 +545,9 @@ function App(): React.JSX.Element {
     window.matslop.layoutGet().then((layout) => {
       setVisibility(layout.panelVisibility)
       setPanelSizes(layout.panelSizes)
+      const saved = (layout as { dockLayout?: unknown }).dockLayout ?? null
+      setSavedDockLayout(saved)
+      savedDockLayoutRef.current = saved
       setLayoutLoaded(true)
     })
   }, [])
@@ -585,10 +593,35 @@ function App(): React.JSX.Element {
   }, [])
 
   const saveLayout = useCallback((vis: PanelVisibility, sizes: PanelSizes) => {
-    window.matslop.layoutSet({ panelVisibility: vis, panelSizes: sizes })
+    window.matslop.layoutSet({
+      panelVisibility: vis,
+      panelSizes: sizes,
+      dockLayout: savedDockLayoutRef.current ?? undefined,
+    })
+  }, [])
+
+  // US-026: persist rc-dock layout on drag between docks. We snapshot the
+  // current visibility+sizes from state refs so this callback identity
+  // stays stable across visibility toggles.
+  const visibilityRef = useRef(visibility)
+  visibilityRef.current = visibility
+  const panelSizesRef = useRef(panelSizes)
+  panelSizesRef.current = panelSizes
+  const handleDockLayoutChange = useCallback((layout: unknown) => {
+    savedDockLayoutRef.current = layout
+    window.matslop.layoutSet({
+      panelVisibility: visibilityRef.current,
+      panelSizes: panelSizesRef.current,
+      dockLayout: layout,
+    })
   }, [])
 
   const togglePanel = useCallback((panel: keyof PanelVisibility) => {
+    // Any visibility change rebuilds the dock tree from scratch inside
+    // MatslopDockLayout, so we must drop the persisted dock layout here
+    // to avoid re-applying a stale arrangement on next load.
+    savedDockLayoutRef.current = null
+    setSavedDockLayout(null)
     setVisibility((prev) => {
       const next = { ...prev, [panel]: !prev[panel] }
       setPanelSizes((sizes) => {
@@ -738,6 +771,10 @@ function App(): React.JSX.Element {
           togglePanel('commandHistory')
           break
         case 'resetLayout':
+          // Drop any persisted rc-dock rearrangement so reset actually
+          // restores the default tree (see US-026).
+          savedDockLayoutRef.current = null
+          setSavedDockLayout(null)
           setVisibility(defaultVisibility)
           setPanelSizes(defaultSizes)
           saveLayout(defaultVisibility, defaultSizes)
@@ -958,6 +995,8 @@ function App(): React.JSX.Element {
       {layoutLoaded && (
         <MatslopDockLayout
           visibility={dockVisibility}
+          savedDockLayout={savedDockLayout as never}
+          onDockLayoutChange={handleDockLayoutChange}
           fileBrowser={
             dockVisibility.fileBrowser ? (
               <FileBrowser

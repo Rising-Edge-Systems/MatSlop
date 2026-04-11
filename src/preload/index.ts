@@ -129,10 +129,12 @@ contextBridge.exposeInMainWorld('matslop', {
   layoutGet: (): Promise<{
     panelVisibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
     panelSizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+    dockLayout?: unknown
   }> => ipcRenderer.invoke('layout:get'),
   layoutSet: (layout: {
     panelVisibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
     panelSizes: { fileBrowserWidth: number; workspaceWidth: number; bottomHeight: number; commandHistoryWidth: number }
+    dockLayout?: unknown
   }): Promise<void> => ipcRenderer.invoke('layout:set', layout),
   layoutGetDefault: (): Promise<{
     panelVisibility: { fileBrowser: boolean; workspace: boolean; commandWindow: boolean; commandHistory: boolean }
