@@ -151,6 +151,10 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.invoke('debug:setBreakpoint', filePath, line),
   debugClearBreakpoint: (filePath: string | null, line: number): Promise<{ success: boolean }> =>
     ipcRenderer.invoke('debug:clearBreakpoint', filePath, line),
+  // US-018: Query Octave's current call stack (dbstack()). Returns the
+  // frames top-to-bottom, or [] if Octave isn't running.
+  debugGetCallStack: (): Promise<Array<{ name: string; file: string; line: number }>> =>
+    ipcRenderer.invoke('debug:getCallStack'),
   // Test-only helper
   _testMenuAction: (action: string): Promise<void> =>
     ipcRenderer.invoke('test:menuAction', action),

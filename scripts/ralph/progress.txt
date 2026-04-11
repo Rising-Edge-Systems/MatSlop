@@ -4,6 +4,7 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
 
 ## Codebase Patterns
 - Layout uses Allotment panes; panel sizes persisted via window.matslop.layoutSet
+- Allotment.Pane with `visible={false}` KEEPS children mounted in the DOM. If a data-testid needs to vanish with the pane, conditionally render inside the Pane: `{cond && <Panel/>}`. Also prefer `.dispatchEvent('click')` over `.click()` in Playwright for buttons inside Allotment panes (pattern also used by debug-toolbar.spec.ts).
 - Panels use data-testid attributes for Playwright selectors
 - Run `npm run build` to verify Vite/electron-vite production build
 - Pre-existing typecheck errors in src/main/octaveProcess.ts (env.PATH) are baseline noise
@@ -308,4 +309,20 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
   - For keyboard shortcuts that should override another global listener (e.g. debug actions vs editor's shortcutManager), register on `window` with `{capture: true}` — capture-phase listeners fire before bubble-phase listeners. Gate the registration with a `useEffect` dep so it auto-attaches/detaches with paused state.
   - When fire-and-forget IPCs (`window.matslop.octaveExecute`) are called during tests without a backing Octave process, wrap both the call AND the `.catch()` in try/catch — the IPC may throw synchronously if the channel is closed, not just reject.
   - Test-only read-only globals (e.g. `window.__matslopLastDebugCommand`) written directly from a regular handler (not a useEffect) are the easiest way to observe renderer-side side effects from Playwright without monkey-patching preload bridges.
+---
+
+## 2026-04-10 - US-018 Call Stack panel
+- Added src/main/callStack.ts (pure formatCallStackQuery + parseCallStack helpers with CALL_STACK_{BEGIN,END,ROW,SEP} constants)
+- Added 'debug:getCallStack' IPC in src/main/index.ts; bridged via preload debugGetCallStack()
+- New src/renderer/panels/CallStackPanel.tsx (PanelHeader + clickable rows + empty state)
+- App.tsx: callStack/callStackSelected state, auto-refresh on pausedLocation change, crash/unpause clearing, __matslopSimulateCallStack/__matslopClearCallStack test hooks, handleCallStackSelect updates pausedLocation to reuse US-016 navigation pipeline
+- styles.css: .call-stack-panel/.call-stack-row styles
+- tests/unit/call-stack.test.ts (10 tests)
+- tests/e2e/call-stack.spec.ts (4 tests)
+- **Learnings for future iterations:**
+  - Allotment.Pane with visible={false} KEEPS children mounted in the DOM — if you need a data-testid to vanish with the pane, conditionally render the child: `{cond && <Panel/>}` inside the Pane
+  - Clicks on Allotment panes that recently became visible can be flaky with `.click()`; prefer `.dispatchEvent('click')` (same pattern used by debug-toolbar.spec.ts)
+  - Test-only window hooks pattern: set `__matslopSimulateX` / `__matslopClearX` from a useEffect that depends on the state it reads, and mirror state back into a `__matslopX` observation variable for assertions
+  - `pausedLocation` is the single source of truth for "which file/line does the editor show the green arrow on" — reuse it for any debug-frame navigation; EditorPanel activates the matching tab, TabbedEditor scrolls + decorates the line
+  - When chaining async IPC refreshes from useEffect, guard "don't clobber existing state with empty result" so synthetic test seeds survive a concurrent real-IPC call
 ---

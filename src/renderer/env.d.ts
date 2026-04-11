@@ -127,6 +127,7 @@ interface Window {
     // Debugger (US-014+)
     debugSetBreakpoint: (filePath: string | null, line: number) => Promise<{ success: boolean }>
     debugClearBreakpoint: (filePath: string | null, line: number) => Promise<{ success: boolean }>
+    debugGetCallStack: () => Promise<Array<{ name: string; file: string; line: number }>>
     // Test-only
     _testMenuAction?: (action: string) => Promise<void>
   }

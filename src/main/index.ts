@@ -15,6 +15,11 @@ import {
   clearBreakpoint as applyClearBreakpoint,
   reapplyAllBreakpoints,
 } from './debugBridge'
+import {
+  formatCallStackQuery,
+  parseCallStack,
+  type CallStackFrame,
+} from './callStack'
 import { buildAppMenu } from './appMenu'
 import { getStoredTheme, setStoredTheme, getPreferences, setPreferences, getLayoutConfig, setLayoutConfig, getDefaultLayout, getRecentFiles, addRecentFile, clearRecentFiles, type ThemeMode, type AppPreferences, type LayoutConfig } from './appConfig'
 
@@ -536,6 +541,27 @@ ipcMain.handle(
     return { success: ok }
   },
 )
+
+/**
+ * US-018: Query the running Octave for its current call stack. Runs the
+ * pure `formatCallStackQuery()` command, parses the emitted marker rows,
+ * and returns an array of frames. If Octave is not running (e.g. during
+ * tests that only simulate a paused state) the bridge returns an empty
+ * array so the renderer can still render a graceful "no frames" state.
+ */
+ipcMain.handle('debug:getCallStack', async (): Promise<CallStackFrame[]> => {
+  const exec = currentOctaveExecutor()
+  if (!exec) return []
+  try {
+    const result = (await exec(formatCallStackQuery())) as
+      | { output?: string; error?: string }
+      | undefined
+    const combined = `${result?.output ?? ''}\n${result?.error ?? ''}`
+    return parseCallStack(combined)
+  } catch {
+    return []
+  }
+})
 
 /**
  * Wire an `OctaveProcessManager` instance so that when it first reaches the

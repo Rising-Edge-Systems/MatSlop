@@ -10,6 +10,7 @@ import FigurePanel, { type FigureData } from './panels/FigurePanel'
 import StatusBar from './panels/StatusBar'
 import type { CursorPosition } from './panels/StatusBar'
 import DebugToolbar from './editor/DebugToolbar'
+import CallStackPanel, { type CallStackFrame } from './panels/CallStackPanel'
 import {
   debugActionToOctaveCommand,
   matchDebugShortcut,
@@ -84,6 +85,11 @@ function App(): React.JSX.Element {
   // US-016: when Octave hits a breakpoint we track the paused location so the
   // editor can highlight the line and the status bar can flip into debug mode.
   const [pausedLocation, setPausedLocation] = useState<{ file: string; line: number } | null>(null)
+  // US-018: Current call stack (top frame first) and the selected frame
+  // index. Both reset when we're no longer paused. The stack is refreshed
+  // on every `onOctavePaused` event via a `debug:getCallStack` IPC call.
+  const [callStack, setCallStack] = useState<CallStackFrame[]>([])
+  const [callStackSelected, setCallStackSelected] = useState<number>(-1)
   const [editorSettings, setEditorSettings] = useState({
     fontFamily: "'Consolas', 'Courier New', monospace",
     fontSize: 14,
@@ -119,12 +125,94 @@ function App(): React.JSX.Element {
       }
     }) ?? (() => {})
 
+    // US-016 + US-018: if Octave crashes while paused, also clear the
+    // call stack so the panel returns to its idle state.
+    const unsubCrashCs = window.matslop.onOctaveCrashed(() => {
+      setCallStack([])
+      setCallStackSelected(-1)
+    })
+
     return () => {
       unsubStatus()
       unsubCrash()
       unsubPaused()
+      unsubCrashCs()
     }
   }, [])
+
+  // US-018: Whenever the paused location changes, refresh the call stack
+  // from the main process. When we transition out of paused state, clear
+  // the stack so the panel shows its idle message. Swallow IPC errors —
+  // an empty stack is an acceptable fallback.
+  useEffect(() => {
+    if (!pausedLocation) {
+      setCallStack([])
+      setCallStackSelected(-1)
+      return
+    }
+    let cancelled = false
+    const bridge = (window as unknown as { matslop?: Window['matslop'] }).matslop
+    if (!bridge?.debugGetCallStack) return
+    bridge.debugGetCallStack().then(
+      (frames) => {
+        if (cancelled) return
+        // Test hook may have already populated a synthetic stack; in that
+        // case don't clobber it with an empty real-IPC result.
+        if (Array.isArray(frames) && frames.length > 0) {
+          setCallStack(frames)
+          setCallStackSelected(0)
+        }
+      },
+      () => {
+        /* ignore — leave existing stack untouched */
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [pausedLocation])
+
+  // US-018: expose a test-only hook that lets Playwright seed a synthetic
+  // call stack without a real Octave process. Mirrors the paused-location
+  // test hook from US-016.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const w = window as unknown as {
+      __matslopSimulateCallStack?: (frames: CallStackFrame[]) => void
+      __matslopClearCallStack?: () => void
+      __matslopCallStack?: CallStackFrame[]
+    }
+    w.__matslopSimulateCallStack = (frames: CallStackFrame[]) => {
+      setCallStack(frames)
+      setCallStackSelected(frames.length > 0 ? 0 : -1)
+    }
+    w.__matslopClearCallStack = () => {
+      setCallStack([])
+      setCallStackSelected(-1)
+    }
+    w.__matslopCallStack = callStack
+    return () => {
+      const ww = window as unknown as { __matslopCallStack?: unknown }
+      ww.__matslopCallStack = null
+    }
+  }, [callStack])
+
+  // US-018: selecting a frame in the Call Stack panel navigates the
+  // editor to that frame's file/line. We reuse the existing paused-location
+  // pipeline — setting pausedLocation activates the matching editor tab
+  // (via EditorPanel) and scrolls the line into view with the paused
+  // highlight (via TabbedEditor). We do NOT re-query the stack here,
+  // since it's the same pause.
+  const handleCallStackSelect = useCallback(
+    (index: number) => {
+      setCallStackSelected(index)
+      const frame = callStack[index]
+      if (frame && frame.file) {
+        setPausedLocation({ file: frame.file, line: Math.floor(frame.line) })
+      }
+    },
+    [callStack],
+  )
 
   // US-016: expose a test-only hook so Playwright can simulate a paused
   // event without spinning up a real Octave process. Gated on
@@ -673,11 +761,25 @@ function App(): React.JSX.Element {
           minSize={150}
           preferredSize={panelSizes.workspaceWidth}
           snap
-          visible={visibility.workspace || figures.length > 0}
+          visible={visibility.workspace || figures.length > 0 || pausedLocation !== null}
         >
           <Allotment vertical>
             <Allotment.Pane minSize={100} visible={visibility.workspace}>
               <WorkspacePanel onCollapse={() => togglePanel('workspace')} engineStatus={octaveStatus.engineStatus} refreshTrigger={workspaceRefreshTrigger} onInspectVariable={handleInspectVariable} onVariablesChanged={handleVariablesChanged} />
+            </Allotment.Pane>
+            {/* US-018: Call Stack panel — auto-shown when execution is paused.
+                We conditionally mount the panel so the `call-stack-panel`
+                data-testid only exists in the DOM while the debugger is
+                paused — Allotment keeps hidden panes' children mounted, which
+                would otherwise leak the testid into the non-paused state. */}
+            <Allotment.Pane minSize={120} preferredSize={180} visible={pausedLocation !== null}>
+              {pausedLocation !== null && (
+                <CallStackPanel
+                  frames={callStack}
+                  selectedIndex={callStackSelected}
+                  onSelectFrame={handleCallStackSelect}
+                />
+              )}
             </Allotment.Pane>
             <Allotment.Pane minSize={100} visible={figures.length > 0}>
               <FigurePanel figures={figures} onSaveFigure={handleSaveFigure} />

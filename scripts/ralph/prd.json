@@ -305,8 +305,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 18,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added src/main/callStack.ts with pure formatCallStackQuery() (emits a dbstack() loop wrapped in __MATSLOP_STACK_BEGIN__/_END__ markers and '||'-separated rows) + parseCallStack() that scans Octave output line-by-line into {name,file,line} frames. Exposed via new IPC 'debug:getCallStack' in src/main/index.ts, bridged through preload as debugGetCallStack(). New CallStackPanel.tsx renders one clickable row per frame with PanelHeader, active-row highlight, and an empty state; mounted conditionally inside a new Allotment.Pane in the right-column vertical split so the data-testid only exists while paused. App.tsx tracks callStack + callStackSelected state, refreshes on every pausedLocation change (guarded so a real empty IPC result doesn't clobber test-seeded stacks), clears on crash/unpause, and exposes __matslopSimulateCallStack/__matslopClearCallStack test hooks. Clicking a frame updates pausedLocation, which reuses the existing US-016 pipeline to activate the matching tab and reveal/highlight the line. Unit tests in tests/unit/call-stack.test.ts (10 tests, parser + query formatter); E2E in tests/e2e/call-stack.spec.ts (4 tests: hidden when idle, appears+renders rows when paused with seeded stack, click-to-navigate, hides on clear)."
     },
     {
       "id": "US-019",

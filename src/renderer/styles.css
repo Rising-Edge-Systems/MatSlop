@@ -2445,3 +2445,74 @@ body {
   color: #4caf50;
   font-weight: 600;
 }
+
+/* US-018: Call Stack panel — listed vertically under the Workspace in the
+   right-hand column whenever execution is paused. Rows are clickable
+   buttons that navigate the editor to the selected frame's file/line. */
+.call-stack-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+
+.call-stack-body {
+  flex: 1;
+  overflow: auto;
+}
+
+.call-stack-empty {
+  padding: 10px 12px;
+  color: var(--text-disabled);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.call-stack-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.call-stack-row {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.call-stack-row.active {
+  background: rgba(76, 175, 80, 0.18);
+}
+
+.call-stack-row-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  gap: 2px;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.call-stack-row-btn:hover {
+  background: var(--bg-hover);
+}
+
+.call-stack-row.active .call-stack-row-btn:hover {
+  background: rgba(76, 175, 80, 0.28);
+}
+
+.call-stack-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.call-stack-location {
+  font-size: 11px;
+  color: var(--text-dimmed);
+  font-family: var(--font-mono, 'Consolas', 'Courier New', monospace);
+}
