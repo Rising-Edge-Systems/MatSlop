@@ -246,6 +246,74 @@ body {
   background: rgba(255, 255, 255, 0.05);
 }
 
+/* US-P04: "GNU Octave Not Found" banner. Dismissible non-blocking warning
+   shown above the status bar on first launch when Octave isn't detected. */
+.octave-not-found-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: rgba(255, 193, 7, 0.12);
+  border-top: 1px solid var(--panel-border, #3e3e42);
+  border-bottom: 1px solid #ffc107;
+  color: var(--text-color, #cccccc);
+  font-size: 12px;
+  user-select: none;
+}
+
+.octave-not-found-banner-icon {
+  color: #ffc107;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.octave-not-found-banner-text {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.octave-not-found-banner-text strong {
+  font-weight: 600;
+}
+
+.octave-not-found-banner-text code {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.octave-not-found-banner-error {
+  color: #f48771;
+}
+
+.octave-not-found-banner-btn {
+  background: transparent;
+  border: 1px solid var(--panel-border, #3e3e42);
+  border-radius: 3px;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 4px 10px;
+}
+
+.octave-not-found-banner-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.octave-not-found-banner-btn-primary {
+  background: var(--accent-color, #007acc);
+  border-color: var(--accent-color, #007acc);
+  color: #ffffff;
+}
+
+.octave-not-found-banner-btn-primary:hover {
+  background: #1e8ad6;
+  border-color: #1e8ad6;
+}
+
 /* Status Bar */
 .status-bar {
   display: flex;

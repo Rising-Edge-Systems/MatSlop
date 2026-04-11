@@ -55,7 +55,6 @@ import {
   matchDebugShortcut,
   type DebugAction,
 } from './editor/debugCommands'
-import OctaveSetupDialog from './dialogs/OctaveSetupDialog'
 import VariableInspectorDialog, { type InspectedVariable } from './dialogs/VariableInspectorDialog'
 import PreferencesDialog, { type EditorPreferences } from './dialogs/PreferencesDialog'
 import SavePresetDialog from './dialogs/SavePresetDialog'
@@ -142,7 +141,12 @@ function App(): React.JSX.Element {
   const [profilerLoading, setProfilerLoading] = useState(false)
   const [pendingOpenLine, setPendingOpenLine] = useState<number | null>(null)
   const [octaveStatus, setOctaveStatus] = useState<OctaveStatus>({ path: null, version: null, configured: false, engineStatus: 'disconnected' })
-  const [showOctaveSetup, setShowOctaveSetup] = useState(false)
+  // US-P04: Replaced the blocking OctaveSetupDialog modal with a dismissible
+  // banner above the status bar. The full UI mounts on launch even when
+  // Octave isn't configured yet; the user can browse for octave-cli or
+  // dismiss and configure later from Preferences > Octave path.
+  const [octaveBannerVisible, setOctaveBannerVisible] = useState(false)
+  const [octaveBannerError, setOctaveBannerError] = useState<string | null>(null)
   const [cwd, setCwd] = useState('')
   const [cursorPosition, setCursorPosition] = useState<CursorPosition | null>(null)
   const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null)
@@ -581,16 +585,37 @@ function App(): React.JSX.Element {
           return
         }
       }
-      // Not configured and auto-detect failed — show setup dialog
-      setShowOctaveSetup(true)
+      // US-P04: Not configured and auto-detect failed — show a dismissible
+      // banner above the status bar instead of a modal blocking the UI.
+      setOctaveBannerVisible(true)
     })
   }, [startOctaveProcess])
 
   const handleOctaveConfigured = useCallback((path: string, version: string) => {
     setOctaveStatus({ path, version, configured: true, engineStatus: 'disconnected' })
-    setShowOctaveSetup(false)
+    setOctaveBannerVisible(false)
+    setOctaveBannerError(null)
     startOctaveProcess(path)
   }, [startOctaveProcess])
+
+  // US-P04: Browse for octave-cli from the not-found banner. Validates the
+  // selected binary and, on success, starts the Octave process and hides the
+  // banner. On failure, shows an inline error inside the banner.
+  const handleOctaveBannerBrowse = useCallback(async () => {
+    const selected = await window.matslop.octaveBrowse()
+    if (!selected) return
+    const result = await window.matslop.octaveValidate(selected)
+    if (result.valid) {
+      await window.matslop.octaveSetPath(selected)
+      handleOctaveConfigured(selected, result.version ?? 'unknown')
+    } else {
+      setOctaveBannerError(result.error ?? 'Not a valid Octave binary')
+    }
+  }, [handleOctaveConfigured])
+
+  const handleOctaveBannerDismiss = useCallback(() => {
+    setOctaveBannerVisible(false)
+  }, [])
 
   // Load theme preference on startup
   useEffect(() => {
@@ -1515,7 +1540,6 @@ function App(): React.JSX.Element {
 
   return (
     <div className="app">
-      {showOctaveSetup && <OctaveSetupDialog onConfigured={handleOctaveConfigured} />}
       {showAbout && (
         <div className="dialog-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowAbout(false) }}>
           <div className="about-dialog">
@@ -1750,6 +1774,47 @@ function App(): React.JSX.Element {
           onAction={handleDebugAction}
           pausedLabel={`${pausedLocation.file.split(/[\\/]/).pop() ?? pausedLocation.file}:${pausedLocation.line}`}
         />
+      )}
+      {/* US-P04: dismissible "GNU Octave Not Found" banner. Mounted above
+          the status bar so the dock layout remains fully usable on first
+          launch even when Octave is not configured yet. */}
+      {octaveBannerVisible && (
+        <div
+          className="octave-not-found-banner"
+          data-testid="octave-not-found-banner"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="octave-not-found-banner-icon" aria-hidden="true">⚠</span>
+          <span className="octave-not-found-banner-text">
+            <strong>GNU Octave was not detected.</strong>{' '}
+            MatSlop needs the <code>octave-cli</code> binary to run code.
+            {octaveBannerError && (
+              <span
+                className="octave-not-found-banner-error"
+                data-testid="octave-not-found-banner-error"
+              >
+                {' '}— {octaveBannerError}
+              </span>
+            )}
+          </span>
+          <button
+            type="button"
+            className="octave-not-found-banner-btn octave-not-found-banner-btn-primary"
+            data-testid="octave-not-found-banner-browse"
+            onClick={() => { void handleOctaveBannerBrowse() }}
+          >
+            Browse for octave-cli...
+          </button>
+          <button
+            type="button"
+            className="octave-not-found-banner-btn"
+            data-testid="octave-not-found-banner-dismiss"
+            onClick={handleOctaveBannerDismiss}
+          >
+            Dismiss
+          </button>
+        </div>
       )}
       <StatusBar
         cwd={cwd}
