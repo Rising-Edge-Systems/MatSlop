@@ -604,8 +604,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 36,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Extracted pure helpers to src/renderer/dialogs/variableEditorCore.ts: parseDimensionString (handles 2D/3D/4D+ sizes), extraDimensionCount, buildSliceDispCommand, buildCellAssignCommand, normalizeNumericInput (strict numeric regex \u2014 rejects injection), parseMatrixOutput, and VariableUndoState helpers (createEmptyUndoState/pushEdit/undoStep/redoStep/canUndo/canRedo). Refactored VariableInspectorDialog.tsx to: (1) use parseDimensionString so 3D+ sizes like 3x4x2 parse correctly; (2) render a SliceSelector component with one number input per trailing dim (data-testid=vi-slice-input-N) when extraDims>0; (3) re-fetch slice via buildSliceDispCommand(name,[i,j...]) \u2192 disp(A(:,:,i,j)); (4) validate cell input via normalizeNumericInput before assign so bad values do not reach Octave; (5) maintain per-open-variable undo stack in React state with Undo/Redo buttons in the header (data-testid=vi-undo/vi-redo), keyboard shortcuts Ctrl/Cmd+Z and Ctrl/Cmd+Y or Shift+Ctrl/Cmd+Z. Undo replays the previous value via buildCellAssignCommand with the original sliceIndices. Added 32 vitest unit tests in tests/unit/variable-editor-core.test.ts covering all helpers including 4D dim parsing, injection rejection, and stack trim-on-fresh-edit. Exposed window.__matslopVariableEditor test hook mirroring undo state. Added CSS for .vi-slice-selector, .vi-header-actions, .vi-btn-undo/redo, .vi-btn:disabled, .vi-cell-error. npm run build passes; pre-existing baseline typecheck noise (octaveProcess env.PATH) and integration test failures (missing bundled Octave) unchanged."
     },
     {
       "id": "US-037",
