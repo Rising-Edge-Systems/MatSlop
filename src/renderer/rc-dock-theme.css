@@ -92,6 +92,44 @@
   min-height: 26px;
 }
 
+/* US-Q05: Upstream rc-dock.css ships per-panel-style overrides on .dock-bar
+ * (.dock-style-main sets `background: none`, .dock-style-card adds borders,
+ * .dock-style-headless makes it floating). Those rules are MORE specific than
+ * the bare `.dock-bar` selector above, so without these overrides every
+ * main/card-styled pane would render its tab bar with the dock-panel's
+ * --bg-panel background — leaving a visible color jump where the last tab
+ * ends and the "filler" begins. Force the strip to --bg-header in every
+ * panel style so the area after the last tab is a continuation of the bar. */
+.dock-panel.dock-style-main > .dock-bar,
+.dock-panel.dock-style-card > .dock-bar,
+.dock-panel.dock-style-headless > .dock-bar,
+.dock-panel.dock-style-main .dock-bar,
+.dock-panel.dock-style-card .dock-bar,
+.dock-panel.dock-style-headless .dock-bar {
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* US-Q05: rc-dock wraps the tab strip in .dock-nav-wrap and .dock-nav-list,
+ * with .dock-nav-operations / .dock-extra-content sitting flush against the
+ * right edge as the "filler". All of these must match --bg-header so the
+ * gap between the last tab and the right edge of the bar is visually one
+ * continuous strip, not a disconnected gray box. */
+.dock-nav-wrap,
+.dock-nav-list,
+.dock-nav-operations,
+.dock-nav-more,
+.dock-extra-content {
+  background: var(--bg-header);
+  color: var(--text-secondary);
+}
+
+.dock-nav-more::after {
+  /* Upstream paints an inset shadow here to fade the right edge of the wrap;
+   * it shows as a dark vertical band against our dark bg-header. Kill it. */
+  box-shadow: none !important;
+}
+
 /* US-P09: Wrapper around tab title text. Kept transparent so the parent
  * tab background shows through, and stripped of any pseudo-element that
  * older rc-dock builds inserted alongside the title (the "checkbox-like"
@@ -364,10 +402,22 @@
 }
 
 .rc-tabs-nav-operations,
-.rc-tabs-nav-more {
+.rc-tabs-nav-more,
+.rc-tabs-nav-wrap-ping-left,
+.rc-tabs-nav-wrap-ping-right,
+.rc-tabs-nav-wrap-ping-top,
+.rc-tabs-nav-wrap-ping-bottom {
   background: var(--bg-header);
   color: var(--text-secondary);
   border: none;
+}
+
+/* US-Q05: rc-tabs paints inset shadows on the wrap edges to indicate
+ * scrollable overflow. Against our dark theme they look like seams. */
+.rc-tabs-nav-wrap-ping-left::before,
+.rc-tabs-nav-wrap-ping-right::after,
+.rc-tabs-nav-more::after {
+  box-shadow: none !important;
 }
 
 .rc-tabs-nav-operations-hidden {
