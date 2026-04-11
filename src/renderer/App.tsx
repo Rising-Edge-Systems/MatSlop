@@ -10,6 +10,7 @@ import CommandWindow, { type PendingCommand } from './panels/CommandWindow'
 import CommandHistoryPanel from './panels/CommandHistoryPanel'
 import FigurePanel, { type FigureData } from './panels/FigurePanel'
 import StatusBar from './panels/StatusBar'
+import { octaveBusyTracker, type OctaveBusyState } from './octaveBusyTracker'
 import UpdateBanner from './panels/UpdateBanner'
 import type { CursorPosition } from './panels/StatusBar'
 import DebugToolbar from './editor/DebugToolbar'
@@ -144,6 +145,14 @@ function App(): React.JSX.Element {
   const [profilerLoading, setProfilerLoading] = useState(false)
   const [pendingOpenLine, setPendingOpenLine] = useState<number | null>(null)
   const [octaveStatus, setOctaveStatus] = useState<OctaveStatus>({ path: null, version: null, configured: false, engineStatus: 'disconnected' })
+  // US-S02: "Running…" indicator driven by a ref-counted in-flight tracker
+  // wrapped around every `octaveExecute` IPC. Starts as 'idle'; flips to
+  // 'running' only after 250ms of sustained activity so sub-threshold
+  // commands don't flicker the status bar.
+  const [octaveBusyState, setOctaveBusyState] = useState<OctaveBusyState>(() => octaveBusyTracker.getState())
+  useEffect(() => {
+    return octaveBusyTracker.subscribe(setOctaveBusyState)
+  }, [])
   // US-P04: Replaced the blocking OctaveSetupDialog modal with a dismissible
   // banner above the status bar. The full UI mounts on launch even when
   // Octave isn't configured yet; the user can browse for octave-cli or
@@ -1887,6 +1896,7 @@ function App(): React.JSX.Element {
         cursorPosition={cursorPosition}
         errorCount={errorCount}
         debugPaused={pausedLocation !== null}
+        running={octaveBusyState === 'running'}
       />
     </div>
   )

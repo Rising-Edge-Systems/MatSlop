@@ -34,8 +34,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Ref-counted octaveBusyTracker in the renderer wraps window.matslop.octaveExecute. Status bar flips to 'Running…' after 250ms of sustained in-flight activity (no flicker on fast commands), ref-counts nested executes (workspace refresh + user cmd), and returns to Ready on settle. 11 unit tests in tests/unit/octave-busy-tracker.test.ts."
     },
     {
       "id": "US-S03",

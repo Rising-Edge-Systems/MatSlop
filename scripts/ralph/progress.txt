@@ -6,6 +6,8 @@ Started: Sat Apr 11 06:46:53 PM EDT 2026
 - download-octave.js: per-platform pinned versions (WIN_OCTAVE_VERSION, MAC_OCTAVE_VERSION). Windows ships from ftp.gnu.org/gnu/octave/windows (NOT ftpmirror.gnu.org — that redirector 502s). macOS is pinned to octave-app v9.2 (release ceiling). Linux is intentionally NOT bundled — no maintained AppImage source; the script exits cleanly with package-manager guidance and src/main/octaveConfig.ts handles PATH lookup at runtime.
 - Tests that assert download-octave.js content live at tests/unit/download-octave-{linux,mac}.test.ts and read the script as a string — any URL or constant change needs matching regex updates there.
 - octaveConfig.ts retains its legacy squashfs-root branch as a fallback for users who manually drop an AppImage into resources/octave/, even though the download script no longer populates it.
+- Renderer-side octaveExecute interception: wrap `window.matslop.octaveExecute` once from src/renderer/main.tsx (before any component mounts) via an idempotent shim. Avoids touching ~30 call sites across panels/dialogs. `src/renderer/octaveBusyTracker.ts` is a working example — it ref-counts in-flight executes for the "Running…" status-bar indicator.
+- Use `vi.advanceTimersByTimeAsync` (not the sync variant) when code under test awaits promises between timer fires — the async version drains microtasks between ticks.
 
 ---
 
@@ -27,4 +29,22 @@ Started: Sat Apr 11 06:46:53 PM EDT 2026
   - When changing download-octave.js, remember tests match script content via regex — keep comment phrasing out of assertion paths (I tripped a ftpmirror.gnu.org assertion because I referenced it in a comment).
   - Per-platform version constants are clearer than a single global for packaging scripts where upstream sources release at different cadences.
   - The linux fallback path is exercised by an execFileSync e2e assertion in tests/unit/download-octave-linux.test.ts — any future linux branch change will be caught by that test.
+---
+
+## 2026-04-11 - US-S02
+- Added ref-counted "Octave is running" busy tracker in the renderer. Every window.matslop.octaveExecute IPC goes through it via a wrapOctaveExecute(bridge) shim installed from main.tsx at startup (idempotent, HMR-safe).
+- Status bar now flips to "Running…" only after 250ms of sustained in-flight activity — sub-threshold commands stay silent (no flicker). Nested/overlapping executes share a single ref count; we only return to Ready when the LAST execute settles. Fast rejects still decrement via try/finally.
+- Files changed:
+  - src/renderer/octaveBusyTracker.ts (new module — singleton + wrapper)
+  - src/renderer/main.tsx (install wrapper before App mounts)
+  - src/renderer/App.tsx (subscribe to tracker, pass `running` to StatusBar)
+  - src/renderer/panels/StatusBar.tsx (new `running` prop; label becomes "Running…"; data-running attr for tests)
+  - tests/unit/octave-busy-tracker.test.ts (11 tests — fast-command no-flicker, threshold crossing, nested ref counting, rejection decrement, idempotent wrap)
+  - scripts/ralph/prd.json (US-S02 passes: true)
+- Verification: typecheck clean, 534 tests pass (11 new). Lint errors are pre-existing (react-hooks rule not configured) and unrelated.
+- **Learnings for future iterations:**
+  - Wrap-the-bridge in main.tsx is the cleanest way to intercept every octaveExecute without touching the ~30 call sites scattered across panels/dialogs.
+  - OctaveProcessManager already emits busy/ready on its 'status' event per command — but that's per-IPC and flickers rapidly. The renderer-side ref-counted tracker is the right layer for a user-facing "is anything happening?" indicator.
+  - Use `vi.advanceTimersByTimeAsync` (not `advanceTimersByTime`) when the code under test awaits promises between timer fires — the async variant drains the microtask queue between ticks.
+  - StatusBar's `engine-status` testid now also exposes `data-running` for future e2e assertions.
 ---

@@ -2,7 +2,13 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import DetachedPlot from './DetachedPlot'
 import DetachedPanel from './DetachedPanel'
+import { wrapOctaveExecute } from './octaveBusyTracker'
 import './styles.css'
+
+// US-S02: install the ref-counted in-flight tracker around
+// `window.matslop.octaveExecute` before any component has a chance to call
+// it. Idempotent — safe during HMR.
+wrapOctaveExecute((window as unknown as { matslop?: Parameters<typeof wrapOctaveExecute>[0] }).matslop ?? null)
 
 // Note: StrictMode intentionally disabled — this is an Electron app (no SSR/hydration)
 // and StrictMode's double-invocation causes spurious side effects with IPC handlers
