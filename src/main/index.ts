@@ -286,6 +286,12 @@ ipcMain.handle('octave:start', async (_event, binaryPath: string) => {
       mainWindow?.webContents.send('octave:crashed', { code: null, signal: null, error: err.message })
     })
 
+    // US-016: forward debug-pause events to the renderer so the UI can
+    // highlight the paused line and flip the status bar into debug mode.
+    octaveProcess.on('paused', (loc: { file: string; line: number }) => {
+      mainWindow?.webContents.send('octave:paused', loc)
+    })
+
     // US-015: reapply any previously-set breakpoints once Octave is ready.
     attachBreakpointReapplier(octaveProcess)
 
@@ -327,6 +333,11 @@ ipcMain.handle('octave:restart', async (_event, binaryPath: string) => {
 
   octaveProcess.on('error', (err: Error) => {
     mainWindow?.webContents.send('octave:crashed', { code: null, signal: null, error: err.message })
+  })
+
+  // US-016: forward debug-pause events after a restart as well.
+  octaveProcess.on('paused', (loc: { file: string; line: number }) => {
+    mainWindow?.webContents.send('octave:paused', loc)
   })
 
   // US-015: reapply any previously-set breakpoints on restart so debug state

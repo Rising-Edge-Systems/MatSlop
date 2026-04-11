@@ -35,6 +35,8 @@ interface TabbedEditorProps {
     tabSize: number
     insertSpaces: boolean
   }
+  /** US-016: Octave's current paused location; renders the green-arrow gutter. */
+  pausedLocation?: { file: string; line: number } | null
 }
 
 function TabbedEditor({
@@ -52,6 +54,7 @@ function TabbedEditor({
   editorTheme,
   engineStatus,
   editorSettings,
+  pausedLocation,
 }: TabbedEditorProps): React.JSX.Element {
   const editorRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null)
   const monacoRef = useRef<typeof Monaco | null>(null)
@@ -64,6 +67,8 @@ function TabbedEditor({
   // untitled buffers.
   const [breakpoints, setBreakpoints] = useState<BreakpointStore>({})
   const breakpointDecorationIdsRef = useRef<string[]>([])
+  // US-016: decoration ids for the green-arrow "currently paused" marker.
+  const pausedDecorationIdsRef = useRef<string[]>([])
   // Keep a ref in sync with activeTabId so the Monaco mouse handler (which is
   // only attached once at mount) can read the current tab without capturing
   // a stale closure.
@@ -173,6 +178,49 @@ function TabbedEditor({
       }
     }
   }, [toggleBreakpointForTab])
+
+  // US-016: compute whether the current paused location maps onto the
+  // active tab by basename (or filename minus `.m`). When it does, place a
+  // green-arrow glyph and line highlight on that line and scroll it into
+  // view. Cleared when `pausedLocation` is null or the active tab doesn't
+  // match.
+  useEffect(() => {
+    const monaco = monacoRef.current
+    const editor = editorRef.current
+    if (!monaco || !editor) return
+    let decorations: monacoEditor.IModelDeltaDecoration[] = []
+    if (pausedLocation && activeTab) {
+      const raw = pausedLocation.file || ''
+      const lastSep = Math.max(raw.lastIndexOf('/'), raw.lastIndexOf('\\'))
+      const base = lastSep >= 0 ? raw.substring(lastSep + 1) : raw
+      const candidates = [base, base.endsWith('.m') ? base : `${base}.m`]
+      if (candidates.includes(activeTab.filename)) {
+        const line = Math.max(1, Math.floor(pausedLocation.line))
+        decorations = [
+          {
+            range: new monaco.Range(line, 1, line, 1),
+            options: {
+              isWholeLine: true,
+              glyphMarginClassName: 'matslop-paused-glyph',
+              glyphMarginHoverMessage: { value: `Paused at line ${line}` },
+              className: 'matslop-paused-line',
+              stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+            },
+          },
+        ]
+        // Scroll the paused line into view (center it).
+        try {
+          editor.revealLineInCenterIfOutsideViewport(line)
+        } catch {
+          /* monaco may be tearing down — ignore */
+        }
+      }
+    }
+    pausedDecorationIdsRef.current = editor.deltaDecorations(
+      pausedDecorationIdsRef.current,
+      decorations,
+    )
+  }, [pausedLocation, activeTab, activeTabId])
 
   // Sync Monaco glyph-margin decorations whenever the active tab or its
   // breakpoint set changes.

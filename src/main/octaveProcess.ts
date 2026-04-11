@@ -1,6 +1,7 @@
 import { ChildProcess, spawn } from 'child_process'
 import { EventEmitter } from 'events'
 import path from 'path'
+import { parsePausedMarker, type PausedLocation } from './debugBridge'
 
 const DELIMITER = '___MATSLOP_CMD_DONE___'
 const DELIMITER_COMMAND = `disp('${DELIMITER}')\n`
@@ -138,8 +139,22 @@ export class OctaveProcessManager extends EventEmitter {
     }
   }
 
+  /**
+   * US-016: scan a freshly-received chunk of text for an Octave debug-pause
+   * marker and emit a `'paused'` event if one is present. Both stdout and
+   * stderr can contain the marker (Octave versions differ), so both handlers
+   * call this. Safe to call with any string.
+   */
+  private maybeEmitPaused(chunk: string): void {
+    const loc: PausedLocation | null = parsePausedMarker(chunk)
+    if (loc) {
+      this.emit('paused', loc)
+    }
+  }
+
   private handleStdout(data: string): void {
     this.stdoutBuffer += data
+    this.maybeEmitPaused(data)
 
     // Check if delimiter is in the buffer
     const delimIdx = this.stdoutBuffer.indexOf(DELIMITER)
@@ -187,7 +202,9 @@ export class OctaveProcessManager extends EventEmitter {
         line.trim() !== ''
     )
     if (meaningful.length > 0) {
-      this.stderrBuffer += meaningful.join('\n') + '\n'
+      const joined = meaningful.join('\n') + '\n'
+      this.stderrBuffer += joined
+      this.maybeEmitPaused(joined)
     }
   }
 

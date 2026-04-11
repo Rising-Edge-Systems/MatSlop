@@ -10,6 +10,8 @@ interface StatusBarProps {
   engineStatus: OctaveEngineStatus
   cursorPosition: CursorPosition | null
   errorCount?: number
+  /** US-016: surface "Debug: paused" when Octave is stopped at a breakpoint. */
+  debugPaused?: boolean
 }
 
 const statusLabels: Record<OctaveEngineStatus, string> = {
@@ -24,13 +26,22 @@ const statusColors: Record<OctaveEngineStatus, string> = {
   disconnected: '#f48771',
 }
 
-function StatusBar({ cwd, engineStatus, cursorPosition, errorCount = 0 }: StatusBarProps): React.JSX.Element {
+function StatusBar({ cwd, engineStatus, cursorPosition, errorCount = 0, debugPaused = false }: StatusBarProps): React.JSX.Element {
   return (
     <div className="status-bar">
       <div className="status-bar-left">
         <span className="status-bar-item status-bar-cwd" title={cwd}>
           {cwd}
         </span>
+        {debugPaused && (
+          <span
+            className="status-bar-item status-bar-debug-paused"
+            data-testid="status-debug-paused"
+          >
+            <span className="status-dot" style={{ backgroundColor: '#4caf50' }} />
+            Debug: paused
+          </span>
+        )}
       </div>
       <div className="status-bar-right">
         {errorCount > 0 && (

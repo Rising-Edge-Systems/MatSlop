@@ -124,6 +124,49 @@ export function clearBreakpoint(
  * Returns the list of command strings sent (in stable key order), primarily
  * for testability.
  */
+/**
+ * US-016: parsed "paused" event emitted by `parsePausedMarker` when Octave's
+ * stdout/stderr contains a debug-stop marker. `file` is whatever Octave
+ * reported — typically an absolute path to a .m file, but may be a bare
+ * function name in some versions. `line` is 1-based.
+ */
+export interface PausedLocation {
+  file: string
+  line: number
+}
+
+/**
+ * Scan a chunk of Octave stdout/stderr text for a debug-pause marker and
+ * return the first matched location, or null if the text contains no marker.
+ *
+ * Supports the two wording variants observed across Octave releases:
+ *   - "stopped in <file> at line N"
+ *   - "stopped at <func>, line N"  (column/column# optional trailing)
+ *
+ * Pure and dependency-free so it can be unit-tested in node without spawning
+ * a real Octave process.
+ */
+export function parsePausedMarker(text: string): PausedLocation | null {
+  if (!text) return null
+  // Primary form: `stopped in <path> at line <n>`
+  const m1 = text.match(/stopped in\s+(.+?)\s+at line\s+(\d+)/i)
+  if (m1) {
+    const line = Number.parseInt(m1[2], 10)
+    if (Number.isFinite(line) && line > 0) {
+      return { file: m1[1].trim(), line }
+    }
+  }
+  // Secondary form: `stopped at <func>, line <n>` or `stopped at <func>: line <n>`
+  const m2 = text.match(/stopped at\s+(.+?)[,:]\s*line\s+(\d+)/i)
+  if (m2) {
+    const line = Number.parseInt(m2[2], 10)
+    if (Number.isFinite(line) && line > 0) {
+      return { file: m2[1].trim(), line }
+    }
+  }
+  return null
+}
+
 export function reapplyAllBreakpoints(
   map: BreakpointMapLike,
   exec: CommandExecutor,

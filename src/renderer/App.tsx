@@ -75,6 +75,9 @@ function App(): React.JSX.Element {
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('dark')
   const [errorCount, setErrorCount] = useState(0)
   const [showPreferences, setShowPreferences] = useState(false)
+  // US-016: when Octave hits a breakpoint we track the paused location so the
+  // editor can highlight the line and the status bar can flip into debug mode.
+  const [pausedLocation, setPausedLocation] = useState<{ file: string; line: number } | null>(null)
   const [editorSettings, setEditorSettings] = useState({
     fontFamily: "'Consolas', 'Courier New', monospace",
     fontSize: 14,
@@ -99,13 +102,46 @@ function App(): React.JSX.Element {
     const unsubCrash = window.matslop.onOctaveCrashed((info) => {
       console.error('Octave process crashed:', info)
       setOctaveStatus((prev) => ({ ...prev, engineStatus: 'disconnected' }))
+      // US-016: if Octave crashes while paused, drop the debug highlight.
+      setPausedLocation(null)
     })
+
+    // US-016: listen for debug-pause events from the main process.
+    const unsubPaused = window.matslop.onOctavePaused?.((loc) => {
+      if (loc && typeof loc.file === 'string' && Number.isFinite(loc.line)) {
+        setPausedLocation({ file: loc.file, line: Math.floor(loc.line) })
+      }
+    }) ?? (() => {})
 
     return () => {
       unsubStatus()
       unsubCrash()
+      unsubPaused()
     }
   }, [])
+
+  // US-016: expose a test-only hook so Playwright can simulate a paused
+  // event without spinning up a real Octave process. Gated on
+  // MATSLOP_USER_DATA_DIR (set by the e2e launcher) but harmless elsewhere.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const w = window as unknown as {
+      __matslopSimulatePaused?: (file: string, line: number) => void
+      __matslopClearPaused?: () => void
+      __matslopPausedLocation?: { file: string; line: number } | null
+    }
+    w.__matslopSimulatePaused = (file: string, line: number) => {
+      setPausedLocation({ file, line: Math.floor(line) })
+    }
+    w.__matslopClearPaused = () => {
+      setPausedLocation(null)
+    }
+    w.__matslopPausedLocation = pausedLocation
+    return () => {
+      const ww = window as unknown as { __matslopPausedLocation?: unknown }
+      ww.__matslopPausedLocation = null
+    }
+  }, [pausedLocation])
 
   const octaveInitRef = useRef(false)
   useEffect(() => {
@@ -548,6 +584,7 @@ function App(): React.JSX.Element {
                   onMenuActionConsumed={handleMenuActionConsumed}
                   editorTheme={resolvedTheme === 'light' ? 'vs-light' : 'vs-dark'}
                   editorSettings={editorSettings}
+                  pausedLocation={pausedLocation}
                 />
               </Allotment.Pane>
               <Allotment.Pane
@@ -606,6 +643,7 @@ function App(): React.JSX.Element {
         engineStatus={octaveStatus.engineStatus}
         cursorPosition={cursorPosition}
         errorCount={errorCount}
+        debugPaused={pausedLocation !== null}
       />
     </div>
   )

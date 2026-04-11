@@ -61,6 +61,12 @@ contextBridge.exposeInMainWorld('matslop', {
     ipcRenderer.on('octave:crashed', handler)
     return () => ipcRenderer.removeListener('octave:crashed', handler)
   },
+  // US-016: debugger-paused events (Octave hit a breakpoint).
+  onOctavePaused: (callback: (loc: { file: string; line: number }) => void): (() => void) => {
+    const handler = (_event: IpcRendererEvent, loc: { file: string; line: number }): void => callback(loc)
+    ipcRenderer.on('octave:paused', handler)
+    return () => ipcRenderer.removeListener('octave:paused', handler)
+  },
   // Command history persistence
   historyLoad: (): Promise<string[]> =>
     ipcRenderer.invoke('history:load'),

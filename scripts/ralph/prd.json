@@ -271,8 +271,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 16,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added pure parsePausedMarker(text) in debugBridge.ts (matches \"stopped in <file> at line N\" + \"stopped at <func>, line N\" variants). OctaveProcessManager now scans every stdout/stderr chunk via maybeEmitPaused() and emits a \"paused\" event; main/index.ts forwards it to the renderer as \"octave:paused\" (on both initial start and restart handlers). Preload exposes onOctavePaused(cb); env.d.ts declares it. App.tsx holds pausedLocation state, passes debugPaused prop to StatusBar (new badge with data-testid=\"status-debug-paused\") and pausedLocation down to EditorPanel \u2192 TabbedEditor. EditorPanel auto-activates the matching tab by basename on pause. TabbedEditor renders a new green-arrow glyph decoration (.matslop-paused-glyph) plus whole-line highlight (.matslop-paused-line) and scrolls the paused line into view. Added styles.css entries. Test hooks __matslopSimulatePaused/__matslopClearPaused let Playwright drive pauses without a real Octave. Unit tests in tests/unit/debug-paused.test.ts (11 cases) + e2e tests/e2e/debug-paused.spec.ts (2 cases) all pass."
     },
     {
       "id": "US-017",

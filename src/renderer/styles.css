@@ -2368,3 +2368,30 @@ body {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
   cursor: pointer;
 }
+
+/* ---- Debugger paused marker (US-016) ----------------------------- */
+/* Green right-pointing arrow placed in the glyph margin on the line where
+   Octave is currently stopped. Uses a CSS clip-path so it renders without
+   needing an external asset or SVG import. */
+.matslop-paused-glyph {
+  background: #4caf50;
+  width: 14px !important;
+  height: 14px !important;
+  margin-left: 3px;
+  margin-top: 3px;
+  clip-path: polygon(0% 10%, 60% 10%, 60% 0%, 100% 50%, 60% 100%, 60% 90%, 0% 90%);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+/* Line highlight that accompanies the green arrow — tinted green background
+   on the whole paused line. */
+.matslop-paused-line {
+  background: rgba(76, 175, 80, 0.18);
+}
+
+/* Status bar "Debug: paused" badge that appears on the left next to the cwd
+   when Octave is stopped at a breakpoint. */
+.status-bar-debug-paused {
+  color: #4caf50;
+  font-weight: 600;
+}

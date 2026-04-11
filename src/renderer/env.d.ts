@@ -70,6 +70,7 @@ interface Window {
     octaveGetStatus: () => Promise<'ready' | 'busy' | 'disconnected'>
     onOctaveStatusChanged: (callback: (status: 'ready' | 'busy' | 'disconnected') => void) => () => void
     onOctaveCrashed: (callback: (info: { code: number | null; signal: string | null; error?: string }) => void) => () => void
+    onOctavePaused: (callback: (loc: { file: string; line: number }) => void) => () => void
     // Command history persistence
     historyLoad: () => Promise<string[]>
     historyAppend: (command: string) => Promise<void>

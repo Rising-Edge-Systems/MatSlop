@@ -39,6 +39,8 @@ interface EditorPanelProps {
     tabSize: number
     insertSpaces: boolean
   }
+  /** US-016: location Octave is currently paused at, null when not debugging. */
+  pausedLocation?: { file: string; line: number } | null
 }
 
 function EditorPanel({
@@ -56,6 +58,7 @@ function EditorPanel({
   onMenuActionConsumed,
   editorTheme,
   editorSettings,
+  pausedLocation,
 }: EditorPanelProps): React.JSX.Element {
   const [tabs, setTabs] = useState<EditorTab[]>(() => {
     const initial = createTab(
@@ -475,6 +478,25 @@ function EditorPanel({
     })
   }, [openFilePath, onFileOpened, tabs])
 
+  // US-016: when Octave reports a paused location, activate a tab whose
+  // filename matches the paused file (by basename). If no tab matches, we
+  // leave the active tab alone — the status bar still surfaces debug state.
+  useEffect(() => {
+    if (!pausedLocation) return
+    const rawFile = pausedLocation.file
+    if (!rawFile) return
+    // Extract the basename portably from either a posix or windows path.
+    const lastSep = Math.max(rawFile.lastIndexOf('/'), rawFile.lastIndexOf('\\'))
+    const rawBase = lastSep >= 0 ? rawFile.substring(lastSep + 1) : rawFile
+    // Octave may report "funcname" without a .m extension. Match permissively:
+    // prefer exact filename match, then filename-minus-extension match.
+    const candidates = [rawBase, rawBase.endsWith('.m') ? rawBase : `${rawBase}.m`]
+    const match = tabs.find((t) => candidates.includes(t.filename))
+    if (match && match.id !== activeTabId) {
+      setActiveTabId(match.id)
+    }
+  }, [pausedLocation, tabs, activeTabId])
+
   // Drag-and-drop file opening
   const handleDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -581,6 +603,7 @@ function EditorPanel({
           editorTheme={editorTheme}
           engineStatus={engineStatus}
           editorSettings={editorSettings}
+          pausedLocation={pausedLocation ?? null}
         />
       </div>
       {hiddenPanels.length > 0 && (
