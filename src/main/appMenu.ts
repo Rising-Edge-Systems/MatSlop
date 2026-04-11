@@ -31,6 +31,7 @@ export type MenuAction =
   | 'clearCommandWindow'
   | 'preferences'
   | 'about'
+  | 'toggleProfiler'
 
 // US-028: The Layouts submenu is driven by these constants (mirrored in
 // src/renderer/editor/layoutPresets.ts). Kept inline here so appMenu.ts
@@ -227,6 +228,11 @@ export function buildAppMenu(
         {
           label: 'Reset Layout',
           click: () => send('resetLayout'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Profiler',
+          click: () => send('toggleProfiler'),
         },
         { type: 'separator' },
         {

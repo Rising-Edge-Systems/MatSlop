@@ -54,6 +54,7 @@ export const DOCK_TAB_IDS = {
   figure: 'matslop-figure',
   helpBrowser: 'matslop-help-browser',
   findInFiles: 'matslop-find-in-files',
+  profiler: 'matslop-profiler',
 } as const
 
 export type MatslopDockTabId = (typeof DOCK_TAB_IDS)[keyof typeof DOCK_TAB_IDS]
@@ -70,6 +71,7 @@ export const DOCK_TAB_TITLES: Record<MatslopDockTabId, string> = {
   [DOCK_TAB_IDS.figure]: 'Figure',
   [DOCK_TAB_IDS.helpBrowser]: 'Help',
   [DOCK_TAB_IDS.findInFiles]: 'Find in Files',
+  [DOCK_TAB_IDS.profiler]: 'Profiler',
 }
 
 /**
@@ -86,6 +88,7 @@ export interface DockVisibility {
   figure: boolean
   helpBrowser: boolean
   findInFiles: boolean
+  profiler: boolean
 }
 
 /** Convenience: the "first launch / MATLAB-default" visibility preset. */
@@ -99,6 +102,7 @@ export const DEFAULT_DOCK_VISIBILITY: DockVisibility = {
   figure: false,
   helpBrowser: false,
   findInFiles: false,
+  profiler: false,
 }
 
 // When a `loadTab(tab)` factory is provided to `<DockLayout>`, the tab
@@ -141,20 +145,24 @@ export function buildDockLayoutFromVisibility(
   const wantCmdHistory = vis.commandHistory && !isDetached(DOCK_TAB_IDS.commandHistory)
   const wantHelp = vis.helpBrowser && !isDetached(DOCK_TAB_IDS.helpBrowser)
   const wantFind = vis.findInFiles && !isDetached(DOCK_TAB_IDS.findInFiles)
-  if (wantCmdWindow || wantCmdHistory || wantHelp || wantFind) {
+  const wantProfiler = vis.profiler && !isDetached(DOCK_TAB_IDS.profiler)
+  if (wantCmdWindow || wantCmdHistory || wantHelp || wantFind || wantProfiler) {
     const bottomTabs: TabData[] = []
     if (wantCmdWindow) bottomTabs.push(idOnly(DOCK_TAB_IDS.commandWindow))
     if (wantCmdHistory) bottomTabs.push(idOnly(DOCK_TAB_IDS.commandHistory))
     if (wantHelp) bottomTabs.push(idOnly(DOCK_TAB_IDS.helpBrowser))
     if (wantFind) bottomTabs.push(idOnly(DOCK_TAB_IDS.findInFiles))
+    if (wantProfiler) bottomTabs.push(idOnly(DOCK_TAB_IDS.profiler))
     // Choose the most-recently-opened auxiliary tab as the active one so
-    // `doc foo` or Ctrl+Shift+F immediately shows its own panel rather
-    // than leaving focus on the Command Window.
-    const activeId = wantFind
-      ? DOCK_TAB_IDS.findInFiles
-      : wantHelp
-        ? DOCK_TAB_IDS.helpBrowser
-        : undefined
+    // `doc foo` / Ctrl+Shift+F / profiler-toggle immediately shows its own
+    // panel rather than leaving focus on the Command Window.
+    const activeId = wantProfiler
+      ? DOCK_TAB_IDS.profiler
+      : wantFind
+        ? DOCK_TAB_IDS.findInFiles
+        : wantHelp
+          ? DOCK_TAB_IDS.helpBrowser
+          : undefined
     centerChildren.push({
       size: 300,
       tabs: bottomTabs,
@@ -231,6 +239,7 @@ export interface MatslopDockLayoutProps {
   figure: ReactNode
   helpBrowser: ReactNode
   findInFiles: ReactNode
+  profiler: ReactNode
   /**
    * US-026: previously-persisted rc-dock layout (from `DockLayout.saveLayout()`).
    * When provided at first render, it is used instead of the visibility-
@@ -311,6 +320,7 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
       [DOCK_TAB_IDS.figure]: props.figure,
       [DOCK_TAB_IDS.helpBrowser]: props.helpBrowser,
       [DOCK_TAB_IDS.findInFiles]: props.findInFiles,
+      [DOCK_TAB_IDS.profiler]: props.profiler,
     }),
     [
       props.fileBrowser,
@@ -323,6 +333,7 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
       props.figure,
       props.helpBrowser,
       props.findInFiles,
+      props.profiler,
     ],
   )
   const slotsRef = useRef(slotsById)

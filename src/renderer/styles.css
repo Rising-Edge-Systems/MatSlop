@@ -3016,3 +3016,116 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* US-033: Profiler panel */
+.profiler-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+.profiler-toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 12px;
+}
+.profiler-toolbar button {
+  background: var(--bg-button, #3a3a3d);
+  color: var(--text, #ddd);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+.profiler-toolbar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.profiler-toolbar button:not(:disabled):hover {
+  background: var(--bg-button-hover, #4a4a4d);
+}
+.profiler-mode {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-secondary, #ccc);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.profiler-mode[data-mode='running'] {
+  color: #f5b041;
+}
+.profiler-mode[data-mode='stopped'] {
+  color: #52be80;
+}
+.profiler-body {
+  flex: 1;
+  overflow: auto;
+}
+.profiler-empty,
+.profiler-error,
+.profiler-loading {
+  padding: 10px 12px;
+  color: var(--text-disabled, #888);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.profiler-error {
+  color: #e74c3c;
+}
+.profiler-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.profiler-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel-header, #2d2d30);
+  color: var(--text-secondary, #ccc);
+  text-align: left;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  user-select: none;
+}
+.profiler-table th:hover {
+  background: var(--bg-panel-header-hover, #383838);
+}
+.profiler-col-time,
+.profiler-col-calls {
+  text-align: right !important;
+}
+.profiler-row {
+  border-bottom: 1px solid var(--border-color);
+}
+.profiler-row:hover {
+  background: var(--bg-row-hover, #2a2d2e);
+}
+.profiler-cell-function,
+.profiler-cell-time,
+.profiler-cell-calls {
+  padding: 4px 10px;
+}
+.profiler-cell-time,
+.profiler-cell-calls {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.profiler-function-link {
+  background: none;
+  border: none;
+  color: #4fc3f7;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+}
+.profiler-function-link:hover {
+  text-decoration: underline;
+}

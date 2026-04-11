@@ -553,8 +553,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 33,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added src/renderer/editor/profilerStore.ts (pure helpers: buildProfileStart/Stop/Report/ClearCommand, parseProfileReport with __MSLP_PROF__/__MSLP_PROF_ERR__ markers, sortProfileEntries, buildWhichCommand/parseWhichOutput, formatProfileTime). Built ProfilerPanel.tsx with Start/Stop/Report buttons, mode badge, sortable table (Function/Total Time/Calls), empty/error/loading branches. Wired into MatslopDockLayout (new profiler tab id, visibility flag, dock-bottom placement) and App.tsx (profilerOpen/Mode/Entries/Error/Loading state, handleProfilerStart/Stop/Report/Navigate handlers that call octaveExecute, menu action toggleProfiler via View \u2192 Profiler). Clicking a function name runs which(name) and opens the resolved path via pendingOpenPath. Added contentVersion bust so rc-dock re-renders profiler state. Unit tests: tests/unit/profiler-store.test.ts (27 tests). E2E: tests/e2e/profiler.spec.ts (7 tests: hidden at startup, open-via-hook, populated table, column sort, error branch, Start/Stop button enablement, close). Also added profiler:false to dock-layout.test.ts existing fixtures."
     },
     {
       "id": "US-034",

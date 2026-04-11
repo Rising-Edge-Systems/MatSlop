@@ -13,6 +13,18 @@ import CallStackPanel, { type CallStackFrame } from './panels/CallStackPanel'
 import WatchesPanel from './panels/WatchesPanel'
 import HelpPanel from './panels/HelpPanel'
 import FindInFilesPanel from './panels/FindInFilesPanel'
+import ProfilerPanel from './panels/ProfilerPanel'
+import {
+  buildProfileStartCommand,
+  buildProfileStopCommand,
+  buildProfileReportCommand,
+  buildProfileClearCommand,
+  parseProfileReport,
+  buildWhichCommand,
+  parseWhichOutput,
+  type ProfilerEntry,
+  type ProfilerMode,
+} from './editor/profilerStore'
 import {
   EMPTY_HELP_STATE,
   beginHelpNavigation,
@@ -113,6 +125,15 @@ function App(): React.JSX.Element {
   // is routed through EditorPanel so a clicked result jumps to the
   // matched line in Monaco.
   const [findInFilesOpen, setFindInFilesOpen] = useState(false)
+  // US-033: Profiler panel state. `profilerOpen` gates dock visibility;
+  // `profilerMode` tracks whether `profile on` has been sent so the Start
+  // button can disable itself; `profilerEntries` holds the last parsed
+  // report. All Octave interaction lives in handlers below.
+  const [profilerOpen, setProfilerOpen] = useState(false)
+  const [profilerMode, setProfilerMode] = useState<ProfilerMode>('idle')
+  const [profilerEntries, setProfilerEntries] = useState<ProfilerEntry[]>([])
+  const [profilerError, setProfilerError] = useState<string | null>(null)
+  const [profilerLoading, setProfilerLoading] = useState(false)
   const [pendingOpenLine, setPendingOpenLine] = useState<number | null>(null)
   const [octaveStatus, setOctaveStatus] = useState<OctaveStatus>({ path: null, version: null, configured: false, engineStatus: 'disconnected' })
   const [showOctaveSetup, setShowOctaveSetup] = useState(false)
@@ -983,6 +1004,10 @@ function App(): React.JSX.Element {
           // US-032: toggle the Find-in-Files panel (Ctrl+Shift+F menu item).
           setFindInFilesOpen((prev) => !prev)
           break
+        case 'toggleProfiler':
+          // US-033: toggle the Profiler panel.
+          setProfilerOpen((prev) => !prev)
+          break
         default: {
           // Handle recent file open actions
           if (action.startsWith('recentFile:')) {
@@ -1187,6 +1212,125 @@ function App(): React.JSX.Element {
     setHelpState((prev) => closeHelpState(prev))
   }, [])
 
+  // US-033: Profiler handlers. Each handler dispatches an Octave command
+  // via the preload bridge and updates the profiler panel state. Commands
+  // are fire-and-forget — if Octave is disconnected we surface a friendly
+  // error in the panel rather than silently no-op.
+  const handleProfilerStart = useCallback(async () => {
+    setProfilerError(null)
+    try {
+      const bridge = window.matslop as typeof window.matslop | undefined
+      if (!bridge?.octaveExecute) {
+        setProfilerError('Octave is not running.')
+        return
+      }
+      // Clear first so the next Report reflects only this run's data.
+      await bridge.octaveExecute(buildProfileClearCommand()).catch(() => {})
+      await bridge.octaveExecute(buildProfileStartCommand())
+      setProfilerMode('running')
+    } catch (err) {
+      setProfilerError(String(err))
+    }
+  }, [])
+
+  const handleProfilerStop = useCallback(async () => {
+    try {
+      const bridge = window.matslop as typeof window.matslop | undefined
+      if (!bridge?.octaveExecute) {
+        setProfilerError('Octave is not running.')
+        return
+      }
+      await bridge.octaveExecute(buildProfileStopCommand())
+      setProfilerMode('stopped')
+    } catch (err) {
+      setProfilerError(String(err))
+    }
+  }, [])
+
+  const handleProfilerReport = useCallback(async () => {
+    setProfilerLoading(true)
+    setProfilerError(null)
+    try {
+      const bridge = window.matslop as typeof window.matslop | undefined
+      if (!bridge?.octaveExecute) {
+        setProfilerError('Octave is not running.')
+        setProfilerEntries([])
+        return
+      }
+      const result = await bridge.octaveExecute(buildProfileReportCommand())
+      const parsed = parseProfileReport(result.output || '')
+      if (parsed.ok) {
+        setProfilerEntries(parsed.entries)
+      } else {
+        setProfilerError(parsed.error)
+        setProfilerEntries([])
+      }
+    } catch (err) {
+      setProfilerError(String(err))
+      setProfilerEntries([])
+    } finally {
+      setProfilerLoading(false)
+    }
+  }, [])
+
+  // US-033: Navigate to a function's source. Runs `which <name>` via the
+  // Octave bridge and, if a path comes back, opens that file in the
+  // editor. Silently no-ops for built-ins (which returns empty).
+  const handleProfilerNavigate = useCallback(async (functionName: string) => {
+    try {
+      const bridge = window.matslop as typeof window.matslop | undefined
+      if (!bridge?.octaveExecute) return
+      const result = await bridge.octaveExecute(buildWhichCommand(functionName))
+      const filePath = parseWhichOutput(result.output || '')
+      if (filePath) {
+        setPendingOpenPath(filePath)
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  // US-033: test-only hooks so Playwright can drive the profiler panel
+  // without a real Octave process behind the IPC. Mirrors the watches /
+  // help-browser test hooks.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const w = window as unknown as {
+      __matslopOpenProfiler?: () => void
+      __matslopCloseProfiler?: () => void
+      __matslopSimulateProfilerEntries?: (entries: ProfilerEntry[]) => void
+      __matslopSimulateProfilerError?: (error: string) => void
+      __matslopSimulateProfilerMode?: (mode: ProfilerMode) => void
+      __matslopProfilerState?: {
+        mode: ProfilerMode
+        entries: ProfilerEntry[]
+        error: string | null
+        open: boolean
+      }
+    }
+    w.__matslopOpenProfiler = () => setProfilerOpen(true)
+    w.__matslopCloseProfiler = () => setProfilerOpen(false)
+    w.__matslopSimulateProfilerEntries = (entries) => {
+      setProfilerEntries(entries)
+      setProfilerError(null)
+    }
+    w.__matslopSimulateProfilerError = (error) => {
+      setProfilerError(error)
+      setProfilerEntries([])
+    }
+    w.__matslopSimulateProfilerMode = (mode) => setProfilerMode(mode)
+    w.__matslopProfilerState = {
+      mode: profilerMode,
+      entries: profilerEntries,
+      error: profilerError,
+      open: profilerOpen,
+    }
+    return () => {
+      const ww = w as unknown as { __matslopProfilerState?: unknown }
+      ww.__matslopProfilerState = null
+    }
+  }, [profilerMode, profilerEntries, profilerError, profilerOpen])
+
   // US-031: command-window hook — CommandWindow forwards intercepted
   // `doc <name>` / `help <name>` inputs here so App owns the help flow.
   const handleDocCommand = useCallback(
@@ -1286,6 +1430,7 @@ function App(): React.JSX.Element {
       figure: figures.length > 0,
       helpBrowser: helpState.topic !== null,
       findInFiles: findInFilesOpen,
+      profiler: profilerOpen,
     }),
     [
       visibility.fileBrowser,
@@ -1297,6 +1442,7 @@ function App(): React.JSX.Element {
       figures.length,
       helpState.topic,
       findInFilesOpen,
+      profilerOpen,
     ],
   )
 
@@ -1352,7 +1498,7 @@ function App(): React.JSX.Element {
           /* US-031: bust rc-dock's PureComponent cache when the help topic
              changes — otherwise the cached tab content keeps the old
              HelpPanel props. */
-          contentVersion={`help:${helpState.topic ?? ''}:${helpState.loading ? 'L' : ''}${helpState.error ? 'E' : ''}${helpState.content ? 'C' : ''}|fif:${findInFilesOpen ? 'O' : ''}:${cwd}`}
+          contentVersion={`help:${helpState.topic ?? ''}:${helpState.loading ? 'L' : ''}${helpState.error ? 'E' : ''}${helpState.content ? 'C' : ''}|fif:${findInFilesOpen ? 'O' : ''}:${cwd}|prof:${profilerMode}:${profilerEntries.length}:${profilerError ? 'E' : ''}:${profilerLoading ? 'L' : ''}`}
           fileBrowser={
             dockVisibility.fileBrowser ? (
               <FileBrowser
@@ -1446,6 +1592,21 @@ function App(): React.JSX.Element {
           figure={
             dockVisibility.figure ? (
               <FigurePanel figures={figures} onSaveFigure={handleSaveFigure} />
+            ) : null
+          }
+          profiler={
+            dockVisibility.profiler ? (
+              <ProfilerPanel
+                mode={profilerMode}
+                entries={profilerEntries}
+                error={profilerError}
+                loading={profilerLoading}
+                onStart={handleProfilerStart}
+                onStop={handleProfilerStop}
+                onReport={handleProfilerReport}
+                onNavigate={handleProfilerNavigate}
+                onClose={() => setProfilerOpen(false)}
+              />
             ) : null
           }
           findInFiles={
