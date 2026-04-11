@@ -9,6 +9,12 @@ import CommandHistoryPanel from './panels/CommandHistoryPanel'
 import FigurePanel, { type FigureData } from './panels/FigurePanel'
 import StatusBar from './panels/StatusBar'
 import type { CursorPosition } from './panels/StatusBar'
+import DebugToolbar from './editor/DebugToolbar'
+import {
+  debugActionToOctaveCommand,
+  matchDebugShortcut,
+  type DebugAction,
+} from './editor/debugCommands'
 import OctaveSetupDialog from './dialogs/OctaveSetupDialog'
 import VariableInspectorDialog, { type InspectedVariable } from './dialogs/VariableInspectorDialog'
 import PreferencesDialog, { type EditorPreferences } from './dialogs/PreferencesDialog'
@@ -348,6 +354,48 @@ function App(): React.JSX.Element {
     window.matslop.octaveInterrupt()
   }, [])
 
+  // US-017: Dispatch a debug command (continue/step/stepIn/stepOut/stop).
+  // Sends the corresponding Octave `db*` command and clears the paused
+  // highlight locally — the next `onOctavePaused` event will restore it
+  // if execution stops again. Also exposes the last dispatched command
+  // via `window.__matslopLastDebugCommand` so e2e tests can observe it
+  // without needing a real Octave process behind the IPC.
+  const handleDebugAction = useCallback((action: DebugAction) => {
+    const command = debugActionToOctaveCommand(action)
+    if (typeof window !== 'undefined') {
+      const w = window as unknown as {
+        __matslopLastDebugCommand?: { action: DebugAction; command: string; at: number }
+      }
+      w.__matslopLastDebugCommand = { action, command, at: Date.now() }
+    }
+    // Fire-and-forget; if Octave isn't running (e.g. during tests that only
+    // simulate the paused state) the IPC rejects harmlessly.
+    try {
+      void window.matslop.octaveExecute(command).catch(() => {})
+    } catch {
+      /* ignore */
+    }
+    setPausedLocation(null)
+  }, [])
+
+  // US-017: Global keyboard shortcuts that are only active while the
+  // debugger is paused. F5/F10/F11/Shift+F11/Shift+F5 map to the debug
+  // actions here; outside a paused state they fall through to the normal
+  // editor shortcut manager (F5 = run, Shift+F5 = stop). Registered in the
+  // capture phase so it takes precedence over the editor-panel listener.
+  useEffect(() => {
+    if (!pausedLocation) return
+    const handler = (e: KeyboardEvent): void => {
+      const action = matchDebugShortcut(e)
+      if (!action) return
+      e.preventDefault()
+      e.stopPropagation()
+      handleDebugAction(action)
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [pausedLocation, handleDebugAction])
+
   // Listen for menu actions from main process
   useEffect(() => {
     const unsub = window.matslop.onMenuAction((action) => {
@@ -638,6 +686,12 @@ function App(): React.JSX.Element {
         </Allotment.Pane>
       </Allotment>}
       </div>
+      {pausedLocation && (
+        <DebugToolbar
+          onAction={handleDebugAction}
+          pausedLabel={`${pausedLocation.file.split(/[\\/]/).pop() ?? pausedLocation.file}:${pausedLocation.line}`}
+        />
+      )}
       <StatusBar
         cwd={cwd}
         engineStatus={octaveStatus.engineStatus}

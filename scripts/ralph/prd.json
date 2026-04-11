@@ -288,8 +288,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 17,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added DebugToolbar component (src/renderer/editor/DebugToolbar.tsx) with 5 buttons (Continue, Step, Step In, Step Out, Stop) that only renders when pausedLocation is non-null. Pure helper debugCommands.ts maps DebugAction -> Octave command (dbcont, dbstep, dbstep in, dbstep out, dbquit) plus matchDebugShortcut() for keyboard bindings. App.tsx dispatches via handleDebugAction which calls octaveExecute and clears pausedLocation (next onOctavePaused event re-shows the toolbar). Global keydown listener (capture phase) wires F5/F10/F11/Shift+F11/Shift+F5 to debug actions while paused. Exposes window.__matslopLastDebugCommand for e2e assertions. Tests: tests/unit/debug-commands.test.ts (12 cases) + tests/e2e/debug-toolbar.spec.ts (4 tests: hidden state, visible+5 buttons, each button dispatches correct command via dispatchEvent, keyboard shortcuts)."
     },
     {
       "id": "US-018",

@@ -150,6 +150,56 @@ body {
   min-height: 0;
 }
 
+/* US-017: Debug Toolbar — only rendered while Octave is paused at a breakpoint. */
+.debug-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--panel-header-bg, #2d2d30);
+  border-top: 1px solid var(--panel-border, #3e3e42);
+  border-bottom: 1px solid #4caf50;
+  color: var(--text-color, #cccccc);
+  font-size: 12px;
+  user-select: none;
+}
+
+.debug-toolbar-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 10px;
+  font-weight: 500;
+}
+
+.debug-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  background: transparent;
+  border: 1px solid var(--panel-border, #3e3e42);
+  border-radius: 3px;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.debug-toolbar-btn:hover {
+  background: rgba(76, 175, 80, 0.18);
+  border-color: #4caf50;
+}
+
+.debug-toolbar-btn:focus-visible {
+  outline: 2px solid #4caf50;
+  outline-offset: 1px;
+}
+
+.debug-toolbar-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+
 /* Status Bar */
 .status-bar {
   display: flex;
