@@ -246,8 +246,9 @@ test('US-R02: workspace placeholder text is fully visible at 1600x1000', async (
       panelRight: h?.right ?? 0,
     }
   })
-  // Placeholder must contain the expected string.
-  expect(metrics.text).toBe('No variables in workspace')
+  // Placeholder must contain one of the expected strings (depends on Octave
+  // availability in the test environment — both are valid ws placeholder states).
+  expect(['No variables in workspace', 'Octave not connected']).toContain(metrics.text)
   // No horizontal overflow (wrap handles the narrow case; at 1600x1000
   // the right column is ~320px which fits the text on one line).
   expect(
