@@ -42,6 +42,13 @@ interface EditorPanelProps {
   }
   /** US-016: location Octave is currently paused at, null when not debugging. */
   pausedLocation?: { file: string; line: number } | null
+  /**
+   * US-023 (edit-and-continue, best effort): fired whenever a file is saved
+   * while the debugger is paused so the parent can trigger breakpoint
+   * re-application and surface a warning banner. Receives the saved file's
+   * absolute path (or null if the save was to an unsaved/untitled tab).
+   */
+  onFileSavedWhilePaused?: (filePath: string | null) => void
 }
 
 function EditorPanel({
@@ -61,6 +68,7 @@ function EditorPanel({
   editorTheme,
   editorSettings,
   pausedLocation,
+  onFileSavedWhilePaused,
 }: EditorPanelProps): React.JSX.Element {
   const [tabs, setTabs] = useState<EditorTab[]>(() => {
     const initial = createTab(
@@ -148,6 +156,20 @@ function EditorPanel({
     window.matslop.recentFilesAdd(result.filePath)
   }, [tabs])
 
+  // US-023: keep the latest paused-location / callback in refs so the
+  // handleSave closure doesn't need to be re-created whenever debugger
+  // state changes (which would invalidate menu/shortcut bindings below).
+  const pausedLocationRef = useRef<{ file: string; line: number } | null>(null)
+  const onFileSavedWhilePausedRef = useRef<
+    ((filePath: string | null) => void) | undefined
+  >(undefined)
+  useEffect(() => {
+    pausedLocationRef.current = pausedLocation ?? null
+  }, [pausedLocation])
+  useEffect(() => {
+    onFileSavedWhilePausedRef.current = onFileSavedWhilePaused
+  }, [onFileSavedWhilePaused])
+
   const handleSave = useCallback(async () => {
     const tab = getActiveTab()
     if (!tab) return
@@ -159,6 +181,14 @@ function EditorPanel({
             t.id === tab.id ? { ...t, savedContent: t.content } : t
           )
         )
+        // US-023 (edit-and-continue, best effort): if Octave is currently
+        // paused when the user saves, notify the parent so it can re-apply
+        // breakpoints and show the "changes will take effect on re-entry"
+        // banner. Only .m files are meaningful here — .mls live scripts are
+        // not function bodies Octave can re-enter mid-pause.
+        if (pausedLocationRef.current && tab.filePath.endsWith('.m')) {
+          onFileSavedWhilePausedRef.current?.(tab.filePath)
+        }
       }
     } else {
       // Untitled file — use Save As

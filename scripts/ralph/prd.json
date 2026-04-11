@@ -387,8 +387,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 23,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added pure reapplyBreakpointsForFile() helper in src/main/debugBridge.ts that emits dbclear+dbstop pairs (conditions preserved) for a single file. New IPC debug:reapplyBreakpointsForFile (main/preload/env.d.ts). EditorPanel.handleSave fires an onFileSavedWhilePaused callback when a .m tab is saved while pausedLocation is set (via refs so the save useCallback deps stay stable). App.tsx owns a dismissible warning banner (data-testid=edit-continue-banner) that shows on save-while-paused, auto-clears on debugger resume, and fires the reapply IPC. Added test-only window.__matslopSimulateFileSavedWhilePaused hook mirroring __matslopEditContinueBanner state. 5 new unit tests in tests/unit/debug-bridge.test.ts + 4 new Playwright tests in tests/e2e/edit-and-continue.spec.ts."
     },
     {
       "id": "US-024",

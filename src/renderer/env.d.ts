@@ -134,6 +134,9 @@ interface Window {
       condition: string | null,
     ) => Promise<{ success: boolean }>
     debugGetCallStack: () => Promise<Array<{ name: string; file: string; line: number }>>
+    // US-023: edit-and-continue (best effort) — re-apply breakpoints for a
+    // single file after it was saved while paused.
+    debugReapplyBreakpointsForFile: (filePath: string | null) => Promise<{ sent: string[] }>
     // Test-only
     _testMenuAction?: (action: string) => Promise<void>
   }

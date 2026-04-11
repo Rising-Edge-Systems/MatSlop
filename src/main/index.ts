@@ -15,6 +15,7 @@ import {
   clearBreakpoint as applyClearBreakpoint,
   setBreakpointWithCondition as applySetBreakpointWithCondition,
   reapplyAllBreakpoints,
+  reapplyBreakpointsForFile,
   breakpointBucketKey,
 } from './debugBridge'
 import {
@@ -609,6 +610,32 @@ ipcMain.handle(
       setConditionEntry(key, lineInt, condition)
     }
     return { success: ok }
+  },
+)
+
+/**
+ * US-023 (edit-and-continue, best effort): invoked by the renderer after a
+ * .m file was saved while the debugger is paused. We re-apply every
+ * remembered breakpoint for the saved file (dbclear + dbstop) so Octave
+ * re-reads the freshly-written source the next time the function is
+ * entered. Returns the list of Octave commands we sent so the renderer /
+ * tests can assert the bridge did something.
+ *
+ * Safe to call even if Octave is not running — this is a best-effort nudge,
+ * not a correctness requirement.
+ */
+ipcMain.handle(
+  'debug:reapplyBreakpointsForFile',
+  async (_event, filePath: string | null): Promise<{ sent: string[] }> => {
+    const exec = currentOctaveExecutor()
+    if (!exec) return { sent: [] }
+    const sent = reapplyBreakpointsForFile(
+      debugBreakpoints,
+      filePath,
+      exec,
+      debugBreakpointConditions,
+    )
+    return { sent }
   },
 )
 

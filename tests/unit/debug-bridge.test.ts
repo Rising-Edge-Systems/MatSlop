@@ -7,6 +7,7 @@ import {
   setBreakpointWithCondition,
   clearBreakpoint,
   reapplyAllBreakpoints,
+  reapplyBreakpointsForFile,
   breakpointBucketKey,
   UNSAVED_BUCKET,
 } from '../../src/main/debugBridge'
@@ -316,5 +317,80 @@ describe('reapplyAllBreakpoints', () => {
     // Should not bubble; both commands should still appear in the return.
     const sent = reapplyAllBreakpoints(map, throwingExec)
     expect(sent).toEqual(['dbstop in "a.m" at 1', 'dbstop in "b.m" at 2'])
+  })
+})
+
+describe('reapplyBreakpointsForFile (US-023 edit-and-continue)', () => {
+  it('emits dbclear+dbstop pairs for only the requested file', async () => {
+    const map = new Map<string, Set<number>>()
+    map.set('/project/a.m', new Set([5, 12]))
+    map.set('/project/b.m', new Set([3]))
+    const rec = makeRecorder()
+    const sent = reapplyBreakpointsForFile(map, '/project/a.m', rec.exec)
+    // Phase 1 clears ALL lines (sorted), phase 2 stops them back.
+    expect(sent).toEqual([
+      'dbclear in "a.m" at 5',
+      'dbclear in "a.m" at 12',
+      'dbstop in "a.m" at 5',
+      'dbstop in "a.m" at 12',
+    ])
+    await Promise.resolve()
+    expect(rec.sent).toEqual(sent)
+    // b.m was NOT touched.
+    expect(rec.sent.some((c) => c.includes('b.m'))).toBe(false)
+  })
+
+  it('preserves conditions on re-apply', () => {
+    const map = new Map<string, Set<number>>()
+    map.set('/p/foo.m', new Set([2, 7]))
+    const conds = new Map<string, Map<number, string>>()
+    conds.set('/p/foo.m', new Map([[7, 'i > 10']]))
+    const rec = makeRecorder()
+    const sent = reapplyBreakpointsForFile(map, '/p/foo.m', rec.exec, conds)
+    expect(sent).toEqual([
+      'dbclear in "foo.m" at 2',
+      'dbclear in "foo.m" at 7',
+      'dbstop in "foo.m" at 2',
+      `dbstop in "foo.m" at 7 if 'i > 10'`,
+    ])
+  })
+
+  it('returns an empty list for unknown / no-breakpoint files', () => {
+    const map = new Map<string, Set<number>>()
+    map.set('/p/a.m', new Set([1]))
+    const rec = makeRecorder()
+    expect(reapplyBreakpointsForFile(map, '/p/other.m', rec.exec)).toEqual([])
+    expect(rec.sent).toEqual([])
+  })
+
+  it('returns an empty list for null/empty paths and for unsaved tabs', () => {
+    const map = new Map<string, Set<number>>()
+    map.set(UNSAVED_BUCKET, new Set([1, 2]))
+    const rec = makeRecorder()
+    expect(reapplyBreakpointsForFile(map, null, rec.exec)).toEqual([])
+    expect(reapplyBreakpointsForFile(map, '', rec.exec)).toEqual([])
+    // An unsaved tab would map into UNSAVED_BUCKET, not a real file path —
+    // callers pass the tab's filePath so this branch is only reachable via
+    // an empty/null path, covered above. But we also guarantee the bridge
+    // never tries to address UNSAVED_BUCKET as a real file.
+    expect(rec.sent).toEqual([])
+  })
+
+  it('survives a throwing executor and still returns the command list', () => {
+    const map = new Map<string, Set<number>>()
+    map.set('/p/a.m', new Set([1, 2]))
+    const throwingExec = (cmd: string): Promise<unknown> => {
+      if (cmd.includes('dbclear') && cmd.includes('at 1')) {
+        throw new Error('boom')
+      }
+      return Promise.resolve()
+    }
+    const sent = reapplyBreakpointsForFile(map, '/p/a.m', throwingExec)
+    expect(sent).toEqual([
+      'dbclear in "a.m" at 1',
+      'dbclear in "a.m" at 2',
+      'dbstop in "a.m" at 1',
+      'dbstop in "a.m" at 2',
+    ])
   })
 })

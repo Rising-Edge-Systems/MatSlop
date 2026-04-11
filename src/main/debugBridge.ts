@@ -256,6 +256,64 @@ function lookupCondition(
   return typeof v === 'string' && v.length > 0 ? v : null
 }
 
+/**
+ * US-023 (edit-and-continue, best effort): after the user saves a .m file
+ * while paused, Octave may still hold the old cached parse for that function.
+ * Re-applying breakpoints for JUST that file — by first `dbclear`ing each
+ * recorded line and then re-`dbstop`ping it — nudges Octave to re-read the
+ * source next time the function is entered. Conditional breakpoints keep
+ * their condition via the optional `conditions` map, same as
+ * {@link reapplyAllBreakpoints}.
+ *
+ * Returns the list of command strings sent in order (all dbclears first, then
+ * all dbstops). Returns an empty array if the file is unsaved or has no
+ * registered breakpoints — the caller still shows the edit-and-continue
+ * banner so users know changes won't take effect until re-entry.
+ */
+export function reapplyBreakpointsForFile(
+  map: BreakpointMapLike,
+  filePath: string | null | undefined,
+  exec: CommandExecutor,
+  conditions?: BreakpointConditionsLike,
+): string[] {
+  if (!filePath || filePath.length === 0) return []
+  const key = breakpointBucketKey(filePath)
+  if (key === UNSAVED_BUCKET) return []
+  const set = map.get(key)
+  if (!set || set.size === 0) return []
+  const sent: string[] = []
+  const lines = Array.from(set).sort((a, b) => a - b)
+  // Phase 1: dbclear each line so Octave forgets the stale parsed source.
+  for (const line of lines) {
+    const cmd = formatDbclearCommand(filePath, line)
+    try {
+      void Promise.resolve(exec(cmd)).catch(() => {
+        /* swallow */
+      })
+    } catch {
+      /* ignore sync failures so one bad call can't break the rest */
+    }
+    sent.push(cmd)
+  }
+  // Phase 2: re-dbstop (conditional if we have one) so the next entry to this
+  // function stops at the intended lines in the freshly-saved source.
+  for (const line of lines) {
+    const cond = lookupCondition(conditions, key, line)
+    const cmd = cond
+      ? formatDbstopConditionalCommand(filePath, line, cond)
+      : formatDbstopCommand(filePath, line)
+    try {
+      void Promise.resolve(exec(cmd)).catch(() => {
+        /* swallow */
+      })
+    } catch {
+      /* ignore sync failures so one bad call can't break the rest */
+    }
+    sent.push(cmd)
+  }
+  return sent
+}
+
 export function reapplyAllBreakpoints(
   map: BreakpointMapLike,
   exec: CommandExecutor,

@@ -167,6 +167,12 @@ contextBridge.exposeInMainWorld('matslop', {
   // frames top-to-bottom, or [] if Octave isn't running.
   debugGetCallStack: (): Promise<Array<{ name: string; file: string; line: number }>> =>
     ipcRenderer.invoke('debug:getCallStack'),
+  // US-023: edit-and-continue (best effort). Called after the renderer saves
+  // a .m file while paused so the main process can re-apply breakpoints for
+  // just that file (dbclear + dbstop). Returns the list of Octave commands
+  // sent for verification in tests.
+  debugReapplyBreakpointsForFile: (filePath: string | null): Promise<{ sent: string[] }> =>
+    ipcRenderer.invoke('debug:reapplyBreakpointsForFile', filePath),
   // Test-only helper
   _testMenuAction: (action: string): Promise<void> =>
     ipcRenderer.invoke('test:menuAction', action),

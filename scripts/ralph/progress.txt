@@ -42,6 +42,7 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
 - `WorkspacePanel` refreshes whenever the parent-owned `workspaceRefreshTrigger` counter increments. To re-query `whos` on some new event, bump the counter from App.tsx via `setWorkspaceRefreshTrigger(prev => prev + 1)` in a useEffect keyed on the trigger state — WorkspacePanel's internal effect handles the rest. For e2e verification without a real Octave, App.tsx mirrors the counter onto `window.__matslopWorkspaceRefreshCount` so tests can assert monotonic increments.
 - `PanelHeader` accepts an optional `actions` ReactNode slot (between title and collapse button). Use it for inline header controls like the Watches panel refresh button — don't roll a custom header div.
 - Watch-style "eval an arbitrary Octave expression safely" pattern: use `buildWatchCommand(expr)` + `parseWatchOutput(raw)` from `src/renderer/editor/watchesStore.ts`. The command wraps `disp(expr)` in a try/catch that printf's a `__MSLP_WATCH_ERR__:<msg>` marker on failure, so a bad expression doesn't leak to stderr or poison the queue. Pair with `formatWatchValue()` to collapse multi-line `disp` output into a single preview line.
+- When a `useCallback` handler (e.g. `handleSave`, shortcut-bound actions) must read frequently-changing state (like `pausedLocation`) WITHOUT expanding its dep array (which would re-bind every menu/shortcut listener), mirror that state into a `useRef` inside a separate effect and read `ref.current` inside the callback. Keeps handler identity stable.
 - **IMPORTANT:** E2E tests run against the BUILT app in `dist/` (see `tests/e2e/helpers/launch.ts`), NOT the dev server. Edits to `src/renderer/**` do not appear in Playwright tests until you `npm run build`. If a test sees stale DOM (e.g. missing data attributes you just added), rebuild.
 
 ## 2026-04-10 - US-001 Restructure main layout
@@ -398,4 +399,19 @@ Started: Fri Apr 10 04:09:20 AM EDT 2026
   - Watch eval flow: buildWatchCommand + parseWatchOutput keeps bad expressions isolated via an inner try/catch that printf's a `__MSLP_WATCH_ERR__:<msg>` marker — the caller doesn't need to scrape Octave stderr
   - PanelHeader now accepts an `actions` React node between the title and the collapse-cross — reuse for any panel that needs an inline header control (refresh, settings, etc.)
   - Re-evaluation trigger: the existing `pausedKey` string (file:line, empty when not paused) is the right hook for any "refresh X on every pause/step" effect — changes on enter, leave, and each step because the line number flips
+---
+
+## 2026-04-11 - US-023 Edit-and-continue (best effort)
+- Added pure `reapplyBreakpointsForFile(map, filePath, exec, conds?)` helper in `src/main/debugBridge.ts`. Emits dbclear for every remembered line in the file, then dbstop (conditional if a condition is stored) — forces Octave to re-parse the freshly-saved source the next time that function is entered.
+- New IPC `debug:reapplyBreakpointsForFile` in `src/main/index.ts` + preload bridge + `src/renderer/env.d.ts` d.ts. No-ops gracefully when Octave isn't running.
+- `src/renderer/panels/EditorPanel.tsx`: added an optional `onFileSavedWhilePaused` prop. `handleSave` fires it when the saved tab is a .m file and `pausedLocation` is set. Used `pausedLocationRef` + `onFileSavedWhilePausedRef` so handleSave's useCallback deps don't expand (keeps menu/shortcut bindings stable).
+- `src/renderer/App.tsx`: owns an `editContinueBanner` state (filename + id). `handleFileSavedWhilePaused` fires the reapply IPC and raises the banner. An effect auto-clears the banner when `pausedLocation` becomes null (debugger resumed). Added test-only `window.__matslopSimulateFileSavedWhilePaused` + `window.__matslopEditContinueBanner` mirror for Playwright.
+- `src/renderer/styles.css`: new `.edit-continue-banner` + `.edit-continue-banner-close` rules (yellow warning strip above DebugToolbar).
+- `tests/unit/debug-bridge.test.ts`: +5 tests covering the new helper (ordering, condition preservation, unknown-file no-op, null/empty/UNSAVED guards, throwing-exec safety).
+- `tests/e2e/edit-and-continue.spec.ts`: 4 new Playwright tests — banner appears on save-while-paused, close-button dismissal, auto-dismiss on resume, window mirror reflects current state.
+- Files changed: src/main/debugBridge.ts, src/main/index.ts, src/preload/index.ts, src/renderer/env.d.ts, src/renderer/panels/EditorPanel.tsx, src/renderer/App.tsx, src/renderer/styles.css, tests/unit/debug-bridge.test.ts, tests/e2e/edit-and-continue.spec.ts, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - MATLAB's true edit-and-continue can't be fully replicated in Octave (no in-place function replacement). Best-effort = dbclear+dbstop the file (re-parse on next entry) + explicit warning banner. Document the limitation in the UI text, not just internally.
+  - When a `useCallback` handler (like `handleSave`) must read ephemeral state (like `pausedLocation`) WITHOUT causing every keystroke/save path to rebind menu+shortcut listeners, mirror that state into a `useRef` inside a separate useEffect and read `ref.current` from inside the callback. Keeps the callback's dep array stable.
+  - The test-only `window.__matslopSimulate*` pattern extends cleanly: expose both a setter (to drive the same handler the real IPC would call) AND a read-only mirror of the resulting state (so e2e can use `waitForFunction` without peering into React internals).
 ---

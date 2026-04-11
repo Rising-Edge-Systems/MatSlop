@@ -109,6 +109,15 @@ function App(): React.JSX.Element {
   const [watches, setWatches] = useState<WatchEntry[]>([])
   const watchesRef = useRef<WatchEntry[]>(watches)
   watchesRef.current = watches
+  // US-023: edit-and-continue banner. Set whenever the user saves a .m file
+  // while paused — tells them the edits won't take effect until the function
+  // is re-entered (best-effort approximation). Dismissed via the banner's
+  // close button or automatically when the debugger resumes.
+  const [editContinueBanner, setEditContinueBanner] = useState<{
+    filename: string
+    id: number
+  } | null>(null)
+  const editContinueBannerIdRef = useRef(0)
   const [editorSettings, setEditorSettings] = useState({
     fontFamily: "'Consolas', 'Courier New', monospace",
     fontSize: 14,
@@ -243,6 +252,38 @@ function App(): React.JSX.Element {
   useEffect(() => {
     setWorkspaceRefreshTrigger((prev) => prev + 1)
   }, [pausedKey])
+
+  // US-023: when the debugger resumes (paused → not paused), auto-dismiss
+  // the edit-and-continue banner — the message is only relevant during the
+  // active pause.
+  useEffect(() => {
+    if (!pausedLocation) {
+      setEditContinueBanner(null)
+    }
+  }, [pausedLocation])
+
+  // US-023 (edit-and-continue, best effort): fired by EditorPanel's handleSave
+  // when the user writes a .m file while the debugger is paused. We:
+  //   1. Ask main to re-apply breakpoints for that file (dbclear + dbstop),
+  //      so Octave re-reads the freshly-written source on the next call.
+  //   2. Raise a warning banner telling the user the edits will only take
+  //      effect when the function is re-entered.
+  // This is intentionally a best-effort approximation of MATLAB's true
+  // edit-and-continue: Octave has no in-place function replacement, so the
+  // running call-frame keeps executing the OLD source until it returns.
+  const handleFileSavedWhilePaused = useCallback((filePath: string | null) => {
+    if (!filePath) return
+    // Kick the main-process bridge — swallow errors, it's best-effort.
+    const bridge = window.matslop as typeof window.matslop | undefined
+    if (bridge?.debugReapplyBreakpointsForFile) {
+      void bridge.debugReapplyBreakpointsForFile(filePath).catch(() => {
+        /* best-effort */
+      })
+    }
+    const filename = filePath.split(/[\\/]/).pop() ?? filePath
+    editContinueBannerIdRef.current += 1
+    setEditContinueBanner({ filename, id: editContinueBannerIdRef.current })
+  }, [])
 
   // US-022: Evaluate one watch expression via the main-process Octave IPC
   // and thread the result back into state via the setWatch{Value,Error}
@@ -384,6 +425,28 @@ function App(): React.JSX.Element {
       ww.__matslopPausedLocation = null
     }
   }, [pausedLocation])
+
+  // US-023: expose a test-only hook so Playwright can fire the same
+  // "saved a .m file while paused" flow EditorPanel.handleSave triggers —
+  // without needing a tab with a real file path on disk. Mirrors the
+  // banner state so tests can assert monotonic visibility.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const w = window as unknown as {
+      __matslopSimulateFileSavedWhilePaused?: (filePath: string) => void
+      __matslopEditContinueBanner?: { filename: string; id: number } | null
+    }
+    w.__matslopSimulateFileSavedWhilePaused = (filePath: string) => {
+      handleFileSavedWhilePaused(filePath)
+    }
+    w.__matslopEditContinueBanner = editContinueBanner
+    return () => {
+      const ww = window as unknown as {
+        __matslopEditContinueBanner?: unknown
+      }
+      ww.__matslopEditContinueBanner = null
+    }
+  }, [handleFileSavedWhilePaused, editContinueBanner])
 
   // US-020: expose a test-only hook so Playwright can simulate the Octave
   // engine being 'busy' without actually running a script. The Pause button
@@ -926,6 +989,7 @@ function App(): React.JSX.Element {
                   editorTheme={resolvedTheme === 'light' ? 'vs-light' : 'vs-dark'}
                   editorSettings={editorSettings}
                   pausedLocation={pausedLocation}
+                  onFileSavedWhilePaused={handleFileSavedWhilePaused}
                 />
               </Allotment.Pane>
               <Allotment.Pane
@@ -1013,6 +1077,34 @@ function App(): React.JSX.Element {
         </Allotment.Pane>
       </Allotment>}
       </div>
+      {/* US-023: edit-and-continue warning banner. Shown whenever the user
+          saved a .m file while paused. Auto-dismisses on resume (see effect
+          above) or on manual close. Placed above DebugToolbar so they stack
+          cleanly along the bottom when both are visible. */}
+      {editContinueBanner && (
+        <div
+          className="edit-continue-banner"
+          data-testid="edit-continue-banner"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="edit-continue-banner-icon" aria-hidden="true">⚠</span>
+          <span className="edit-continue-banner-text">
+            Changes to <strong>{editContinueBanner.filename}</strong> will take
+            effect when this function is re-entered. Breakpoints have been
+            re-applied (best-effort edit-and-continue).
+          </span>
+          <button
+            type="button"
+            className="edit-continue-banner-close"
+            data-testid="edit-continue-banner-close"
+            aria-label="Dismiss edit-and-continue notice"
+            onClick={() => setEditContinueBanner(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
       {pausedLocation && (
         <DebugToolbar
           onAction={handleDebugAction}

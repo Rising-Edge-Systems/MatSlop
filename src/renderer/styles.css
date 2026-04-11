@@ -200,6 +200,52 @@ body {
   line-height: 1;
 }
 
+/* US-023: edit-and-continue warning banner. Rendered above DebugToolbar
+   when the user saves a .m file while the debugger is paused. */
+.edit-continue-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: rgba(255, 193, 7, 0.12);
+  border-top: 1px solid var(--panel-border, #3e3e42);
+  border-bottom: 1px solid #ffc107;
+  color: var(--text-color, #cccccc);
+  font-size: 12px;
+  user-select: none;
+}
+
+.edit-continue-banner-icon {
+  color: #ffc107;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.edit-continue-banner-text {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.edit-continue-banner-text strong {
+  font-weight: 600;
+}
+
+.edit-continue-banner-close {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: inherit;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 8px;
+}
+
+.edit-continue-banner-close:hover {
+  border-color: var(--panel-border, #3e3e42);
+  background: rgba(255, 255, 255, 0.05);
+}
+
 /* Status Bar */
 .status-bar {
   display: flex;
