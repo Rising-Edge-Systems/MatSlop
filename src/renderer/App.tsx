@@ -984,6 +984,76 @@ function App(): React.JSX.Element {
     setErrorCount(count)
   }, [])
 
+  // US-L04: Shared capture-then-refresh helper.  The capture script
+  // (pwd + figure detection) MUST complete before WorkspacePanel's `whos`
+  // is triggered.  Without this ordering the two commands race for the
+  // single Octave command slot and `whos` can return empty on slower
+  // systems.  Every handler that finishes an Octave command should call
+  // this instead of incrementing refreshTrigger directly.
+  const cwdRef = useRef(cwd)
+  cwdRef.current = cwd
+
+  const runCaptureAndRefresh = useCallback(async () => {
+    if (octaveStatus.engineStatus === 'disconnected') {
+      setWorkspaceRefreshTrigger((prev) => prev + 1)
+      return
+    }
+
+    // Combined query: get pwd + detect and capture figures
+    const captureScript = [
+      "__mslp_r__=pwd();disp(['__MATSLOP_PWD__:' __mslp_r__]);",
+      "__mslp_fh__=get(0,'children');",
+      "for __mslp_k__=1:length(__mslp_fh__);",
+      "__mslp_fp__=[tempdir() 'matslop_fig_' num2str(__mslp_fh__(__mslp_k__)) '.png'];",
+      "try;print(__mslp_fh__(__mslp_k__),__mslp_fp__,'-dpng','-r150');",
+      "disp(['__MATSLOP_FIG__:' num2str(__mslp_fh__(__mslp_k__)) ':' __mslp_fp__]);",
+      "catch;end;end;",
+      "clear __mslp_r__ __mslp_fh__ __mslp_k__ __mslp_fp__;"
+    ].join('')
+
+    try {
+      const result = await window.matslop.octaveExecute(captureScript)
+      const output = result.output || ''
+
+      // Parse pwd
+      const pwdMatch = output.match(/__MATSLOP_PWD__:(.+)/)
+      if (pwdMatch) {
+        const octaveCwd = pwdMatch[1].trim()
+        if (octaveCwd && octaveCwd !== cwdRef.current) {
+          setCwd(octaveCwd)
+        }
+      }
+
+      // Parse figures
+      const figMatches = [...output.matchAll(/__MATSLOP_FIG__:(\d+):(.+)/g)]
+      if (figMatches.length > 0) {
+        const newFigures: FigureData[] = []
+        for (const m of figMatches) {
+          const handle = parseInt(m[1])
+          const tempPath = m[2].trim()
+          const base64 = await window.matslop.figuresReadImage(tempPath)
+          if (base64) {
+            newFigures.push({
+              handle,
+              imageDataUrl: `data:image/png;base64,${base64}`,
+              tempPath,
+            })
+          }
+        }
+        setFigures(newFigures)
+      } else {
+        setFigures([])
+      }
+    } catch {
+      // ignore capture errors — still refresh workspace below
+    }
+
+    // Only NOW — after the capture script has fully completed (or failed) —
+    // do we trigger the workspace refresh.  WorkspacePanel's `whos` call
+    // will not compete with the capture script for the Octave command slot.
+    setWorkspaceRefreshTrigger((prev) => prev + 1)
+  }, [octaveStatus.engineStatus])
+
   // US-S05: Run (F5) sources the saved .m file via `source('<abs path>')`
   // so the Command Window surfaces any output the script prints. We cd into
   // the script's directory first so relative paths inside the script still
@@ -1009,8 +1079,10 @@ function App(): React.JSX.Element {
         detail: { display, output: '', error: String(err) },
       }))
     }
-    setWorkspaceRefreshTrigger((prev) => prev + 1)
-  }, [])
+    // US-L04: Run capture script (pwd + figures) then refresh workspace —
+    // serialized, not concurrent.
+    await runCaptureAndRefresh()
+  }, [runCaptureAndRefresh])
 
   const handleRunSection = useCallback(async (code: string) => {
     const display = code.length > 80 ? code.substring(0, 77) + '...' : code
@@ -1024,8 +1096,10 @@ function App(): React.JSX.Element {
         detail: { display, output: '', error: String(err) },
       }))
     }
-    setWorkspaceRefreshTrigger((prev) => prev + 1)
-  }, [])
+    // US-L04: Run capture script (pwd + figures) then refresh workspace —
+    // serialized, not concurrent.
+    await runCaptureAndRefresh()
+  }, [runCaptureAndRefresh])
 
   const handleStop = useCallback(() => {
     window.matslop.octaveInterrupt()
@@ -1198,61 +1272,8 @@ function App(): React.JSX.Element {
   }, [])
 
   const handleCommandExecuted = useCallback(async () => {
-    // After each command, query pwd and capture figures in a single Octave command
-    if (octaveStatus.engineStatus === 'disconnected') return
-
-    // Combined query: get pwd + detect and capture figures
-    const captureScript = [
-      "__mslp_r__=pwd();disp(['__MATSLOP_PWD__:' __mslp_r__]);",
-      "__mslp_fh__=get(0,'children');",
-      "for __mslp_k__=1:length(__mslp_fh__);",
-      "__mslp_fp__=[tempdir() 'matslop_fig_' num2str(__mslp_fh__(__mslp_k__)) '.png'];",
-      "try;print(__mslp_fh__(__mslp_k__),__mslp_fp__,'-dpng','-r150');",
-      "disp(['__MATSLOP_FIG__:' num2str(__mslp_fh__(__mslp_k__)) ':' __mslp_fp__]);",
-      "catch;end;end;",
-      "clear __mslp_r__ __mslp_fh__ __mslp_k__ __mslp_fp__;"
-    ].join('')
-
-    try {
-      const result = await window.matslop.octaveExecute(captureScript)
-      const output = result.output || ''
-
-      // Parse pwd
-      const pwdMatch = output.match(/__MATSLOP_PWD__:(.+)/)
-      if (pwdMatch) {
-        const octaveCwd = pwdMatch[1].trim()
-        if (octaveCwd && octaveCwd !== cwd) {
-          setCwd(octaveCwd)
-        }
-      }
-
-      // Parse figures
-      const figMatches = [...output.matchAll(/__MATSLOP_FIG__:(\d+):(.+)/g)]
-      if (figMatches.length > 0) {
-        const newFigures: FigureData[] = []
-        for (const m of figMatches) {
-          const handle = parseInt(m[1])
-          const tempPath = m[2].trim()
-          const base64 = await window.matslop.figuresReadImage(tempPath)
-          if (base64) {
-            newFigures.push({
-              handle,
-              imageDataUrl: `data:image/png;base64,${base64}`,
-              tempPath,
-            })
-          }
-        }
-        setFigures(newFigures)
-      } else {
-        setFigures([])
-      }
-    } catch {
-      // ignore query errors
-    }
-
-    // Trigger workspace refresh after command execution
-    setWorkspaceRefreshTrigger((prev) => prev + 1)
-  }, [octaveStatus.engineStatus, cwd])
+    await runCaptureAndRefresh()
+  }, [runCaptureAndRefresh])
 
   const handleInspectVariable = useCallback((variable: InspectedVariable) => {
     setInspectedVariable(variable)
