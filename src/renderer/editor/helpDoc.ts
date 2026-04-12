@@ -72,16 +72,21 @@ export function buildHelpFetchCommand(name: string): string {
   // and-suspenders because the string gets substituted into an Octave
   // try/catch block.
   const safe = name.replace(/[^A-Za-z0-9_.]/g, '')
+  // IMPORTANT: use a namespaced local (`__mslp_help_s__`) so this
+  // command does not shadow the user's workspace variables — a plain
+  // `s = evalc(...)` would silently overwrite the user's `s`. Clear
+  // both temporaries at the end so `whos` stays clean.
   return [
     'try;',
-    `s = evalc('help ${safe}');`,
-    'if isempty(strtrim(s));',
-    `  try; [t,~] = get_help_text('${safe}'); s = t; catch; end;`,
+    `__mslp_help_s__ = evalc('help ${safe}');`,
+    'if isempty(strtrim(__mslp_help_s__));',
+    `  try; [__mslp_help_t__,~] = get_help_text('${safe}'); __mslp_help_s__ = __mslp_help_t__; catch; end;`,
     'end;',
-    `printf('__MSLP_HELP_BEGIN__:${safe}\\n%s__MSLP_HELP_END__\\n', s);`,
+    `printf('__MSLP_HELP_BEGIN__:${safe}\\n%s__MSLP_HELP_END__\\n', __mslp_help_s__);`,
     'catch err;',
     `printf('__MSLP_HELP_BEGIN__:${safe}\\nerror: %s\\n__MSLP_HELP_END__\\n', err.message);`,
     'end;',
+    'clear __mslp_help_s__ __mslp_help_t__;',
   ].join('')
 }
 
