@@ -1810,6 +1810,7 @@ function App(): React.JSX.Element {
               onStop={handleStop}
               onPauseForDebug={handlePauseForDebug}
               onRunSection={handleRunSection}
+              onDebugAction={handleDebugAction}
               menuAction={menuAction}
               onMenuActionConsumed={handleMenuActionConsumed}
               editorTheme={resolvedTheme === 'light' ? 'vs-light' : 'vs-dark'}

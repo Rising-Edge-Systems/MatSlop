@@ -3,6 +3,7 @@ import type { editor as monacoEditor } from 'monaco-editor'
 import TabbedEditor from '../editor/TabbedEditor'
 import EditorToolbar from '../editor/EditorToolbar'
 import { useAppContext } from '../AppContext'
+import type { DebugAction } from '../editor/debugCommands'
 import {
   createTab,
   createEmptyLiveScript,
@@ -65,6 +66,7 @@ interface EditorPanelProps {
    * absolute path (or null if the save was to an unsaved/untitled tab).
    */
   onFileSavedWhilePaused?: (filePath: string | null) => void
+  onDebugAction?: (action: DebugAction) => void
 }
 
 function EditorPanel({
@@ -86,6 +88,7 @@ function EditorPanel({
   editorSettings,
   pausedLocation,
   onFileSavedWhilePaused,
+  onDebugAction,
 }: EditorPanelProps): React.JSX.Element {
   // US-L02: Read file-open requests from AppContext to bypass rc-dock stale props
   const appCtx = useAppContext()
@@ -942,6 +945,7 @@ function EditorPanel({
         onRunSection={handleRunSection}
         onRunAndAdvance={handleRunAndAdvance}
         debugPaused={pausedLocation !== null}
+        onDebugAction={onDebugAction}
       />
       <div className="panel-content editor-panel-content">
         {runWarning !== null && (

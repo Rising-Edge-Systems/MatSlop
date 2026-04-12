@@ -7,8 +7,12 @@ import {
   Square,
   LayoutList,
   FastForward,
+  StepForward,
+  SkipForward,
+  ArrowDownToLine,
 } from 'lucide-react'
 import { useOctaveStatus } from '../OctaveContext'
+import type { DebugAction } from './debugCommands'
 
 interface EditorToolbarProps {
   hasActiveFile: boolean
@@ -24,6 +28,8 @@ interface EditorToolbarProps {
   onPauseForDebug?: () => void
   /** US-020: True while the debugger is already paused — hides the Pause button. */
   debugPaused?: boolean
+  /** Debug action callback (Step, Step In, Step Out, Continue). */
+  onDebugAction?: (action: DebugAction) => void
 }
 
 function EditorToolbar({
@@ -37,6 +43,7 @@ function EditorToolbar({
   onRunAndAdvance,
   onPauseForDebug,
   debugPaused = false,
+  onDebugAction,
 }: EditorToolbarProps): React.JSX.Element {
   const engineStatus = useOctaveStatus()
   const isBusy = engineStatus === 'busy'
@@ -45,6 +52,7 @@ function EditorToolbar({
   // US-020: Pause button is only meaningful while a script is actively
   // running and we're not ALREADY in the debugger.
   const pauseDisabled = !isBusy || debugPaused
+  const stepDisabled = !debugPaused
 
   return (
     <div className="editor-toolbar">
@@ -98,6 +106,35 @@ function EditorToolbar({
       >
         <Square size={16} />
       </button>
+      <div className="toolbar-separator" />
+      <button
+        className="toolbar-btn"
+        onClick={() => onDebugAction?.('stepOver')}
+        title="Step Over (F10)"
+        data-testid="toolbar-step-over"
+        disabled={stepDisabled}
+      >
+        <StepForward size={16} />
+      </button>
+      <button
+        className="toolbar-btn"
+        onClick={() => onDebugAction?.('stepIn')}
+        title="Step Into (F11)"
+        data-testid="toolbar-step-in"
+        disabled={stepDisabled}
+      >
+        <ArrowDownToLine size={16} />
+      </button>
+      <button
+        className="toolbar-btn"
+        onClick={() => onDebugAction?.('stepOut')}
+        title="Step Out (Shift+F11)"
+        data-testid="toolbar-step-out"
+        disabled={stepDisabled}
+      >
+        <SkipForward size={16} />
+      </button>
+      <div className="toolbar-separator" />
       <button
         className="toolbar-btn"
         onClick={onRunSection}
