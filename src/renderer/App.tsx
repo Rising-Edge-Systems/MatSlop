@@ -1674,6 +1674,10 @@ function App(): React.JSX.Element {
       onProfilerClose: () => setProfilerOpen(false),
 
       cwd,
+
+      pendingOpenPath,
+      pendingOpenLine,
+      onFileOpened: handleFileOpened,
     }),
     [
       helpState.topic,
@@ -1693,6 +1697,9 @@ function App(): React.JSX.Element {
       handleProfilerReport,
       handleProfilerNavigate,
       cwd,
+      pendingOpenPath,
+      pendingOpenLine,
+      handleFileOpened,
     ],
   )
 

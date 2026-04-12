@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, type DragEvent } from 'react'
 import type { editor as monacoEditor } from 'monaco-editor'
 import TabbedEditor from '../editor/TabbedEditor'
 import EditorToolbar from '../editor/EditorToolbar'
+import { useAppContext } from '../AppContext'
 import {
   createTab,
   createEmptyLiveScript,
@@ -69,9 +70,9 @@ interface EditorPanelProps {
 function EditorPanel({
   panelVisibility,
   onTogglePanel,
-  openFilePath,
-  openFileLine,
-  onFileOpened,
+  openFilePath: openFilePathProp,
+  openFileLine: openFileLineProp,
+  onFileOpened: onFileOpenedProp,
   onCursorPositionChange,
   onErrorCountChange,
   engineStatus,
@@ -86,6 +87,11 @@ function EditorPanel({
   pausedLocation,
   onFileSavedWhilePaused,
 }: EditorPanelProps): React.JSX.Element {
+  // US-L02: Read file-open requests from AppContext to bypass rc-dock stale props
+  const appCtx = useAppContext()
+  const openFilePath = appCtx.pendingOpenPath ?? openFilePathProp
+  const openFileLine = appCtx.pendingOpenLine ?? openFileLineProp
+  const onFileOpened = appCtx.pendingOpenPath !== null ? appCtx.onFileOpened : onFileOpenedProp
   // Start with an empty tab list. The session-restore / welcome-tab
   // useEffect below populates it after mount. Creating an untitled.m
   // dummy here caused the Run button to operate on the wrong tab when

@@ -39,6 +39,11 @@ export interface AppContextValue {
 
   // ── Shared: current working directory ───────────────────────────────
   cwd: string
+
+  // ── File open requests (FileBrowser → EditorPanel) ─────────────────
+  pendingOpenPath: string | null
+  pendingOpenLine: number | null
+  onFileOpened: () => void
 }
 
 /* eslint-disable @typescript-eslint/no-empty-function */
@@ -66,6 +71,10 @@ export const AppContext = createContext<AppContextValue>({
   onProfilerClose: noop,
 
   cwd: '',
+
+  pendingOpenPath: null,
+  pendingOpenLine: null,
+  onFileOpened: noop,
 })
 
 export function useAppContext(): AppContextValue {
