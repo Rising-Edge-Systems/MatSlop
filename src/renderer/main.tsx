@@ -2,16 +2,17 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import DetachedPlot from './DetachedPlot'
 import DetachedPanel from './DetachedPanel'
+import { wrapOctaveExecute } from './octaveBusyTracker'
 import './styles.css'
 
-// US-S02 note: the busy-indicator ref-counted tracker used to be installed
-// here by monkey-patching `window.matslop.octaveExecute`. Electron's
-// contextBridge freezes that property, which turned the original patch
-// into either a no-op or (worse) an infinite recursion through the Proxy
-// after HMR reloads. The tracker itself still exists in octaveBusyTracker.ts
-// as a module-level singleton — callers that want to drive it can import
-// `octaveBusyTracker.begin/end` directly, without trying to rewrite the
-// contextBridge object.
+// US-S02 / US-L01: Install the ref-counted busy tracker by wrapping the
+// contextBridge object in a Proxy that intercepts `octaveExecute` calls.
+// `window.matslop` itself (a regular property of `window`) IS writable —
+// only the properties OF the bridge object are frozen by contextBridge.
+// The Proxy intercepts property access without mutating the frozen object.
+// The idempotency guard (__matslopBusyTrackerWrapped) prevents double-
+// wrapping on HMR reloads.
+;(window as any).matslop = wrapOctaveExecute((window as any).matslop)
 
 // Note: StrictMode intentionally disabled — this is an Electron app (no SSR/hydration)
 // and StrictMode's double-invocation causes spurious side effects with IPC handlers
