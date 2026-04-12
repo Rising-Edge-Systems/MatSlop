@@ -464,14 +464,12 @@ function EditorPanel({
       // Previously prompted Save As which blocked the UI; now the user
       // can iterate quickly without saving first.
       try {
-        const tmpPath = await window.matslop.saveFile(
-          `/tmp/matslop_run_${tab.id.replace(/[^a-zA-Z0-9]/g, '_')}.m`,
-          tab.content,
-        )
-        if (!tmpPath.success) return
-        const runPath = `/tmp/matslop_run_${tab.id.replace(/[^a-zA-Z0-9]/g, '_')}.m`
-        const lastSep = runPath.lastIndexOf('/')
-        onRun?.(runPath, runPath.substring(0, lastSep))
+        const home = await window.matslop.getHomeDir()
+        const tmpName = `matslop_run_${tab.id.replace(/[^a-zA-Z0-9]/g, '_')}.m`
+        const tmpPath = `${home}/${tmpName}`
+        const saveResult = await window.matslop.saveFile(tmpPath, tab.content)
+        if (!saveResult.success) return
+        onRun?.(tmpPath, home)
       } catch {
         // Fall back to Save As
         const result = await window.matslop.saveFileAs(tab.content, tab.filename)
@@ -929,7 +927,6 @@ function EditorPanel({
     >
       <EditorToolbar
         hasActiveFile={activeTabId !== null}
-        engineStatus={engineStatus}
         onNewFile={handleNewFile}
         onOpenFile={handleOpenFile}
         onSave={handleSave}

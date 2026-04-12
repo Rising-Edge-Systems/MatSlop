@@ -20,6 +20,7 @@ import HelpPanel from './panels/HelpPanel'
 import FindInFilesPanel from './panels/FindInFilesPanel'
 import ProfilerPanel from './panels/ProfilerPanel'
 import SourceControlPanel from './panels/SourceControlPanel'
+import { OctaveContext } from './OctaveContext'
 import {
   buildProfileStartCommand,
   buildProfileStopCommand,
@@ -1620,6 +1621,11 @@ function App(): React.JSX.Element {
   // (Call Stack, Watches, Figure) are auto-shown based on state
   // transitions — they match the conditional-mount rules that the old
   // Allotment layout enforced via `visible={...}`.
+  const octaveCtx = useMemo(
+    () => ({ engineStatus: octaveStatus.engineStatus }),
+    [octaveStatus.engineStatus],
+  )
+
   const dockVisibility: DockVisibility = useMemo(
     () => ({
       fileBrowser: visibility.fileBrowser,
@@ -1686,6 +1692,7 @@ function App(): React.JSX.Element {
       {/* US-041: Auto-update notification banner. Renders null when idle,
           so it consumes no layout space until an update is available. */}
       <UpdateBanner />
+      <OctaveContext.Provider value={octaveCtx}>
       <div className="app-main">
       {/* US-025: Every panel is now a dock pane inside MatslopDockLayout,
           which wraps rc-dock. The layout tree is computed from the
@@ -1703,7 +1710,7 @@ function App(): React.JSX.Element {
           /* US-031: bust rc-dock's PureComponent cache when the help topic
              changes — otherwise the cached tab content keeps the old
              HelpPanel props. */
-          contentVersion={`engine:${octaveStatus.engineStatus}|cmd:${pendingCommand?.id ?? 0}|help:${helpState.topic ?? ''}:${helpState.loading ? 'L' : ''}${helpState.error ? 'E' : ''}${helpState.content ? 'C' : ''}|fif:${findInFilesOpen ? 'O' : ''}:${cwd}|prof:${profilerMode}:${profilerEntries.length}:${profilerError ? 'E' : ''}:${profilerLoading ? 'L' : ''}`}
+          contentVersion={`help:${helpState.topic ?? ''}:${helpState.loading ? 'L' : ''}${helpState.error ? 'E' : ''}${helpState.content ? 'C' : ''}|fif:${findInFilesOpen ? 'O' : ''}:${cwd}|prof:${profilerMode}:${profilerEntries.length}:${profilerError ? 'E' : ''}:${profilerLoading ? 'L' : ''}`}
           fileBrowser={
             dockVisibility.fileBrowser ? (
               <FileBrowser
@@ -1935,6 +1942,7 @@ function App(): React.JSX.Element {
         debugPaused={pausedLocation !== null}
         running={octaveBusyState === 'running'}
       />
+      </OctaveContext.Provider>
     </div>
   )
 }

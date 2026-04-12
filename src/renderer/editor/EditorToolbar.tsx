@@ -8,11 +8,10 @@ import {
   LayoutList,
   FastForward,
 } from 'lucide-react'
-import type { OctaveEngineStatus } from '../App'
+import { useOctaveStatus } from '../OctaveContext'
 
 interface EditorToolbarProps {
   hasActiveFile: boolean
-  engineStatus: OctaveEngineStatus
   onNewFile: () => void
   onOpenFile: () => void
   onSave: () => void
@@ -29,7 +28,6 @@ interface EditorToolbarProps {
 
 function EditorToolbar({
   hasActiveFile,
-  engineStatus,
   onNewFile,
   onOpenFile,
   onSave,
@@ -40,6 +38,7 @@ function EditorToolbar({
   onPauseForDebug,
   debugPaused = false,
 }: EditorToolbarProps): React.JSX.Element {
+  const engineStatus = useOctaveStatus()
   const isBusy = engineStatus === 'busy'
   const runDisabled = !hasActiveFile || isBusy || engineStatus === 'disconnected'
   const stopDisabled = !isBusy
@@ -75,11 +74,7 @@ function EditorToolbar({
       <button
         className="toolbar-btn toolbar-btn-run"
         onClick={() => {
-          // Dispatch a DOM event that App.tsx can catch outside rc-dock's
-          // stale-closure boundary — the prop-based onClick may capture
-          // an outdated handleRun from a cached render.
           window.dispatchEvent(new CustomEvent('matslop:runActiveScript'))
-          onRun?.()
         }}
         title="Run (F5)"
         disabled={runDisabled}
