@@ -408,14 +408,6 @@ export interface MatslopDockLayoutProps {
    * separate OS windows. Detached tabs are omitted from the dock layout
    * tree entirely (same treatment as visibility=false).
    */
-  /**
-   * US-031: additional cache-busting key that forces a layout rebuild
-   * when it changes, even if visibility did not. Used by the Help panel
-   * to refresh cached tab content when the displayed topic changes —
-   * rc-dock's PureComponent panels would otherwise not re-render the
-   * stale JSX captured in `loadTab`.
-   */
-  contentVersion?: string
   detachedPanels?: ReadonlySet<string>
   /**
    * US-027: called when the user picks "Detach" from a tab's context
@@ -433,7 +425,7 @@ export interface MatslopDockLayoutProps {
  * layout and has no content (so its data-testid does not leak into DOM).
  */
 export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.JSX.Element {
-  const { visibility, savedDockLayout, onDockLayoutChange, detachedPanels, onDetachTab, contentVersion } = props
+  const { visibility, savedDockLayout, onDockLayoutChange, detachedPanels, onDetachTab } = props
   const containerRef = useRef<HTMLDivElement>(null)
   const dockRef = useRef<DockLayout>(null)
   // Keep the latest change handler in a ref so we don't need to re-bind
@@ -550,19 +542,20 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
   }, [savedDockLayout])
   // Track whether we already consumed the initial saved layout so the
   // visibility-effect below knows to rebuild instead of re-applying it.
+  // US-L02: contentVersion removed — panels now read dynamic state from
+  // AppContext, so layout rebuilds are only needed for visibility/detach
+  // changes, not data changes.
   const visKey = JSON.stringify(visibility)
   const detachedKey = detachedPanels ? [...detachedPanels].sort().join('|') : ''
-  const versionKey = contentVersion ?? ''
-  const prevKeysRef = useRef({ vis: visKey, detached: detachedKey, version: versionKey })
+  const prevKeysRef = useRef({ vis: visKey, detached: detachedKey })
   useEffect(() => {
     if (
       prevKeysRef.current.vis === visKey &&
-      prevKeysRef.current.detached === detachedKey &&
-      prevKeysRef.current.version === versionKey
+      prevKeysRef.current.detached === detachedKey
     ) {
       return
     }
-    prevKeysRef.current = { vis: visKey, detached: detachedKey, version: versionKey }
+    prevKeysRef.current = { vis: visKey, detached: detachedKey }
     // US-Q02: build a fresh layout from the current visibility, then run
     // it through the sanitizer too. `buildDockLayoutFromVisibility` is
     // already ghost-free by construction, but funnelling every rebuild
@@ -573,7 +566,7 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
     const cleaned = sanitizeSavedDockLayout(fresh as unknown as LayoutBase, visibility, detachedPanels)
     setLayout((cleaned ?? fresh) as LayoutData)
     // NOTE: keyed on serialised strings; full objects intentionally omitted.
-  }, [visKey, detachedKey, versionKey])
+  }, [visKey, detachedKey])
 
   const loadTab = (tab: TabData): TabData => {
     const id = tab.id as MatslopDockTabId | undefined

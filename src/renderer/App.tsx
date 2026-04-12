@@ -21,6 +21,7 @@ import FindInFilesPanel from './panels/FindInFilesPanel'
 import ProfilerPanel from './panels/ProfilerPanel'
 import SourceControlPanel from './panels/SourceControlPanel'
 import { OctaveContext } from './OctaveContext'
+import { AppContext, type AppContextValue } from './AppContext'
 import {
   buildProfileStartCommand,
   buildProfileStopCommand,
@@ -1626,6 +1627,54 @@ function App(): React.JSX.Element {
     [octaveStatus.engineStatus],
   )
 
+  // US-L02: AppContext carries all dynamic state that panels previously
+  // received as frozen props through rc-dock's loadTab cache. Panels now
+  // read from this context instead, so data updates bypass rc-dock's
+  // PureComponent optimisation without forcing a full layout rebuild.
+  const appCtx: AppContextValue = useMemo(
+    () => ({
+      helpTopic: helpState.topic,
+      helpContent: helpState.content,
+      helpError: helpState.error,
+      helpLoading: helpState.loading,
+      helpCanGoBack: helpState.history.length > 0,
+      onHelpNavigate: handleHelpNavigate,
+      onHelpBack: handleHelpBack,
+      onHelpClose: handleHelpClose,
+
+      profilerMode,
+      profilerEntries,
+      profilerError,
+      profilerLoading,
+      onProfilerStart: handleProfilerStart,
+      onProfilerStop: handleProfilerStop,
+      onProfilerReport: handleProfilerReport,
+      onProfilerNavigate: handleProfilerNavigate,
+      onProfilerClose: () => setProfilerOpen(false),
+
+      cwd,
+    }),
+    [
+      helpState.topic,
+      helpState.content,
+      helpState.error,
+      helpState.loading,
+      helpState.history.length,
+      handleHelpNavigate,
+      handleHelpBack,
+      handleHelpClose,
+      profilerMode,
+      profilerEntries,
+      profilerError,
+      profilerLoading,
+      handleProfilerStart,
+      handleProfilerStop,
+      handleProfilerReport,
+      handleProfilerNavigate,
+      cwd,
+    ],
+  )
+
   const dockVisibility: DockVisibility = useMemo(
     () => ({
       fileBrowser: visibility.fileBrowser,
@@ -1693,6 +1742,7 @@ function App(): React.JSX.Element {
           so it consumes no layout space until an update is available. */}
       <UpdateBanner />
       <OctaveContext.Provider value={octaveCtx}>
+      <AppContext.Provider value={appCtx}>
       <div className="app-main">
       {/* US-025: Every panel is now a dock pane inside MatslopDockLayout,
           which wraps rc-dock. The layout tree is computed from the
@@ -1707,10 +1757,6 @@ function App(): React.JSX.Element {
           onDockLayoutChange={handleDockLayoutChange}
           detachedPanels={detachedPanels}
           onDetachTab={handleDetachTab}
-          /* US-031: bust rc-dock's PureComponent cache when the help topic
-             changes — otherwise the cached tab content keeps the old
-             HelpPanel props. */
-          contentVersion={`help:${helpState.topic ?? ''}:${helpState.loading ? 'L' : ''}${helpState.error ? 'E' : ''}${helpState.content ? 'C' : ''}|fif:${findInFilesOpen ? 'O' : ''}:${cwd}|prof:${profilerMode}:${profilerEntries.length}:${profilerError ? 'E' : ''}:${profilerLoading ? 'L' : ''}`}
           fileBrowser={
             dockVisibility.fileBrowser ? (
               <FileBrowser
@@ -1809,31 +1855,22 @@ function App(): React.JSX.Element {
           }
           profiler={
             dockVisibility.profiler ? (
-              <ProfilerPanel
-                mode={profilerMode}
-                entries={profilerEntries}
-                error={profilerError}
-                loading={profilerLoading}
-                onStart={handleProfilerStart}
-                onStop={handleProfilerStop}
-                onReport={handleProfilerReport}
-                onNavigate={handleProfilerNavigate}
-                onClose={() => setProfilerOpen(false)}
-              />
+              /* US-L02: ProfilerPanel reads all dynamic state from AppContext. */
+              <ProfilerPanel />
             ) : null
           }
           sourceControl={
             dockVisibility.sourceControl ? (
+              /* US-L02: SourceControlPanel reads cwd from AppContext. */
               <SourceControlPanel
-                cwd={cwd}
                 onClose={() => setSourceControlOpen(false)}
               />
             ) : null
           }
           findInFiles={
             dockVisibility.findInFiles ? (
+              /* US-L02: FindInFilesPanel reads cwd from AppContext. */
               <FindInFilesPanel
-                cwd={cwd}
                 onOpenMatch={(filePath, line) => {
                   setPendingOpenLine(line)
                   setPendingOpenPath(filePath)
@@ -1844,16 +1881,10 @@ function App(): React.JSX.Element {
           }
           helpBrowser={
             dockVisibility.helpBrowser ? (
-              <HelpPanel
-                topic={helpState.topic}
-                content={helpState.content}
-                error={helpState.error}
-                loading={helpState.loading}
-                canGoBack={helpState.history.length > 0}
-                onNavigate={handleHelpNavigate}
-                onBack={handleHelpBack}
-                onClose={handleHelpClose}
-              />
+              /* US-L02: HelpPanel reads all dynamic state from AppContext.
+                 No data props needed — rc-dock's cached element stays
+                 up-to-date via context propagation. */
+              <HelpPanel />
             ) : null
           }
         />
@@ -1942,6 +1973,7 @@ function App(): React.JSX.Element {
         debugPaused={pausedLocation !== null}
         running={octaveBusyState === 'running'}
       />
+      </AppContext.Provider>
       </OctaveContext.Provider>
     </div>
   )

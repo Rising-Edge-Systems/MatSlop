@@ -1,33 +1,39 @@
 import { useMemo } from 'react'
 import { splitHelpBody, type HelpSegment } from '../editor/helpDoc'
+import { useAppContext } from '../AppContext'
 
 /**
  * US-031: Help browser panel. Shows the output of `help <name>` with
  * clickable cross-references for the "See also:" section. All navigation
  * logic lives in App.tsx; this component is a dumb renderer over the
  * help-state reducer in `src/renderer/editor/helpDoc.ts`.
+ *
+ * US-L02: Reads help state from AppContext instead of props so that
+ * rc-dock's cached element stays up-to-date without a layout rebuild.
+ * Props are accepted as optional overrides for testing without a provider.
  */
 export interface HelpPanelProps {
-  topic: string | null
-  content: string | null
-  error: string | null
-  loading: boolean
-  canGoBack: boolean
-  onNavigate: (topic: string) => void
-  onBack: () => void
+  topic?: string | null
+  content?: string | null
+  error?: string | null
+  loading?: boolean
+  canGoBack?: boolean
+  onNavigate?: (topic: string) => void
+  onBack?: () => void
   onClose?: () => void
 }
 
-function HelpPanel({
-  topic,
-  content,
-  error,
-  loading,
-  canGoBack,
-  onNavigate,
-  onBack,
-  onClose,
-}: HelpPanelProps): React.JSX.Element {
+function HelpPanel(props: HelpPanelProps): React.JSX.Element {
+  const ctx = useAppContext()
+
+  const topic = props.topic !== undefined ? props.topic : ctx.helpTopic
+  const content = props.content !== undefined ? props.content : ctx.helpContent
+  const error = props.error !== undefined ? props.error : ctx.helpError
+  const loading = props.loading !== undefined ? props.loading : ctx.helpLoading
+  const canGoBack = props.canGoBack !== undefined ? props.canGoBack : ctx.helpCanGoBack
+  const onNavigate = props.onNavigate ?? ctx.onHelpNavigate
+  const onBack = props.onBack ?? ctx.onHelpBack
+
   const segments: HelpSegment[] = useMemo(() => {
     if (!content) return []
     return splitHelpBody(content)

@@ -1,99 +1,34 @@
 # Ralph Progress Log
-Started: Sat Apr 11 07:38:25 PM EDT 2026
-
+Started: Sun Apr 12 01:10:40 PM EDT 2026
+---
 ## Codebase Patterns
-- Octave `help()` function form returns '' when texinfo filter fails; use `evalc('help <name>')` (command form) for help text, with `get_help_text` as fallback
-- Help panel IPC: buildHelpFetchCommand wraps output in `__MSLP_HELP_BEGIN__:<name>\n...__MSLP_HELP_END__` delimiters so extractHelpBody can slice it cleanly
-- Unsafe user input into Octave commands: strip to `[A-Za-z0-9_.]` (see buildHelpFetchCommand)
-- Test Octave directly at /tmp/octave-root/octave-cli-wrap when validating Octave command snippets
-- ESLint config has NO `eslint-plugin-react-hooks` — do not add `// eslint-disable-next-line react-hooks/exhaustive-deps` directives (ESLint errors on unknown rule). Use plain `// NOTE:` comments to document intent.
-- Current lint baseline: 0 errors, 16 pre-existing warnings (all `onCollapse`/`onClose` unused panel prop interface args). New work should not regress error count.
-- OctaveProcessManager: `processQueue()` only re-enters from (a) executeCommand() calls or (b) a command resolver's setImmediate. Any custom `pendingResolve` must chain processQueue() on completion or queued commands will hang.
-- Unit-testing OctaveProcessManager: mock `child_process.spawn` with a FakeChildProcess that has `stdin.write`, stdout/stderr EventEmitters. Emit `___MATSLOP_CMD_DONE___\n` on stdout to simulate a completed command.
-- `octave:start` IPC creates a NEW OctaveProcessManager every time the renderer invokes it (e.g. on HMR/reload), so the init-handshake path runs fresh on every reload.
+- `window.matslop` is writable (regular window property), but its properties are frozen by contextBridge — use Proxy wrapping, not mutation
+- The octaveBusyTracker is a module-level singleton in octaveBusyTracker.ts — App.tsx subscribes to it via useEffect
+- Typecheck: `npx tsc --noEmit`, Tests: `npx vitest run`
+- rc-dock caches loadTab results (PureComponent). Use React Context (AppContext) for dynamic panel state, NOT props passed through MatslopDockLayout slots
+- Panel components accept optional props that override AppContext values — this allows testing without a provider
+- Callbacks from App.tsx useCallback are stable and safe as frozen props in rc-dock's cache; only data values need context
 
+## 2026-04-12 13:11 - US-L01
+- Wired up octaveBusyTracker by calling `wrapOctaveExecute(window.matslop)` in main.tsx before ReactDOM.createRoot
+- Files changed: src/renderer/main.tsx (import added, comment updated, wrapOctaveExecute call added)
+- **Learnings for future iterations:**
+  - The fix was a single line: `(window as any).matslop = wrapOctaveExecute((window as any).matslop)`
+  - The Proxy approach works because window.matslop itself is writable — only the bridge object's properties are frozen
+  - The idempotency guard `__matslopBusyTrackerWrapped` prevents double-wrapping on HMR reloads
+  - All 586 tests pass, typecheck clean
 ---
 
-## 2026-04-11 - US-T02
-- Fixed WorkspacePanel first-refresh hang at its root cause in OctaveProcessManager.start()
-- Root cause: the init handshake's pendingResolve was a noop that did not chain processQueue(). If the renderer queued a command (e.g. `whos`) before the init delimiter arrived, the command sat in commandQueue forever because nothing re-entered processQueue once pendingResolve was nulled. This happens on every renderer reload since `octave:start` constructs a fresh OctaveProcessManager.
-- Fix: init pendingResolve now schedules `processQueue()` via setImmediate, draining any queued commands immediately after the init delimiter.
-- Also reduced WorkspacePanel watchdog from 5s to 30s (safety net only — no longer masking the bug).
-- Files changed:
-  - src/main/octaveProcess.ts (init pendingResolve now chains processQueue)
-  - src/renderer/panels/WorkspacePanel.tsx (watchdog 5s → 30s safety net)
-  - tests/unit/octave-process-init-race.test.ts (new — reproduces the race with a mocked spawn)
-- Tests: 584 passed / 0 failed. Typecheck clean.
+## 2026-04-12 13:21 - US-L02
+- Created AppContext (src/renderer/AppContext.tsx) holding help state, profiler state, and cwd with useAppContext hook
+- Updated HelpPanel, ProfilerPanel, FindInFilesPanel, SourceControlPanel to read dynamic state from AppContext instead of props
+- Removed contentVersion prop from MatslopDockLayout — no more full layout rebuilds on data changes
+- Wrapped DockLayout in AppContext.Provider in App.tsx
+- Files changed: src/renderer/AppContext.tsx (new), App.tsx, MatslopDockLayout.tsx, HelpPanel.tsx, ProfilerPanel.tsx, FindInFilesPanel.tsx, SourceControlPanel.tsx
 - **Learnings for future iterations:**
-  - When adding a custom pendingResolve anywhere in OctaveProcessManager, always chain `setImmediate(() => this.processQueue())` or queued commands will hang
-  - On renderer reload, `octave:start` creates a fresh manager — anything that depends on "already-initialized" state must be idempotent
-  - OctaveProcessManager is testable end-to-end by mocking `child_process.spawn` with a FakeChildProcess EventEmitter (see octave-interrupt.test.ts and octave-process-init-race.test.ts for templates)
----
-
-## 2026-04-11 - US-T01
-- Fixed Help panel rendering "No help found" for `doc sin` / `help sin`
-- Root cause: `disp(help('sin'))` returns empty when Octave's texinfo filter fails (Text::Unidecode missing etc.). The command form `help sin` prints a warning + raw texinfo to stdout.
-- Changed buildHelpFetchCommand to use `evalc('help <name>')` with `get_help_text` fallback, inside try/catch that emits `error: <msg>` as the body on failure
-- Files changed:
-  - src/renderer/editor/helpDoc.ts (buildHelpFetchCommand rewritten)
-  - tests/unit/help-doc.test.ts (updated cmd assertions; added fixture test for real Octave 8.4 output + error body)
-- Tests: 582 passed / 0 failed. Typecheck clean.
-- **Learnings for future iterations:**
-  - Verify Octave command snippets against a real Octave install before shipping — function-form vs command-form of `help` behave very differently
-  - The Help panel renders `error` state verbatim already; the fix was upstream (always produce a non-empty body in the output stream)
-  - Fixture tests should use REAL captured output (including warning lines) not hand-crafted ideal output
-  - Pre-existing lint errors in the tree: 5x react-hooks/exhaustive-deps (plugin not loaded) + 1x prefer-const. Ignore when reviewing new changes.
----
-
-## 2026-04-11 - US-T03
-- Gated debug hooks `__matslopRefreshWorkspace`, `__matslopResetWsGuard`, `__matslopWsRefs` behind `import.meta.env.DEV` in WorkspacePanel.tsx
-- Used early `if (!import.meta.env.DEV) return` inside the existing useEffect so Vite's define substitution + tree-shaking strips the block (and the string literals) from the production bundle
-- Verified: after `npm run build`, `grep -r __matslopRefreshWorkspace dist/` returns empty — no hook name strings in the production JS
-- Files changed:
-  - src/renderer/panels/WorkspacePanel.tsx
-  - scripts/ralph/prd.json (US-T03 passes: true)
-- Tests: 584 passed / 0 failed. Typecheck clean. Build clean.
-- **Learnings for future iterations:**
-  - Vite replaces `import.meta.env.DEV` with `false` at build time. `if (!import.meta.env.DEV) return` inside a function gives full dead-code elimination — any subsequent string literals / code disappear from the production bundle
-  - To verify prod bundle purity, `npm run build` then `grep -r <needle> dist/` — if the grep is empty, the needle is gone
-  - No E2E tests currently use the `__matslopWs*` hooks (only source-control has `__matslopOpenSourceControl` etc.); the workspace debug hooks were pure dev-only diagnostics
----
-
-## 2026-04-11 - US-T04
-- Wired end-to-end verification of File > Publish > HTML for .m scripts
-- Enhanced handlePublishHtml in EditorPanel to capture disp/fprintf output for saved .m files by running `disp(evalc("source('<path>')"))` via `window.matslop.octaveExecute` before assembling the HTML; the captured text is passed to publishHtml({ scriptOutput }) so published docs carry real runtime output (previously the .m path only emitted a code listing)
-- New integration test (tests/integration/publish-html-integration.test.ts) runs under vitest and exercises the full pipeline with real Octave + real file IO: writes a temp .m file, uses OctaveProcessManager to evalc-source it, publishes to HTML, reads the file back, asserts highlighted code, embedded runtime output, self-contained (no <script>, no external css/js), and verifies figure embedding via a synthesised 1x1 PNG through the livescript path
-- New Playwright e2e spec (tests/e2e/publish-html.spec.ts) mirrors the flow through the packaged app: opens hello.m, stubs publishSaveDialog to a temp path, leaves publishWriteFile real, dispatches the `publishHtml` menu action through _testMenuAction, and asserts the resulting file on disk
-- Files changed:
-  - src/renderer/panels/EditorPanel.tsx (handlePublishHtml now captures script output via octaveExecute+evalc)
-  - tests/integration/publish-html-integration.test.ts (new)
-  - tests/e2e/publish-html.spec.ts (new)
-  - scripts/ralph/prd.json (US-T04 passes: true)
-- Tests: 586 passed / 0 failed (was 584). Typecheck clean.
-- **Learnings for future iterations:**
-  - Integration tests that need a real Octave gracefully fall back to `/tmp/octave-root/octave-cli-wrap` when `resources/octave/bin/octave-cli` is absent — pattern: `fs.accessSync(devWrap, fs.constants.X_OK)` before use. Do NOT modify `tests/helpers/octaveBinary.ts` (affects the whole suite) — localize the fallback to the one test file that needs it
-  - Octave's graphics stack is unusable in many CI/dev environments (freetype font errors break `plot()` + `print()`). When a publish/export test needs to exercise the figure-embedding code path, synthesise a tiny PNG in JS (`Buffer.from('89504e47...', 'hex')`) and feed it through the live-script publish helper instead of depending on Octave rendering
-  - The renderer-side IPC for publish is split: `publishSaveDialog` (just dialog, returns {filePath}) + `publishWriteFile` (actual fs.writeFile). e2e tests can stub the dialog and leave writeFile real for a true disk-write assertion
-  - `disp(evalc("source('<path>')"))` is the canonical way to capture a .m script's stdout output from inside Octave without running it in a subprocess — handles disp, fprintf, and automatic variable echo
-  - The test-only `_testMenuAction(action)` bridge dispatches through `mainWindow.webContents.send('menu:action', action)` — use it to drive any File menu action in e2e specs without synthesising real menu clicks
----
-
-## 2026-04-11 - US-T05
-- Swept src/ for stale debug output: 0 console.log/debug/info calls and 0 `debugger;` statements in src/renderer (and src/main). Story was effectively already clean on the content axis.
-- Fixed 6 pre-existing ESLint errors that were blocking the "ESLint passes" acceptance criterion:
-  - 5x `// eslint-disable-next-line react-hooks/exhaustive-deps` directives referencing an uninstalled rule (eslint-plugin-react-hooks is NOT in package.json). Replaced each with a plain `// NOTE:` comment that preserves the original intent.
-  - 1x `let k` → `const k` in publishHtml.ts:85 (prefer-const).
-- Lint: 0 errors, 16 warnings (all pre-existing unused-arg warnings in panel prop interfaces, not from this story).
-- Files changed:
-  - src/renderer/App.tsx
-  - src/renderer/dialogs/PreferencesDialog.tsx
-  - src/renderer/panels/EditorPanel.tsx
-  - src/renderer/panels/MatslopDockLayout.tsx (two sites)
-  - src/renderer/editor/publishHtml.ts
-  - scripts/ralph/prd.json
-- Tests: 586 passed / 0 failed. Typecheck clean.
-- **Learnings for future iterations:**
-  - `eslint-plugin-react-hooks` is NOT configured in eslint.config.js, but legacy inline directives referencing `react-hooks/exhaustive-deps` still existed — each one triggers a hard ESLint error ("Definition for rule ... was not found"). If you need to suppress a hooks rule, either install + configure the plugin or use a plain comment.
-  - The pre-existing 6 lint errors flagged in prior cycles are NOW fixed — future iterations should NOT see them. The 16 remaining warnings are all `onCollapse`/`onClose` panel props unused in implementations but kept for the uniform panel interface contract.
-  - src/ currently has zero `console.log` / `debugger;` debris — if future polish cycles sprinkle any, this story's approach (Grep for `console\.(log|debug|info)` and `^\s*debugger\s*;?\s*$` scoped to src/) is the audit recipe.
+  - rc-dock caches loadTab results via PureComponent — React Context is the correct way to pass dynamic data to cached panel components
+  - Panel props are "frozen" at the time loadTab is first called; useCallback-wrapped callbacks are safe because they use refs internally
+  - The contentVersion hack forced full layout rebuilds (destroying scroll position, undo history); context propagation updates panels without rebuilding
+  - Made all data props optional (prop ?? context fallback) so panels remain testable without wrapping in a provider
+  - All 586 tests pass, typecheck clean
 ---

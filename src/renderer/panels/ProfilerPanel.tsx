@@ -5,6 +5,7 @@ import {
   type ProfilerEntry,
   type ProfilerMode,
 } from '../editor/profilerStore'
+import { useAppContext } from '../AppContext'
 
 /**
  * US-033: Profiler panel. Shows Start/Stop/Report controls and a sortable
@@ -14,32 +15,36 @@ import {
  * renderer over the state reducers in profilerStore.ts. Clicking a row's
  * function name asks the host to `which` the symbol and open the
  * resulting path in the editor.
+ *
+ * US-L02: Reads profiler state from AppContext so rc-dock's cached element
+ * stays up-to-date without a layout rebuild. Props are accepted as
+ * optional overrides for testing without a provider.
  */
 export interface ProfilerPanelProps {
-  mode: ProfilerMode
-  entries: ProfilerEntry[]
-  error: string | null
-  loading: boolean
-  onStart: () => void
-  onStop: () => void
-  onReport: () => void
-  onNavigate: (functionName: string) => void
+  mode?: ProfilerMode
+  entries?: ProfilerEntry[]
+  error?: string | null
+  loading?: boolean
+  onStart?: () => void
+  onStop?: () => void
+  onReport?: () => void
+  onNavigate?: (functionName: string) => void
   onClose?: () => void
 }
 
 type SortKey = 'totalTime' | 'numCalls' | 'functionName'
 
-function ProfilerPanel({
-  mode,
-  entries,
-  error,
-  loading,
-  onStart,
-  onStop,
-  onReport,
-  onNavigate,
-  onClose,
-}: ProfilerPanelProps): React.JSX.Element {
+function ProfilerPanel(props: ProfilerPanelProps): React.JSX.Element {
+  const ctx = useAppContext()
+
+  const mode = props.mode !== undefined ? props.mode : ctx.profilerMode
+  const entries = props.entries !== undefined ? props.entries : ctx.profilerEntries
+  const error = props.error !== undefined ? props.error : ctx.profilerError
+  const loading = props.loading !== undefined ? props.loading : ctx.profilerLoading
+  const onStart = props.onStart ?? ctx.onProfilerStart
+  const onStop = props.onStop ?? ctx.onProfilerStop
+  const onReport = props.onReport ?? ctx.onProfilerReport
+  const onNavigate = props.onNavigate ?? ctx.onProfilerNavigate
   const [sortKey, setSortKey] = useState<SortKey>('totalTime')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 

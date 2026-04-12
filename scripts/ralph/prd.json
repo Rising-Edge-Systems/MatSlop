@@ -1,85 +1,136 @@
 {
   "project": "MatSlop",
-  "branchName": "ralph/matslop-polish-v4",
-  "description": "End-to-end bug bash cycle 6. Live-validated against a real Octave 8.4 install. Found several concrete bugs: Help panel 'Error: No help found' for valid `doc sin` / `help sin` queries; WorkspacePanel needed a watchdog hack because the first refresh after a renderer reload hangs (root cause: OctaveProcessManager sometimes swallows the first command post-HMR); `doc sin` routes to Help panel but returns empty. Also: lint cleanup of leftover test hooks, publish to HTML verification, a reliable first-refresh path that does not need the watchdog.",
+  "branchName": "ralph/fix-known-limitations",
+  "description": "Fix all actionable known limitations documented in KNOWN_LIMITATIONS.md. This PRD addresses: busy indicator not wired up, rc-dock stale closures via React Context, workspace first-refresh race condition hardening, command capture race with workspace refresh, welcome file UX (function vs plain script), and session restore robustness. Each story is scoped to be independently testable and commitable.",
   "userStories": [
     {
-      "id": "US-T01",
-      "title": "Help panel shows real content for `doc sin` / `help sin`",
-      "description": "Routing `doc sin` from the Command Window opens the Help panel but renders 'Error: No help found', even though the underlying `help sin` Octave command returns a full paragraph of help text. Root cause: buildHelpFetchCommand used disp(help('<name>')) — the function form of `help` returns an empty string when Octave's texinfo filter fails (e.g. Text::Unidecode missing). Fixed by using evalc('help <name>') (the command form) with a get_help_text fallback.",
+      "id": "US-L01",
+      "title": "Wire up octaveBusyTracker via wrapOctaveExecute in main.tsx",
+      "description": "The busy indicator (US-S02) is fully implemented in octaveBusyTracker.ts but never activated. The `wrapOctaveExecute` Proxy approach works — it returns a new Proxy object that intercepts `octaveExecute` calls. The problem was that main.tsx tried to reassign `window.matslop` after contextBridge froze it. The fix: call `wrapOctaveExecute(window.matslop)` in main.tsx BEFORE ReactDOM.createRoot, and assign the result back to `window.matslop`. `window.matslop` itself (as a property of `window`) IS writable — only the properties OF the bridge object are frozen. The Proxy intercepts property access without mutating the frozen object. Read the comment at lines 7-14 of src/renderer/main.tsx and the wrapOctaveExecute function in src/renderer/octaveBusyTracker.ts (lines 128-152) to understand the existing code. The status bar in App.tsx already subscribes to octaveBusyTracker state (lines 154-157) — it just never gets driven because wrapOctaveExecute is never called.",
       "acceptanceCriteria": [
-        "Typing `doc sin` in the command window opens the Help panel and shows Octave's `help sin` output (starting with \"'sin' is a built-in function...\")",
-        "Typing `help sin` has identical behavior (both route to Help panel in MatSlop's US-031 design)",
-        "If Octave returns 'error: help: ...' the panel still renders that message verbatim instead of a generic 'No help found'",
-        "Clicking See Also cross-references navigates to the corresponding help topic",
-        "Unit test: feed the real `help sin` output (from a fixture) through the panel's content renderer and assert the displayed text",
+        "In src/renderer/main.tsx, before ReactDOM.createRoot, call: `(window as any).matslop = wrapOctaveExecute((window as any).matslop)` (import wrapOctaveExecute from './octaveBusyTracker')",
+        "The status bar shows 'Running...' during commands that take >250ms (the debounce threshold in octaveBusyTracker)",
+        "Fast commands (<250ms) do NOT flicker the status bar",
+        "The existing octaveBusyTracker unit tests still pass",
+        "No infinite recursion or errors on HMR reload (the Proxy's idempotency guard __matslopBusyTrackerWrapped prevents double-wrapping)",
         "Typecheck passes",
-        "Tests pass",
-        "Verify in browser using dev-browser skill"
+        "All tests pass"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Fixed in buildHelpFetchCommand: use evalc('help <name>') with get_help_text fallback. Added fixture tests for real Octave 8.4 help output and error-body rendering."
+      "passes": true
     },
     {
-      "id": "US-T02",
-      "title": "Fix WorkspacePanel first-refresh hang at source",
-      "description": "The hotfix watchdog in WorkspacePanel works but masks a real bug: the very first `octaveExecute('whos')` after a renderer reload silently hangs. The OctaveProcessManager's in-flight queue likely gets into a state where the first command is lost or its response is not routed back to the awaiting IPC caller. Find the root cause in src/main/octaveProcess.ts and fix it so the watchdog becomes unnecessary.",
+      "id": "US-L02",
+      "title": "Move dynamic panel state into React Context to fix rc-dock stale closures",
+      "description": "rc-dock's loadTab factory caches React elements. When App.tsx passes props that change (like helpState, cwd, octaveStatus) to panel components through the loadTab factory, those updates are silently dropped because rc-dock's PureComponent optimization prevents re-rendering cached tabs. The current workaround is `contentVersion` — a string built from all mutable state that forces a full layout rebuild when any value changes. This works but destroys component state (command window scroll position, editor undo history, etc.) on every help topic change or cwd update.\n\nThe correct fix: create a React Context (or extend the existing OctaveContext) that holds ALL dynamic state that panels need. Panel components read from context instead of props. Context updates bypass rc-dock's caching entirely because React's context propagation works through any component tree.\n\nSpecifically:\n1. Create `src/renderer/AppContext.tsx` with a context that holds: engineStatus, cwd, helpState (topic + content + loading), octaveBusyState, debugState (paused, currentFile, currentLine), and any other frequently-changing values currently passed as props through loadTab.\n2. Wrap the DockLayout in `<AppContext.Provider value={...}>` in App.tsx.\n3. In each panel component that reads these values, replace prop access with `useAppContext()` hook calls.\n4. Remove `contentVersion` from MatslopDockLayout props and the layout-rebuild logic it triggers. The layout should only rebuild on visibility/detached changes, not on data changes.\n5. Keep the existing OctaveContext for engineStatus (it's already used by WorkspacePanel) or merge it into the new AppContext.\n\nIMPORTANT: Do NOT touch the loadTab factory itself — it should continue to read from slotsRef for the initial render. The point is that the React elements it caches will internally read from context, so they stay up-to-date even when rc-dock doesn't re-call loadTab.",
       "acceptanceCriteria": [
-        "After a fresh renderer reload (or first launch), `window.matslop.octaveExecute('whos')` resolves within 1 second",
-        "Watchdog in WorkspacePanel refreshWorkspace is removed (or reduced to a 30s safety net)",
-        "Unit test with a mocked process manager that simulates the race condition no longer hangs",
+        "A new AppContext exists in src/renderer/AppContext.tsx with a provider and useAppContext hook",
+        "HelpBrowser reads helpState from context, not props — changing help topic updates the panel without a layout rebuild",
+        "WorkspacePanel reads engineStatus from context (can keep existing OctaveContext or merge)",
+        "The `contentVersion` prop is removed from MatslopDockLayout",
+        "Changing help topic does NOT cause CommandWindow to lose scroll position or input text",
+        "Changing cwd does NOT cause editor tabs to remount",
+        "All 12 panel types still render correctly in the dock",
+        "Drag-and-drop between panels still works",
         "Typecheck passes",
-        "Tests pass"
+        "All tests pass"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Fixed in OctaveProcessManager.start(): the init-handshake pendingResolve now schedules processQueue() via setImmediate, so commands queued before the init delimiter arrives are drained. WorkspacePanel watchdog reduced from 5s to 30s as a safety net only."
+      "passes": true
     },
     {
-      "id": "US-T03",
-      "title": "Remove temporary `__matslopWs*` debug hooks from production build",
-      "description": "The cycle-5 hotfix stack added `window.__matslopRefreshWorkspace`, `__matslopResetWsGuard`, `__matslopWsRefs` as test hooks. Gate them behind `import.meta.env.DEV` (or an E2E env flag) so they do not leak into the packaged production bundle.",
+      "id": "US-L03",
+      "title": "Harden workspace first-refresh: eliminate timeout race in WorkspacePanel",
+      "description": "The init-handshake race in OctaveProcessManager was fixed in US-T02 (setImmediate drain). But WorkspacePanel still has a defensive 1.5s timeout + 3-retry loop (lines 250-262 of WorkspacePanel.tsx) that was added as a workaround. Now that the root cause is fixed, simplify the refresh logic:\n\n1. Remove the Promise.race timeout wrapper (whosWithTimeout). Just call `window.matslop.octaveExecute('whos')` directly.\n2. Keep a single retry (not 3) with a longer delay (500ms) as a safety net for slow Octave startup — but document it as a safety net, not a workaround.\n3. Add a 30-second AbortController-style timeout for truly hung processes (replaced the 1.5s race).\n4. Make sure the watchdog timer (if it still exists elsewhere in WorkspacePanel) uses a reasonable timeout (30s, not 2s).\n\nAlso verify: after a fresh `octave:start`, the FIRST call to `whos` from WorkspacePanel resolves correctly without any timeout or retry firing. Write a test that simulates the startup sequence.",
       "acceptanceCriteria": [
-        "The hooks are only assigned when `import.meta.env.DEV === true` or a test env flag is set",
-        "Existing E2E tests still find them (the test harness sets the env flag)",
-        "Production `npm run build` output contains no references to the hook names",
+        "WorkspacePanel.refreshWorkspace no longer has a 1.5s Promise.race timeout",
+        "A single retry with 500ms delay exists as a documented safety net",
+        "A 30s overall timeout protects against truly hung processes",
+        "The first whos call after octave:start resolves within 2 seconds in the unit test",
+        "Existing workspace panel tests still pass",
         "Typecheck passes",
-        "Tests pass"
+        "All tests pass"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Wrapped the test-hook useEffect body in `if (!import.meta.env.DEV) return`. Vite's define-plugin substitutes DEV=false in production, dead-code elimination strips the entire block (strings included). Verified: `grep __matslopRefreshWorkspace dist/` returns empty after `npm run build`."
+      "passes": false
     },
     {
-      "id": "US-T04",
-      "title": "Verify Publish to HTML actually produces a working file end-to-end",
-      "description": "US-030 added File > Publish > HTML..., but it was only verified at the unit-test level. Run an integration test where MatSlop publishes a real .mls / .m file to HTML and assert the resulting file has code blocks, text output, and at least one inline image if the script produces a figure.",
+      "id": "US-L04",
+      "title": "Serialize command capture script and workspace refresh to prevent race",
+      "description": "After every user command in CommandWindow, App.tsx runs a multi-line capture script (`__mslp_r__=pwd(); ...`) to detect figures and update CWD. This runs concurrently with WorkspacePanel's `whos` refresh. On slower systems, `whos` returns empty because the capture script holds the Octave command slot (OctaveProcessManager is single-command — the queue serializes but IPC ordering between two independent React components is not guaranteed).\n\nThe fix: make the capture script and workspace refresh sequential, not concurrent. In App.tsx's handleCommandExecuted callback:\n1. First, run the capture script and await its result.\n2. Then, trigger the workspace refresh (via the existing refreshTrigger counter or a direct call).\n3. This guarantees the workspace `whos` runs AFTER the capture script releases the command slot.\n\nLook at App.tsx for `handleCommandExecuted` and the capture script logic. The workspace refresh is triggered by incrementing a `refreshTrigger` counter that WorkspacePanel watches via useEffect.",
       "acceptanceCriteria": [
-        "New Playwright/E2E test creates a small .m file, opens it, triggers Publish > HTML..., and opens the resulting file",
-        "Generated HTML contains the code syntax-highlighted, the disp/fprintf output, and is self-contained (no external CSS/JS references)",
-        "If the script calls plot(), the HTML contains an inline base64 image",
+        "handleCommandExecuted awaits the capture script before incrementing refreshTrigger",
+        "WorkspacePanel refresh no longer races with the capture script",
+        "The retry loop count in WorkspacePanel can be reduced to 1 (or removed if US-L03 already did this)",
+        "Running `x = 42` in CommandWindow reliably shows x in Workspace on the first refresh attempt",
         "Typecheck passes",
-        "Tests pass"
+        "All tests pass"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Enhanced handlePublishHtml in EditorPanel to capture disp/fprintf output for .m scripts via `disp(evalc(\"source('<path>')\"))` before building the HTML, so published docs carry real runtime output. Added tests/integration/publish-html-integration.test.ts (runs under vitest) exercising the full pipeline with real Octave + real file IO (script path + figure embedding), and a new tests/e2e/publish-html.spec.ts Playwright spec mirroring the flow through the packaged Electron app with publishSaveDialog stubbed."
+      "passes": false
     },
     {
-      "id": "US-T05",
-      "title": "Clean up stale debug console.log calls left behind by ralph",
-      "description": "Sweep the src/ tree for leftover console.log / debugger / TODO / FIXME calls added during the polish cycles and remove any that were meant to be temporary.",
+      "id": "US-L05",
+      "title": "Change welcome file from function definition to runnable plain script",
+      "description": "On first launch, the editor opens with `untitled.m` containing a `function result = hello()` stub. Clicking Run (F5) shows a confusing 'This file only defines function(s); nothing to run' banner. New users expect Run to do something visible.\n\nReplace the welcome content with a plain script that produces visible output when run. Something like:\n```\n% Welcome to MatSlop!\n% Press F5 or click Run to execute this script.\n\ndisp('Hello from MatSlop!')\nx = magic(3)\ndisp(x)\n```\n\nFind where the welcome file content is defined (search for 'hello' or 'function result' in the renderer source) and replace it.",
       "acceptanceCriteria": [
-        "No `console.log` calls in src/renderer/ outside of the existing error paths",
-        "No `debugger` statements",
-        "ESLint still passes on the full src tree",
+        "The welcome file is a plain script (no `function` keyword at the top level)",
+        "Running the welcome file with F5 produces visible output in the Command Window",
+        "The welcome file demonstrates at least one MatSlop feature (e.g., matrix creation, disp output)",
+        "The 'only defines function(s)' banner does NOT appear when running the welcome file",
         "Typecheck passes",
-        "Tests pass"
+        "All tests pass"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Audit found no console.log/debug/info nor debugger; statements in src/. Fixed 6 lint errors that would have masked any future debug leakage: replaced 5x `// eslint-disable-next-line react-hooks/exhaustive-deps` directives (referencing an uninstalled rule) with plain `// NOTE:` comments that preserve intent, and changed `let k` → `const k` in publishHtml.ts. ESLint now reports 0 errors / 16 pre-existing warnings. 586 tests pass, typecheck clean."
+      "passes": false
+    },
+    {
+      "id": "US-L06",
+      "title": "Verify and fix session restore after rc-dock migration",
+      "description": "US-034 added session save/restore (open tabs, cursor, layout). The polish cycles migrated from Allotment to rc-dock. Session restore has not been verified since that migration.\n\nVerify:\n1. Open the app, create some state: open a file, type in command window, rearrange panels.\n2. Check that session.json is being written (look at the IPC handler for session:save or layout:set).\n3. Close and reopen — verify the layout, open tabs, and any cursor positions are restored.\n4. If saved sessions from before rc-dock are encountered, they should be gracefully discarded (not crash).\n\nLook at:\n- App.tsx for session save/restore logic\n- The main process IPC handlers for session/layout persistence\n- MatslopDockLayout for savedDockLayout handling\n\nFix anything that doesn't round-trip correctly. Common issues:\n- rc-dock layout serialization may include non-serializable React elements\n- Tab ids might not survive JSON round-trip\n- Floating panels might not restore",
+      "acceptanceCriteria": [
+        "Opening the app, rearranging panels, closing, and reopening restores the panel layout",
+        "Open editor tabs are restored with correct file paths",
+        "rc-dock's serialized layout round-trips through JSON correctly",
+        "Old/invalid session.json files are gracefully discarded (app starts with default layout)",
+        "Typecheck passes",
+        "All tests pass"
+      ],
+      "priority": 6,
+      "passes": false
+    },
+    {
+      "id": "US-L07",
+      "title": "Verify and fix debugger against real Octave dbstop/dbcont",
+      "description": "The debugger UI (US-014 through US-023) was implemented and unit tested but never live-verified against real Octave debugging commands. The main process parses Octave's debug output to detect breakpoints, and the renderer shows call stack, watches, and breakpoint gutters.\n\nWrite an integration test that:\n1. Creates a test .m file with a loop\n2. Sends `dbstop in <file> at <line>` via octaveExecute\n3. Runs the file via `source('<file>')`\n4. Verifies the `octave:paused` event fires with the correct file and line\n5. Sends `dbcont` and verifies execution completes\n6. Tests `dbstep` for single-stepping\n7. Tests variable inspection while paused (e.g., `disp(i)` while stopped in a loop)\n\nAlso verify the renderer-side components:\n- DebugToolbar responds to paused state\n- CallStackPanel shows the current frame\n- WatchesPanel can evaluate expressions while paused\n- Breakpoint gutter marks show in the editor\n\nLook at:\n- src/main/octaveProcess.ts: parsePausedMarker function\n- src/renderer/panels/CallStackPanel.tsx\n- src/renderer/panels/WatchesPanel.tsx\n- src/renderer/panels/DebugToolbar.tsx\n- src/renderer/EditorPanel.tsx for breakpoint gutter\n\nFix any issues found. Common problems:\n- Octave's debug output format may differ between versions\n- The paused marker regex may not match actual Octave 8.4 output\n- dbstep/dbcont commands may need to be sent differently when already paused",
+      "acceptanceCriteria": [
+        "Integration test demonstrates dbstop → run → pause → dbcont cycle with real Octave",
+        "parsePausedMarker correctly parses Octave 8.4's debug output format",
+        "The octave:paused IPC event fires with correct file and line number",
+        "dbstep advances one line and fires a new paused event",
+        "Variable inspection works while paused",
+        "If any debug feature doesn't work with real Octave, it is fixed",
+        "Typecheck passes",
+        "All tests pass"
+      ],
+      "priority": 7,
+      "passes": false
+    },
+    {
+      "id": "US-L08",
+      "title": "Verify and fix plotting pipeline with real Octave",
+      "description": "US-007 through US-013 implemented the plotting pipeline: Octave figure → matslop_export_fig → JSON → PlotRenderer (Plotly.js). Unit tests pass but the full pipeline has never been live-tested.\n\nThe dev environment uses extracted Octave 8.4 debs at /tmp/octave-root/octave-cli-wrap. Plotting fails there with fontconfig errors. To work around this:\n\n1. Check if `sudo apt install octave` is available (preferred — gives a fully working Octave).\n2. If not, try to fix the fontconfig issue in the extracted debs by setting FONTCONFIG_PATH or similar env vars.\n3. If neither works, verify the pipeline with a mock: create a test that feeds known Plotly JSON into PlotRenderer and verifies it renders.\n\nThe pipeline works like this:\n- User runs `plot(1:10)` in CommandWindow\n- App.tsx's capture script runs `matslop_export_fig` after each command\n- matslop_export_fig converts the current Octave figure to Plotly JSON format\n- The JSON is sent to the Figure panel via IPC\n- PlotRenderer uses Plotly.js to render it\n\nVerify each step. Look at:\n- src/renderer/panels/FigurePanel.tsx or PlotRenderer component\n- The matslop_export_fig Octave function (should be in an m-file somewhere)\n- App.tsx capture script for figure detection logic\n\nFix any broken steps in the pipeline.",
+      "acceptanceCriteria": [
+        "The plotting pipeline from Octave figure to Plotly render is verified or fixed",
+        "PlotRenderer correctly renders valid Plotly JSON (verified by unit or integration test)",
+        "If real Octave plotting works, an integration test demonstrates plot(1:10) → figure JSON → render",
+        "If real plotting is blocked by the dev environment, a clear note is added to KNOWN_LIMITATIONS.md explaining why and what was verified",
+        "matslop_export_fig function exists and is loadable by Octave",
+        "Typecheck passes",
+        "All tests pass"
+      ],
+      "priority": 8,
+      "passes": false
     }
   ]
 }

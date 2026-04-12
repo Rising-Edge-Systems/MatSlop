@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { GitStatusEntry, ParsedDiff } from '../git/gitCore'
+import { useAppContext } from '../AppContext'
 
 /**
  * US-037: Source Control panel.
@@ -9,11 +10,15 @@ import type { GitStatusEntry, ParsedDiff } from '../git/gitCore'
  * The panel is dumb — all git shelling lives in the main-process
  * `gitBridge.ts` module and is driven through the `window.matslop.git*`
  * IPC bridge.
+ *
+ * US-L02: cwd is now read from AppContext so rc-dock's cached element
+ * stays up-to-date without a layout rebuild. The prop is still accepted
+ * as an optional override for testing.
  */
 
 export interface SourceControlPanelProps {
-  /** Current working directory — root of the git query. */
-  cwd: string
+  /** Current working directory — root of the git query. Read from AppContext if omitted. */
+  cwd?: string
   /** Optional close callback for the panel header. */
   onClose?: () => void
   /** Optional: observed status-result for controlled-mode tests. */
@@ -47,7 +52,9 @@ const EMPTY_DIFF: DiffViewState = {
 }
 
 function SourceControlPanel(props: SourceControlPanelProps): React.JSX.Element {
-  const { cwd, onClose, initialStatus = null } = props
+  const ctx = useAppContext()
+  const cwd = props.cwd !== undefined ? props.cwd : ctx.cwd
+  const { onClose, initialStatus = null } = props
   const [status, setStatus] = useState<GitStatusResult | null>(initialStatus)
   const [loading, setLoading] = useState(false)
   const [selectedDiff, setSelectedDiff] = useState<DiffViewState>(EMPTY_DIFF)

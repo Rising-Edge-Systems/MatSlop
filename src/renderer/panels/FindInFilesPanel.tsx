@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { truncateContext } from '../editor/findInFiles'
+import { useAppContext } from '../AppContext'
 
 /**
  * US-032: Find in Files panel.
@@ -21,9 +22,14 @@ export interface FindInFilesMatch {
   text: string
 }
 
+/**
+ * US-L02: cwd is now read from AppContext so rc-dock's cached element
+ * stays up-to-date without a layout rebuild. The prop is still accepted
+ * as an optional override for testing.
+ */
 export interface FindInFilesPanelProps {
-  /** Current working directory — the root of the search. */
-  cwd: string
+  /** Current working directory — the root of the search. Read from AppContext if omitted. */
+  cwd?: string
   /** Called with (filePath, line) when a result is clicked. */
   onOpenMatch: (filePath: string, line: number) => void
   /** Optional: called when the user hits the panel close button. */
@@ -60,7 +66,9 @@ function shortenPath(filePath: string, cwd: string): string {
 }
 
 function FindInFilesPanel(props: FindInFilesPanelProps): React.JSX.Element {
-  const { cwd, onOpenMatch, onClose, initialQuery = '', initialGlob = '' } = props
+  const ctx = useAppContext()
+  const cwd = props.cwd !== undefined ? props.cwd : ctx.cwd
+  const { onOpenMatch, onClose, initialQuery = '', initialGlob = '' } = props
   const [query, setQuery] = useState(initialQuery)
   const [glob, setGlob] = useState(initialGlob)
   const [caseInsensitive, setCaseInsensitive] = useState(true)
