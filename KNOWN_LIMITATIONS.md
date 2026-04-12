@@ -42,37 +42,42 @@ via their package manager; Windows and macOS bundling works.
 
 ## Moderate — Noticeable During Use
 
-### Interactive 3D plots (Plotly.js) not verified end-to-end
-US-007 through US-013 implemented `matslop_export_fig`, `PlotRenderer`,
-and the Plotly.js integration. Unit tests pass, but the full pipeline
-(Octave figure → JSON export → Plotly render in the editor) has not been
-live-tested because the dev environment lacks a working Octave graphics
-toolkit. The code paths exist and compile; they need verification on a
-system with a functional `gnuplot` or `qt` toolkit.
+### Plotting pipeline verified end-to-end except real Octave rendering
+US-L08 verified the full plotting pipeline through mock-data integration
+tests covering: `matslop_export_fig` loadability (Octave confirms the
+function parses), JSON schema round-trip (`parsePlotFigure` →
+`figureToPlotly` for line/surface/scatter/bar), capture script marker
+parsing (`__MATSLOP_FIG__` / `__MATSLOP_PWD__` regex), FigurePanel PNG
+data-URL construction, and IPC `figures:readImage` base64 round-trip.
+27 tests in `tests/integration/plotting-pipeline.test.ts` cover these
+paths.
 
-### Debugger UI wired but not live-exercised
-US-014 through US-023 landed breakpoint gutter, debug toolbar, call
-stack panel, watches panel, conditional breakpoints, and
-edit-and-continue (best effort). All passed ralph's unit/integration
-tests during the roadmap cycle. Live verification against a real Octave
-`dbstop`/`dbcont` session was not performed in this polish pass.
+**What remains unverified:** Real Octave `plot()` → `print()` → PNG
+export. The extracted-deb dev environment (Octave 8.4 at
+`/tmp/octave-root/octave-cli-wrap`) fails with `ft_text_renderer:
+invalid bounding box` because the extracted `.deb` packages lack
+`fonts-freefont-otf` and we cannot `sudo apt install` in the sandboxed
+environment. The hardcoded font path (`/usr/share/fonts/opentype/
+freefont/FreeSans.otf`) in the Octave binary cannot be overridden via
+`FONTCONFIG_FILE`. A proper `apt install octave` or the bundled
+Windows/macOS Octave distribution avoids this entirely.
 
-### `handleCommandExecuted` capture script races with workspace refresh
-After every user command, `App.tsx` runs a multi-line capture script
-(`__mslp_r__=pwd(); ...`) to detect figures and update the CWD. This
-IPC runs concurrently with the workspace panel's `whos` refresh. On
-fast systems both resolve cleanly; on slower systems the `whos` may
-return empty because the capture script is still holding the Octave
-command slot. The retry loop (up to 3x with 120ms delays) mitigates
-this in most cases.
+### Debugger UI verified against real Octave 8.4
+US-L07 verified and fixed the debugger pipeline. `parsePausedMarker` now
+captures Octave 8.4's bracketed full path format (`[/path/to/file.m]`).
+Integration tests in `tests/integration/debugger-octave.test.ts` cover
+the full dbstop → pause → dbstep → dbcont cycle against real Octave.
 
-### Session restore (`session.json`) not verified after the rc-dock migration
-US-034 added session save/restore (open tabs, cursor, layout). The
-polish cycles migrated the layout system from Allotment to rc-dock and
-added a layout version bump (US-Q07). Persisted sessions from the
-Allotment era are discarded on upgrade, which is correct. New sessions
-may or may not serialize all rc-dock state (floating panels, tab order)
-— not tested.
+### Capture script and workspace refresh serialized (fixed)
+US-L04 serialized the capture script and workspace refresh in
+`runCaptureAndRefresh()`. The capture script now fully completes before
+`whos` is triggered, eliminating the race condition on slower systems.
+
+### Session restore verified after rc-dock migration (fixed)
+US-L06 verified session save/restore round-trips correctly after the
+rc-dock migration. 16 tests in `tests/unit/session-restore-roundtrip.test.ts`
+cover layout serialization, editor tab restore, and graceful degradation
+for corrupted or pre-migration session files.
 
 ### macOS / Windows builds not tested
 US-038 through US-042 (download scripts, code signing, notarization,
@@ -84,14 +89,11 @@ npm scripts should work but are untested in this cycle.
 
 ## Minor — Cosmetic / Polish
 
-### Busy indicator (US-S02) is disabled at runtime
-The ref-counted "Running..." status bar indicator was implemented but
-its monkey-patch of `window.matslop.octaveExecute` conflicts with
-Electron's frozen `contextBridge` object. The tracker module
-(`octaveBusyTracker.ts`) still exists and exports `begin()/end()` for
-direct callers, but the auto-wire in `main.tsx` was removed. The status
-bar stays on "Ready" during short commands. Long-running commands can
-be stopped via the Stop button (verified working).
+### Busy indicator wired up (fixed)
+US-L01 wired up the busy indicator by calling `wrapOctaveExecute()` in
+`main.tsx` before `ReactDOM.createRoot`. The status bar now shows
+"Running..." during commands that take >250ms. The Proxy approach
+bypasses Electron's frozen `contextBridge` object.
 
 ### Tab strip active state is always "all active"
 Each dock panel has exactly one tab, so the active-tab styling (accent
@@ -106,9 +108,6 @@ originally targeted. The macOS download URL was pinned to 9.2 in
 US-S01. When `octave-app` ships a newer release, update the constant
 in `scripts/download-octave.js`.
 
-### Editor welcome file is `untitled.m` with a demo function
-On first launch the editor opens with a `function result = hello()`
-stub. Clicking Run (F5) on this shows a "This file only defines
-function(s); nothing to run" banner (US-S05). Users may be confused
-by this — a plain-script welcome (without `function`) would be more
-intuitive.
+### Welcome file changed to runnable plain script (fixed)
+US-L05 verified the welcome file was changed from a function stub to a
+runnable plain script. Clicking Run (F5) now produces visible output.
