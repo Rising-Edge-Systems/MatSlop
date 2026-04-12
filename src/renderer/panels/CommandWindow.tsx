@@ -90,6 +90,33 @@ function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExec
     inputRef.current?.focus()
   }, [pasteCommand, onPasteConsumed])
 
+  // Listen for script run output dispatched by App.tsx handleRunScript/
+  // handleRunSection, which bypasses the rc-dock stale-content pipeline.
+  useEffect(() => {
+    const handler = (e: Event): void => {
+      const detail = (e as CustomEvent).detail as {
+        display?: string
+        output?: string
+        error?: string
+      }
+      const entries: OutputEntry[] = []
+      if (detail.display) {
+        entries.push({ type: 'output', text: `>> ${detail.display}` })
+      }
+      if (detail.output) {
+        entries.push({ type: 'output', text: detail.output })
+      }
+      if (detail.error) {
+        entries.push({ type: 'error', text: detail.error })
+      }
+      if (entries.length > 0) {
+        setOutputEntries((prev) => [...prev, ...entries])
+      }
+    }
+    window.addEventListener('matslop:commandOutput', handler)
+    return () => window.removeEventListener('matslop:commandOutput', handler)
+  }, [])
+
   // Handle menu actions (e.g., Clear Command Window)
   const lastMenuActionIdRef = useRef(0)
   useEffect(() => {

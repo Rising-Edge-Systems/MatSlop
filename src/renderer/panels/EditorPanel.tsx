@@ -86,16 +86,13 @@ function EditorPanel({
   pausedLocation,
   onFileSavedWhilePaused,
 }: EditorPanelProps): React.JSX.Element {
-  const [tabs, setTabs] = useState<EditorTab[]>(() => {
-    const initial = createTab(
-      'untitled.m',
-      '% Welcome to MatSlop\n% Start writing MATLAB/Octave code here\n\nfunction result = hello()\n    disp("Hello from MatSlop!");\n    result = 42;\nend\n'
-    )
-    return [initial]
-  })
-  const [activeTabId, setActiveTabId] = useState<string | null>(
-    () => tabs[0]?.id ?? null
-  )
+  // Start with an empty tab list. The session-restore / welcome-tab
+  // useEffect below populates it after mount. Creating an untitled.m
+  // dummy here caused the Run button to operate on the wrong tab when
+  // the Welcome tab was also present (the Welcome tab became active but
+  // the dummy tab lingered behind it with stale content).
+  const [tabs, setTabs] = useState<EditorTab[]>([])
+  const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [welcomeTabId, setWelcomeTabId] = useState<string | null>(null)
   const welcomeInitRef = useRef(false)
   // US-S05: banner text shown above the editor when a Run action is
@@ -169,12 +166,21 @@ function EditorPanel({
         setTimeout(() => tryRestoreCursor(0), 50)
       }
       if (!restored) {
+        // Create a runnable demo script so the Run button works on first
+        // launch. Also show the Welcome tab if configured.
+        const demoTab = createTab(
+          'untitled.m',
+          '% Welcome to MatSlop\n% Start writing MATLAB/Octave code here\n\nx = 1:10;\ny = x .^ 2;\ndisp("Hello from MatSlop!");\nfprintf("Sum of first 10 squares: %d\\n", sum(y));\n'
+        )
         const show = await window.matslop.configGetShowWelcome()
         if (show) {
           const welcomeTab = createTab('Welcome', '', null, 'welcome')
-          setTabs((prev) => [welcomeTab, ...prev])
-          setActiveTabId(welcomeTab.id)
+          setTabs([welcomeTab, demoTab])
+          setActiveTabId(demoTab.id)
           setWelcomeTabId(welcomeTab.id)
+        } else {
+          setTabs([demoTab])
+          setActiveTabId(demoTab.id)
         }
       }
       sessionReadyRef.current = true
@@ -454,21 +460,33 @@ function EditorPanel({
         )
       }
     } else {
-      // US-S05: Untitled buffer — prompt Save As before running. Cancelling
-      // the dialog simply aborts; the user stays in the editor.
-      const result = await window.matslop.saveFileAs(tab.content, tab.filename)
-      if (!result) return // User cancelled
-      setTabs((prev) =>
-        prev.map((t) =>
-          t.id === tab.id
-            ? { ...t, filePath: result.filePath, filename: result.filename, savedContent: t.content }
-            : t
+      // Untitled buffer — write to a temp file and run from there.
+      // Previously prompted Save As which blocked the UI; now the user
+      // can iterate quickly without saving first.
+      try {
+        const tmpPath = await window.matslop.saveFile(
+          `/tmp/matslop_run_${tab.id.replace(/[^a-zA-Z0-9]/g, '_')}.m`,
+          tab.content,
         )
-      )
-      // Use the newly saved path
-      const lastSep = Math.max(result.filePath.lastIndexOf('/'), result.filePath.lastIndexOf('\\'))
-      const dirPath = result.filePath.substring(0, lastSep)
-      onRun?.(result.filePath, dirPath)
+        if (!tmpPath.success) return
+        const runPath = `/tmp/matslop_run_${tab.id.replace(/[^a-zA-Z0-9]/g, '_')}.m`
+        const lastSep = runPath.lastIndexOf('/')
+        onRun?.(runPath, runPath.substring(0, lastSep))
+      } catch {
+        // Fall back to Save As
+        const result = await window.matslop.saveFileAs(tab.content, tab.filename)
+        if (!result) return
+        setTabs((prev) =>
+          prev.map((t) =>
+            t.id === tab.id
+              ? { ...t, filePath: result.filePath, filename: result.filename, savedContent: t.content }
+              : t
+          )
+        )
+        const lastSep = Math.max(result.filePath.lastIndexOf('/'), result.filePath.lastIndexOf('\\'))
+        const dirPath = result.filePath.substring(0, lastSep)
+        onRun?.(result.filePath, dirPath)
+      }
       return
     }
 
@@ -866,6 +884,31 @@ function EditorPanel({
       })
     }
   }, [tabs])
+
+  // Expose the active tab content so App.tsx's global Run handler can
+  // access it from outside rc-dock's stale-closure boundary.
+  useEffect(() => {
+    const w = window as unknown as {
+      __matslopGetActiveTabForRun?: () => { content: string; filePath: string | null; id: string } | null
+    }
+    w.__matslopGetActiveTabForRun = () => {
+      const tab = getActiveTab()
+      return tab ? { content: tab.content, filePath: tab.filePath, id: tab.id } : null
+    }
+    return () => {
+      (window as unknown as { __matslopGetActiveTabForRun?: unknown }).__matslopGetActiveTabForRun = undefined
+    }
+  }, [getActiveTab])
+
+  // Listen for the global Run event dispatched by EditorToolbar's Run button.
+  // This is a workaround for rc-dock's stale-closure issue: the toolbar's
+  // onClick prop may reference a stale handleRun, but this listener always
+  // has the latest state because useEffect deps include handleRun.
+  useEffect(() => {
+    const handler = (): void => { handleRun() }
+    window.addEventListener('matslop:runActiveScript', handler)
+    return () => window.removeEventListener('matslop:runActiveScript', handler)
+  }, [handleRun])
 
   const allPanels: { key: keyof PanelVisibility; label: string }[] = [
     { key: 'fileBrowser', label: 'File Browser' },

@@ -74,7 +74,13 @@ function EditorToolbar({
       <div className="toolbar-separator" />
       <button
         className="toolbar-btn toolbar-btn-run"
-        onClick={onRun}
+        onClick={() => {
+          // Dispatch a DOM event that App.tsx can catch outside rc-dock's
+          // stale-closure boundary — the prop-based onClick may capture
+          // an outdated handleRun from a cached render.
+          window.dispatchEvent(new CustomEvent('matslop:runActiveScript'))
+          onRun?.()
+        }}
         title="Run (F5)"
         disabled={runDisabled}
       >

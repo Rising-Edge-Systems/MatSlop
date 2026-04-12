@@ -988,16 +988,41 @@ function App(): React.JSX.Element {
   // resolve (matching the prior `run(...)` behavior). The Command-Window
   // "display" echoes the human-friendly `source('file.m')` form, not the
   // full absolute path, to keep the history readable.
-  const handleRunScript = useCallback((filePath: string, dirPath: string) => {
+  // Execute a script or section directly via IPC and push the result into
+  // the command window's output via a shared ref. This bypasses the
+  // pendingCommand → CommandWindow prop pipeline which is broken by
+  // rc-dock's stale-content caching (the dock only re-renders tab content
+  // on layout changes, so prop updates to components inside dock panes
+  // are silently dropped).
+  const handleRunScript = useCallback(async (filePath: string, dirPath: string) => {
     const { command, display } = buildRunScriptCommand(filePath, dirPath)
-    const id = ++pendingCommandIdRef.current
-    setPendingCommand({ command, display, id })
+    try {
+      const result = await window.matslop.octaveExecute(command)
+      // Push to command window output via a shared event
+      window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
+        detail: { display, output: result.output, error: result.error },
+      }))
+    } catch (err) {
+      window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
+        detail: { display, output: '', error: String(err) },
+      }))
+    }
+    setWorkspaceRefreshTrigger((prev) => prev + 1)
   }, [])
 
-  const handleRunSection = useCallback((code: string) => {
+  const handleRunSection = useCallback(async (code: string) => {
     const display = code.length > 80 ? code.substring(0, 77) + '...' : code
-    const id = ++pendingCommandIdRef.current
-    setPendingCommand({ command: code, display, id })
+    try {
+      const result = await window.matslop.octaveExecute(code)
+      window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
+        detail: { display, output: result.output, error: result.error },
+      }))
+    } catch (err) {
+      window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
+        detail: { display, output: '', error: String(err) },
+      }))
+    }
+    setWorkspaceRefreshTrigger((prev) => prev + 1)
   }, [])
 
   const handleStop = useCallback(() => {
@@ -1678,7 +1703,7 @@ function App(): React.JSX.Element {
           /* US-031: bust rc-dock's PureComponent cache when the help topic
              changes — otherwise the cached tab content keeps the old
              HelpPanel props. */
-          contentVersion={`help:${helpState.topic ?? ''}:${helpState.loading ? 'L' : ''}${helpState.error ? 'E' : ''}${helpState.content ? 'C' : ''}|fif:${findInFilesOpen ? 'O' : ''}:${cwd}|prof:${profilerMode}:${profilerEntries.length}:${profilerError ? 'E' : ''}:${profilerLoading ? 'L' : ''}`}
+          contentVersion={`engine:${octaveStatus.engineStatus}|cmd:${pendingCommand?.id ?? 0}|help:${helpState.topic ?? ''}:${helpState.loading ? 'L' : ''}${helpState.error ? 'E' : ''}${helpState.content ? 'C' : ''}|fif:${findInFilesOpen ? 'O' : ''}:${cwd}|prof:${profilerMode}:${profilerEntries.length}:${profilerError ? 'E' : ''}:${profilerLoading ? 'L' : ''}`}
           fileBrowser={
             dockVisibility.fileBrowser ? (
               <FileBrowser
