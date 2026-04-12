@@ -244,21 +244,25 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
     refreshingRef.current = true
 
     try {
-      // Race the whos IPC against a 1.5s timeout so a genuine process-manager
-      // stall (seen on the very first refresh after some HMR reloads) does
-      // not freeze the panel.
-      const whosWithTimeout = async (): Promise<{ output: string; error: string; isComplete: boolean }> => {
+      // 30s overall timeout protects against truly hung Octave processes.
+      // This replaces the old 1.5s Promise.race that was a workaround for
+      // the init-handshake race (fixed in US-T02 via setImmediate drain).
+      const whosWithOverallTimeout = (): Promise<{ output: string; error: string; isComplete: boolean }> => {
         return Promise.race([
           window.matslop.octaveExecute('whos'),
           new Promise<{ output: string; error: string; isComplete: boolean }>((resolve) =>
-            setTimeout(() => resolve({ output: '', error: 'timeout', isComplete: true }), 1500),
+            setTimeout(() => resolve({ output: '', error: 'timeout', isComplete: true }), 30_000),
           ),
         ])
       }
-      let result = await whosWithTimeout()
-      for (let attempt = 0; attempt < 3 && (!result.output || result.output.trim() === ''); attempt++) {
-        await new Promise<void>((r) => setTimeout(r, 120))
-        result = await whosWithTimeout()
+      let result = await whosWithOverallTimeout()
+      // Safety-net retry: a single retry with 500ms delay handles the rare
+      // case where Octave hasn't finished initialising its workspace yet.
+      // This is a safety net, not a workaround — the root cause (init race)
+      // was fixed in US-T02.
+      if (!result.output || result.output.trim() === '') {
+        await new Promise<void>((r) => setTimeout(r, 500))
+        result = await whosWithOverallTimeout()
       }
       // If a later refresh has already been started, drop our result.
       if (mySeq !== refreshSeqRef.current) return
