@@ -146,7 +146,7 @@ describe('buildRunScriptCommand', () => {
       '/home/user/projects/demo'
     )
     expect(command).toBe(
-      "cd('/home/user/projects/demo'); source('/home/user/projects/demo/script.m')"
+      "cd('/home/user/projects/demo'); addpath('/home/user/projects/demo'); source('/home/user/projects/demo/script.m')"
     )
     // Display echoes the short filename only, not the full path.
     expect(display).toBe("source('script.m')")
@@ -158,7 +158,7 @@ describe('buildRunScriptCommand', () => {
       'C:\\Users\\Ada\\demo'
     )
     expect(command).toBe(
-      "cd('C:\\Users\\Ada\\demo'); source('C:\\Users\\Ada\\demo\\run me.m')"
+      "cd('C:\\Users\\Ada\\demo'); addpath('C:\\Users\\Ada\\demo'); source('C:\\Users\\Ada\\demo\\run me.m')"
     )
     expect(display).toBe("source('run me.m')")
   })
@@ -169,7 +169,7 @@ describe('buildRunScriptCommand', () => {
       "/tmp/ad's project"
     )
     expect(command).toBe(
-      "cd('/tmp/ad''s project'); source('/tmp/ad''s project/script.m')"
+      "cd('/tmp/ad''s project'); addpath('/tmp/ad''s project'); source('/tmp/ad''s project/script.m')"
     )
     expect(display).toBe("source('script.m')")
   })
