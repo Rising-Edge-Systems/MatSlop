@@ -208,6 +208,7 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
   const [sortAsc, setSortAsc] = useState(true)
   const refreshingRef = useRef(false)
   const pendingRefreshRef = useRef(false)
+  const refreshSeqRef = useRef(0)
   const engineStatusRef = useRef<OctaveEngineStatus>(engineStatus)
   const onVariablesChangedRef = useRef(onVariablesChanged)
   engineStatusRef.current = engineStatus
@@ -234,32 +235,35 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
         return
       }
     }
-    if (refreshingRef.current) {
-      pendingRefreshRef.current = true
-      return
-    }
+    // Each refresh captures a unique id; a later refresh supersedes any
+    // earlier one whose result has not yet been committed to state. We
+    // still track an in-flight flag but do not use it to block new
+    // refreshes — instead we let them race and the latest `seq` wins.
+    refreshSeqRef.current += 1
+    const mySeq = refreshSeqRef.current
     refreshingRef.current = true
 
-    // Safety net: if a refresh somehow never settles (e.g. Octave is
-    // wedged on a long-running user command), force-unlock after 30s so
-    // the next refresh triggered by a user command can run cleanly. The
-    // previous 5s watchdog masked a real process-manager race that was
-    // fixed at the source in OctaveProcessManager.start(); see US-T02.
-    const watchdog = setTimeout(() => {
-      refreshingRef.current = false
-      pendingRefreshRef.current = false
-    }, 30000)
-
     try {
-      // Retry whos up to 3x when the process manager is returning empty
-      // output because another execute is in-flight or its buffer has
-      // just been consumed.
-      let result = await window.matslop.octaveExecute('whos')
+      // Race the whos IPC against a 1.5s timeout so a genuine process-manager
+      // stall (seen on the very first refresh after some HMR reloads) does
+      // not freeze the panel.
+      const whosWithTimeout = async (): Promise<{ output: string; error: string; isComplete: boolean }> => {
+        return Promise.race([
+          window.matslop.octaveExecute('whos'),
+          new Promise<{ output: string; error: string; isComplete: boolean }>((resolve) =>
+            setTimeout(() => resolve({ output: '', error: 'timeout', isComplete: true }), 1500),
+          ),
+        ])
+      }
+      let result = await whosWithTimeout()
       for (let attempt = 0; attempt < 3 && (!result.output || result.output.trim() === ''); attempt++) {
         await new Promise<void>((r) => setTimeout(r, 120))
-        result = await window.matslop.octaveExecute('whos')
+        result = await whosWithTimeout()
       }
+      // If a later refresh has already been started, drop our result.
+      if (mySeq !== refreshSeqRef.current) return
       if (!result.output || result.output.trim() === '') {
+        if (mySeq !== refreshSeqRef.current) return
         setVariables([])
         onVariablesChangedRef.current?.([])
         return
@@ -282,17 +286,16 @@ function WorkspacePanel({ onCollapse, engineStatus, refreshTrigger, onInspectVar
         })
       )
 
+      // Drop stale result if superseded
+      if (mySeq !== refreshSeqRef.current) return
       setVariables(varsWithValues)
       onVariablesChangedRef.current?.(varsWithValues.map((v) => ({ name: v.name, size: v.size, class: v.class })))
     } catch {
       // ignore errors during refresh
     } finally {
-      clearTimeout(watchdog)
-      refreshingRef.current = false
-      if (pendingRefreshRef.current) {
-        pendingRefreshRef.current = false
-        // Re-run on next microtask so the state update above commits first.
-        void Promise.resolve().then(() => refreshWorkspace())
+      // Only the latest refresh clears the in-flight flag.
+      if (mySeq === refreshSeqRef.current) {
+        refreshingRef.current = false
       }
     }
   }, [])
