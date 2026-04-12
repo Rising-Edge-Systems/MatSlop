@@ -8,6 +8,8 @@ Started: Sun Apr 12 01:10:40 PM EDT 2026
 - rc-dock caches loadTab results (PureComponent). Use React Context (AppContext) for dynamic panel state, NOT props passed through MatslopDockLayout slots
 - Panel components accept optional props that override AppContext values — this allows testing without a provider
 - Callbacks from App.tsx useCallback are stable and safe as frozen props in rc-dock's cache; only data values need context
+- Use `runCaptureAndRefresh()` (not `setWorkspaceRefreshTrigger` directly) after any Octave command execution — it serializes capture + workspace refresh
+- When extracting useCallback helpers, define them BEFORE any callbacks that reference them (block-scoping)
 
 ## 2026-04-12 13:11 - US-L01
 - Wired up octaveBusyTracker by calling `wrapOctaveExecute(window.matslop)` in main.tsx before ReactDOM.createRoot
@@ -31,4 +33,39 @@ Started: Sun Apr 12 01:10:40 PM EDT 2026
   - The contentVersion hack forced full layout rebuilds (destroying scroll position, undo history); context propagation updates panels without rebuilding
   - Made all data props optional (prop ?? context fallback) so panels remain testable without wrapping in a provider
   - All 586 tests pass, typecheck clean
+---
+
+## 2026-04-12 13:24 - US-L03
+- Hardened WorkspacePanel.refreshWorkspace: removed 1.5s Promise.race timeout, replaced 3-retry loop (120ms) with single retry (500ms), added 30s overall timeout
+- Added 4 unit tests verifying: first call resolves without retry, single retry on empty, no more than 1 retry, 30s timeout (not 1.5s)
+- Files changed: src/renderer/panels/WorkspacePanel.tsx, tests/unit/workspace-refresh.test.ts (new)
+- **Learnings for future iterations:**
+  - The whosWithTimeout pattern was a workaround for the init-handshake race fixed in US-T02 — the 30s timeout is purely for hung-process protection
+  - WorkspacePanel uses a sequence-number pattern (refreshSeqRef) to handle concurrent refresh coalescing — later refreshes supersede earlier ones
+  - Fake timers (vi.useFakeTimers) are needed when testing Promise.race with setTimeout patterns
+  - 590 tests pass (586 existing + 4 new), typecheck clean
+---
+
+## 2026-04-12 13:30 - US-L04
+- Extracted `runCaptureAndRefresh` helper in App.tsx that runs the capture script (pwd + figures) and awaits its completion before triggering workspace refresh
+- Updated `handleRunScript` and `handleRunSection` to use the shared helper instead of directly incrementing refreshTrigger
+- Added `cwdRef` to avoid stale closure on cwd in the extracted callback
+- Added 3 unit tests verifying: capture→whos ordering, refresh on capture failure, x=42 visible on first whos attempt
+- Files changed: src/renderer/App.tsx, tests/unit/command-capture-serialization.test.ts (new)
+- **Learnings for future iterations:**
+  - The capture script was already serialized before refresh in handleCommandExecuted, but handleRunScript/handleRunSection were not running the capture script at all — they just incremented refreshTrigger directly
+  - Use a ref (cwdRef) when a useCallback needs to read a frequently-changing value without being recreated on every change
+  - The `runCaptureAndRefresh` helper must be defined BEFORE any useCallbacks that reference it (JavaScript block-scoping)
+  - 593 tests pass (590 existing + 3 new), typecheck clean
+---
+
+## 2026-04-12 13:33 - US-L05
+- Verified that the welcome file was already changed from a function stub to a runnable plain script in commit eea7ebb ("fix: Run button works on first launch")
+- Current content: `x = 1:10; y = x .^ 2; disp("Hello from MatSlop!"); fprintf(...)` — plain script, no function keyword
+- No code changes needed — marked story as passes: true
+- Files changed: scripts/ralph/prd.json (passes: true)
+- **Learnings for future iterations:**
+  - The welcome file content was changed as part of the "Run button works on first launch" fix (commit eea7ebb), before this PRD was created
+  - When a PRD story describes a bug that's already fixed, verify the fix is in place rather than duplicating work
+  - 593 tests pass, typecheck clean
 ---

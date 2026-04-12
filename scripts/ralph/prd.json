@@ -52,7 +52,7 @@
         "All tests pass"
       ],
       "priority": 3,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-L04",
@@ -67,7 +67,7 @@
         "All tests pass"
       ],
       "priority": 4,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-L05",
@@ -82,7 +82,7 @@
         "All tests pass"
       ],
       "priority": 5,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-L06",
