@@ -69,3 +69,39 @@ Started: Sun Apr 12 01:10:40 PM EDT 2026
   - When a PRD story describes a bug that's already fixed, verify the fix is in place rather than duplicating work
   - 593 tests pass, typecheck clean
 ---
+
+## 2026-04-12 13:39 - US-L06
+- Verified session restore works correctly after rc-dock migration — no code fixes needed, architecture is sound
+- Wrote 16 comprehensive tests in tests/unit/session-restore-roundtrip.test.ts covering:
+  - rc-dock layout JSON round-trip (default layout, custom visibility, floatbox, size/flex values)
+  - Editor session JSON round-trip (tabs, cursors, dirty content, file paths)
+  - Graceful degradation (corrupted JSON, invalid layouts, unknown tab ids, future-version data)
+  - Sanitizer idempotency after JSON round-trip
+  - Combined session + layout restore scenario
+- Key finding: rc-dock's onLayoutChange already calls saveLayoutData() internally (DockLayout.js line 497), so the layout passed to the callback IS serializable — no fix needed
+- Files changed: tests/unit/session-restore-roundtrip.test.ts (new)
+- **Learnings for future iterations:**
+  - rc-dock's `onLayoutChange` passes a `LayoutBase` (via `saveLayoutData`), NOT the raw `LayoutData` with React elements — it IS JSON-serializable
+  - The `sanitizeSavedDockLayout` function handles floatbox, maxbox, and windowbox in addition to dockbox
+  - `normalizeSession` is the main-process validator; `sessionToTabs` is the renderer-side converter — both are pure and testable
+  - The migration path: `migrateLayoutConfig` drops stale dockLayout (version < LAYOUT_SCHEMA_VERSION), `sanitizeSavedDockLayout` drops ghost tabs
+  - 609 tests pass (593 existing + 16 new), typecheck clean
+---
+
+## 2026-04-12 13:46 - US-L07
+- Verified and fixed debugger against real Octave 8.4 dbstop/dbcont/dbstep
+- **Fix**: Enhanced `parsePausedMarker` to capture Octave 8.4's bracketed full path `[/path/to/file.m]` — previously only extracted the function name, now prefers the absolute path when available
+- Wrote 11 tests in tests/integration/debugger-octave.test.ts:
+  - 7 integration tests against real Octave: dbstop→pause, dbstep advancing, variable inspection, call stack query, dbcont resume, full debug cycle
+  - 4 unit tests for Octave 8.4 bracket format parsing
+- Added 5 unit tests to tests/unit/debug-paused.test.ts for the new bracketed path format
+- All renderer components (DebugToolbar, CallStackPanel, WatchesPanel, EditorPanel) verified correct — they receive pausedLocation from App.tsx which now includes the full path
+- Files changed: src/main/debugBridge.ts, tests/unit/debug-paused.test.ts, tests/integration/debugger-octave.test.ts (new)
+- **Learnings for future iterations:**
+  - Octave 8.4 debug output format: `stopped in <name> at line <N> [<full_path>]` — the bracketed path is critical for editor navigation
+  - parsePausedMarker regex must use optional group `(?:\s+\[(.+?)\])?` to capture the bracket path
+  - Real Octave dbstop requires the script to be on `addpath` — `source()` alone doesn't register the function name
+  - OctaveProcessManager's command queue serializes debug commands correctly — dbstep/dbcont can be sent while paused
+  - Call stack query via `formatCallStackQuery()` works correctly in paused state, returns frames with full paths
+  - 625 tests pass (609 existing + 16 new), typecheck clean
+---

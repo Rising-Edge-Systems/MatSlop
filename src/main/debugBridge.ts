@@ -212,12 +212,15 @@ export interface PausedLocation {
  */
 export function parsePausedMarker(text: string): PausedLocation | null {
   if (!text) return null
-  // Primary form: `stopped in <path> at line <n>`
-  const m1 = text.match(/stopped in\s+(.+?)\s+at line\s+(\d+)/i)
+  // Primary form: `stopped in <name> at line <n> [<full_path>]`
+  // Octave 8.4 appends `[/absolute/path.m]` after the line number.
+  // We prefer the bracketed path (absolute) over the bare name when present.
+  const m1 = text.match(/stopped in\s+(.+?)\s+at line\s+(\d+)(?:\s+\[(.+?)\])?/i)
   if (m1) {
     const line = Number.parseInt(m1[2], 10)
     if (Number.isFinite(line) && line > 0) {
-      return { file: m1[1].trim(), line }
+      const file = m1[3]?.trim() || m1[1].trim()
+      return { file, line }
     }
   }
   // Secondary form: `stopped at <func>, line <n>` or `stopped at <func>: line <n>`

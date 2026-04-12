@@ -76,4 +76,35 @@ describe('parsePausedMarker', () => {
       parsePausedMarker('stopped in /tmp/with space/name.m at line 4'),
     ).toEqual({ file: '/tmp/with space/name.m', line: 4 })
   })
+
+  // --- Octave 8.4 bracketed path format ---
+
+  it('prefers the bracketed full path from Octave 8.4 output', () => {
+    expect(
+      parsePausedMarker('stopped in test_debug2 at line 2 [/tmp/test_debug2.m]'),
+    ).toEqual({ file: '/tmp/test_debug2.m', line: 2 })
+  })
+
+  it('parses Octave 8.4 bracketed path with spaces', () => {
+    expect(
+      parsePausedMarker('stopped in my_func at line 10 [/home/user/my project/my_func.m]'),
+    ).toEqual({ file: '/home/user/my project/my_func.m', line: 10 })
+  })
+
+  it('falls back to function name when no bracketed path is present', () => {
+    expect(
+      parsePausedMarker('stopped in myfunc at line 5'),
+    ).toEqual({ file: 'myfunc', line: 5 })
+  })
+
+  it('parses Octave 8.4 format with trailing whitespace after brackets', () => {
+    expect(
+      parsePausedMarker('stopped in test_debug at line 3 [/tmp/test_debug.m] \n'),
+    ).toEqual({ file: '/tmp/test_debug.m', line: 3 })
+  })
+
+  it('parses real Octave 8.4 multi-line debug output', () => {
+    const text = 'stopped in test_debug2 at line 2 [/tmp/test_debug2.m] \n2: y = 2;\n'
+    expect(parsePausedMarker(text)).toEqual({ file: '/tmp/test_debug2.m', line: 2 })
+  })
 })
