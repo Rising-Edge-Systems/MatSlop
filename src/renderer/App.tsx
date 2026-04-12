@@ -434,7 +434,7 @@ function App(): React.JSX.Element {
     refreshAllWatches()
     // pausedKey intentionally used instead of pausedLocation so deep
     // object changes don't cause spurious re-runs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // NOTE: intentionally only [pausedKey]; refreshAllWatches is stable.
   }, [pausedKey])
 
   // US-022: Clear watch values on engine disconnect so the panel doesn't

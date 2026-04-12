@@ -546,7 +546,7 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
     } catch {
       setLayout(buildDockLayoutFromVisibility(visibility, detachedPanels))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // NOTE: only react to savedDockLayout changes; visibility handled below.
   }, [savedDockLayout])
   // Track whether we already consumed the initial saved layout so the
   // visibility-effect below knows to rebuild instead of re-applying it.
@@ -572,7 +572,7 @@ export default function MatslopDockLayout(props: MatslopDockLayoutProps): React.
     const fresh = buildDockLayoutFromVisibility(visibility, detachedPanels)
     const cleaned = sanitizeSavedDockLayout(fresh as unknown as LayoutBase, visibility, detachedPanels)
     setLayout((cleaned ?? fresh) as LayoutData)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // NOTE: keyed on serialised strings; full objects intentionally omitted.
   }, [visKey, detachedKey, versionKey])
 
   const loadTab = (tab: TabData): TabData => {

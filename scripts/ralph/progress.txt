@@ -6,7 +6,8 @@ Started: Sat Apr 11 07:38:25 PM EDT 2026
 - Help panel IPC: buildHelpFetchCommand wraps output in `__MSLP_HELP_BEGIN__:<name>\n...__MSLP_HELP_END__` delimiters so extractHelpBody can slice it cleanly
 - Unsafe user input into Octave commands: strip to `[A-Za-z0-9_.]` (see buildHelpFetchCommand)
 - Test Octave directly at /tmp/octave-root/octave-cli-wrap when validating Octave command snippets
-- Existing lint errors (6, all pre-existing: 5x react-hooks/exhaustive-deps rule missing, 1x prefer-const) are NOT from current work — do not try to fix unrelated to story
+- ESLint config has NO `eslint-plugin-react-hooks` — do not add `// eslint-disable-next-line react-hooks/exhaustive-deps` directives (ESLint errors on unknown rule). Use plain `// NOTE:` comments to document intent.
+- Current lint baseline: 0 errors, 16 pre-existing warnings (all `onCollapse`/`onClose` unused panel prop interface args). New work should not regress error count.
 - OctaveProcessManager: `processQueue()` only re-enters from (a) executeCommand() calls or (b) a command resolver's setImmediate. Any custom `pendingResolve` must chain processQueue() on completion or queued commands will hang.
 - Unit-testing OctaveProcessManager: mock `child_process.spawn` with a FakeChildProcess that has `stdin.write`, stdout/stderr EventEmitters. Emit `___MATSLOP_CMD_DONE___\n` on stdout to simulate a completed command.
 - `octave:start` IPC creates a NEW OctaveProcessManager every time the renderer invokes it (e.g. on HMR/reload), so the init-handshake path runs fresh on every reload.
@@ -75,4 +76,24 @@ Started: Sat Apr 11 07:38:25 PM EDT 2026
   - The renderer-side IPC for publish is split: `publishSaveDialog` (just dialog, returns {filePath}) + `publishWriteFile` (actual fs.writeFile). e2e tests can stub the dialog and leave writeFile real for a true disk-write assertion
   - `disp(evalc("source('<path>')"))` is the canonical way to capture a .m script's stdout output from inside Octave without running it in a subprocess — handles disp, fprintf, and automatic variable echo
   - The test-only `_testMenuAction(action)` bridge dispatches through `mainWindow.webContents.send('menu:action', action)` — use it to drive any File menu action in e2e specs without synthesising real menu clicks
+---
+
+## 2026-04-11 - US-T05
+- Swept src/ for stale debug output: 0 console.log/debug/info calls and 0 `debugger;` statements in src/renderer (and src/main). Story was effectively already clean on the content axis.
+- Fixed 6 pre-existing ESLint errors that were blocking the "ESLint passes" acceptance criterion:
+  - 5x `// eslint-disable-next-line react-hooks/exhaustive-deps` directives referencing an uninstalled rule (eslint-plugin-react-hooks is NOT in package.json). Replaced each with a plain `// NOTE:` comment that preserves the original intent.
+  - 1x `let k` → `const k` in publishHtml.ts:85 (prefer-const).
+- Lint: 0 errors, 16 warnings (all pre-existing unused-arg warnings in panel prop interfaces, not from this story).
+- Files changed:
+  - src/renderer/App.tsx
+  - src/renderer/dialogs/PreferencesDialog.tsx
+  - src/renderer/panels/EditorPanel.tsx
+  - src/renderer/panels/MatslopDockLayout.tsx (two sites)
+  - src/renderer/editor/publishHtml.ts
+  - scripts/ralph/prd.json
+- Tests: 586 passed / 0 failed. Typecheck clean.
+- **Learnings for future iterations:**
+  - `eslint-plugin-react-hooks` is NOT configured in eslint.config.js, but legacy inline directives referencing `react-hooks/exhaustive-deps` still existed — each one triggers a hard ESLint error ("Definition for rule ... was not found"). If you need to suppress a hooks rule, either install + configure the plugin or use a plain comment.
+  - The pre-existing 6 lint errors flagged in prior cycles are NOW fixed — future iterations should NOT see them. The 16 remaining warnings are all `onCollapse`/`onClose` panel props unused in implementations but kept for the uniform panel interface contract.
+  - src/ currently has zero `console.log` / `debugger;` debris — if future polish cycles sprinkle any, this story's approach (Grep for `console\.(log|debug|info)` and `^\s*debugger\s*;?\s*$` scoped to src/) is the audit recipe.
 ---

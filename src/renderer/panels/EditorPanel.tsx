@@ -222,7 +222,7 @@ function EditorPanel({
       window.removeEventListener('beforeunload', flush)
       flush()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // NOTE: mount-only effect; flush reads latest refs so no deps needed.
   }, [])
 
   // Test hook so e2e specs can flush the in-memory session snapshot to

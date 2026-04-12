@@ -78,8 +78,8 @@
         "Tests pass"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Audit found no console.log/debug/info nor debugger; statements in src/. Fixed 6 lint errors that would have masked any future debug leakage: replaced 5x `// eslint-disable-next-line react-hooks/exhaustive-deps` directives (referencing an uninstalled rule) with plain `// NOTE:` comments that preserve intent, and changed `let k` → `const k` in publishHtml.ts. ESLint now reports 0 errors / 16 pre-existing warnings. 586 tests pass, typecheck clean."
     }
   ]
 }

@@ -82,7 +82,7 @@ export function highlightMatlab(code: string): string {
     // non-space char is an identifier/closing paren, treat as transpose).
     if (ch === "'") {
       // Look back for transpose context.
-      let k = out.length - 1
+      const k = out.length - 1
       // Strip any trailing tags to reach the last real char.
       // Simpler: scan input backward.
       let prev = ''

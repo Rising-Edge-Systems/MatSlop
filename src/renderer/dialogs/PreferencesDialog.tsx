@@ -91,7 +91,7 @@ export default function PreferencesDialog({
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // NOTE: intentionally only [capturingAction]; commitOverride is stable.
   }, [capturingAction])
 
   async function loadPreferences(): Promise<void> {
