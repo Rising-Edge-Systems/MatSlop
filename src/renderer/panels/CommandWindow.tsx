@@ -281,7 +281,7 @@ function CommandWindow({ onCollapse, engineStatus: engineStatusProp, pendingComm
     <div className="panel command-window" data-testid="command-window" onClick={handlePanelClick}>
       <div className="cw-output" ref={outputRef} data-testid="command-output">
         {outputEntries.map((entry, i) => (
-          <div key={i} className={`cw-line cw-${entry.type}`}>
+          <div key={i} className={`cw-line cw-entry-${entry.type}`}>
             {entry.text}
           </div>
         ))}
