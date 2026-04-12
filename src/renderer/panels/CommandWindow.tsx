@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { OctaveEngineStatus } from '../App'
+import { useOctaveStatus } from '../OctaveContext'
 import { parseDocCommand, parseHelpCommand } from '../editor/helpDoc'
 
 interface OutputEntry {
@@ -32,7 +33,10 @@ interface CommandWindowProps {
   onDocCommand?: (topic: string) => void
 }
 
-function CommandWindow({ onCollapse, engineStatus, pendingCommand, onCommandExecuted, onHistoryChanged, pasteCommand, onPasteConsumed, menuAction, onMenuActionConsumed, onDocCommand }: CommandWindowProps): React.JSX.Element {
+function CommandWindow({ onCollapse, engineStatus: engineStatusProp, pendingCommand, onCommandExecuted, onHistoryChanged, pasteCommand, onPasteConsumed, menuAction, onMenuActionConsumed, onDocCommand }: CommandWindowProps): React.JSX.Element {
+  // US-L02: Read from OctaveContext to bypass rc-dock stale prop cache
+  const contextStatus = useOctaveStatus()
+  const engineStatus = contextStatus !== 'disconnected' ? contextStatus : engineStatusProp
   const [outputEntries, setOutputEntries] = useState<OutputEntry[]>([])
   const [inputValue, setInputValue] = useState('')
   const [commandHistory, setCommandHistory] = useState<string[]>([])

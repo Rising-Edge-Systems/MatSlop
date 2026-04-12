@@ -105,3 +105,24 @@ Started: Sun Apr 12 01:10:40 PM EDT 2026
   - Call stack query via `formatCallStackQuery()` works correctly in paused state, returns frames with full paths
   - 625 tests pass (609 existing + 16 new), typecheck clean
 ---
+
+## 2026-04-12 13:54 - US-L08
+- Verified plotting pipeline end-to-end with comprehensive mock-data integration tests
+- Confirmed matslop_export_fig is loadable by Octave (function parses and help text displays)
+- Wrote 27 tests (26 pass, 1 skipped) in tests/integration/plotting-pipeline.test.ts covering:
+  - matslop_export_fig file validation (exists, function definition, helper functions, plot types)
+  - JSON schema round-trip: simulated export_fig JSON → parsePlotFigure → figureToPlotly for line/surface/scatter/bar
+  - Capture script marker parsing (__MATSLOP_FIG__ and __MATSLOP_PWD__ regex from App.tsx)
+  - FigurePanel PNG data-URL construction and base64 round-trip
+  - IPC figures:readImage simulation
+  - Full pipeline simulation from JSON string to Plotly output
+- Updated KNOWN_LIMITATIONS.md: replaced stale entries for US-L01 through US-L07 with "fixed" notes, updated plotting entry with detailed verification status
+- Real Octave plotting remains blocked by missing fonts-freefont-otf in extracted-deb environment (hardcoded FreeSans.otf path, can't sudo apt install)
+- Files changed: tests/integration/plotting-pipeline.test.ts (new), KNOWN_LIMITATIONS.md, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - The extracted Octave 8.4 debs have a hardcoded font path to /usr/share/fonts/opentype/freefont/FreeSans.otf — FONTCONFIG_FILE overrides don't help because the ft_manager uses FreeType directly
+  - matslop_export_fig uses a custom JSON encoder (__matslop_to_json__) for Octave 6 compatibility — it doesn't depend on jsonencode
+  - The plotting pipeline has TWO paths: FigurePanel (PNG snapshot via print()) and PlotRenderer (interactive Plotly via matslop_export_fig JSON)
+  - The capture script uses __MATSLOP_FIG__:handle:path markers; App.tsx parses with matchAll regex
+  - 651 tests pass (625 existing + 26 new), typecheck clean
+---

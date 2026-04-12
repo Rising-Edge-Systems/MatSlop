@@ -279,6 +279,8 @@ interface Window {
     onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void
     // Test-only
     _testMenuAction?: (action: string) => Promise<void>
+    // US-L01: Busy tracking callback registration
+    registerBusyCallbacks?: (begin: () => void, end: () => void) => void
   }
 }
 

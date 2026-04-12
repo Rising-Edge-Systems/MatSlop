@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 
+// US-L01: Busy-tracking callbacks registered by the renderer via registerBusyCallbacks.
+// Called from within octaveExecute so the renderer-side octaveBusyTracker is driven
+// without needing to reassign the frozen window.matslop property.
+let _busyBeginCb: (() => void) | null = null
+let _busyEndCb: (() => void) | null = null
+
 contextBridge.exposeInMainWorld('matslop', {
   platform: process.platform,
   openFile: (): Promise<{ filePath: string; content: string; filename: string } | null> =>
@@ -48,8 +54,14 @@ contextBridge.exposeInMainWorld('matslop', {
   // Octave process management
   octaveStart: (binaryPath: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('octave:start', binaryPath),
-  octaveExecute: (command: string): Promise<{ output: string; error: string; isComplete: boolean }> =>
-    ipcRenderer.invoke('octave:execute', command),
+  octaveExecute: async (command: string): Promise<{ output: string; error: string; isComplete: boolean }> => {
+    _busyBeginCb?.()
+    try {
+      return await ipcRenderer.invoke('octave:execute', command)
+    } finally {
+      _busyEndCb?.()
+    }
+  },
   octaveInterrupt: (): Promise<void> =>
     ipcRenderer.invoke('octave:interrupt'),
   // US-020: Pause a running script and drop into the debugger at the
@@ -305,4 +317,10 @@ contextBridge.exposeInMainWorld('matslop', {
   // Test-only helper
   _testMenuAction: (action: string): Promise<void> =>
     ipcRenderer.invoke('test:menuAction', action),
+  // US-L01: Register renderer-side callbacks for busy tracking.
+  // Called once from main.tsx to wire octaveBusyTracker.begin/end.
+  registerBusyCallbacks: (begin: () => void, end: () => void): void => {
+    _busyBeginCb = begin
+    _busyEndCb = end
+  },
 })

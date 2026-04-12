@@ -2,17 +2,19 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import DetachedPlot from './DetachedPlot'
 import DetachedPanel from './DetachedPanel'
-import { wrapOctaveExecute } from './octaveBusyTracker'
+import { octaveBusyTracker } from './octaveBusyTracker'
 import './styles.css'
 
-// US-S02 / US-L01: Install the ref-counted busy tracker by wrapping the
-// contextBridge object in a Proxy that intercepts `octaveExecute` calls.
-// `window.matslop` itself (a regular property of `window`) IS writable —
-// only the properties OF the bridge object are frozen by contextBridge.
-// The Proxy intercepts property access without mutating the frozen object.
-// The idempotency guard (__matslopBusyTrackerWrapped) prevents double-
-// wrapping on HMR reloads.
-;(window as any).matslop = wrapOctaveExecute((window as any).matslop)
+// US-L01: Wire the ref-counted busy tracker via preload callbacks.
+// contextBridge freezes both the bridge object AND the window.matslop property,
+// so we cannot replace or monkey-patch it. Instead, the preload wraps
+// octaveExecute to call registered callbacks, and we register here.
+if ((window as any).matslop?.registerBusyCallbacks) {
+  ;(window as any).matslop.registerBusyCallbacks(
+    () => octaveBusyTracker.begin(),
+    () => octaveBusyTracker.end(),
+  )
+}
 
 // Note: StrictMode intentionally disabled — this is an Electron app (no SSR/hydration)
 // and StrictMode's double-invocation causes spurious side effects with IPC handlers
