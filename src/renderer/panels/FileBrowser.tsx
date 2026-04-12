@@ -230,7 +230,7 @@ function FileBrowser({ onCollapse, onOpenFile, onCwdChange, externalCwd, gitBadg
           data-git-badge={badge || undefined}
           data-file-path={entry.path}
           onDoubleClick={() => handleDoubleClick(entry)}
-          onClick={() => entry.isDirectory && toggleDir(entry)}
+          onClick={() => entry.isDirectory ? toggleDir(entry) : onOpenFile(entry.path)}
           onContextMenu={(e) => handleContextMenu(e, entry)}
         >
           {entry.isDirectory && (
