@@ -11,7 +11,7 @@ import {
   findNextSectionAdvanceLine,
   type EditorTab,
 } from '../editor/editorTypes'
-import { isFunctionOnlyFile } from '../editor/functionFileDetection'
+import { isFunctionOnlyFile, buildRunScriptCommand } from '../editor/functionFileDetection'
 import { publishHtml } from '../editor/publishHtml'
 import {
   tabsToSession,
@@ -486,6 +486,11 @@ function EditorPanel({
           )
         )
       }
+      // Re-apply breakpoints after save — Octave drops them when the file
+      // timestamp changes (it re-caches the source on next source() call).
+      try {
+        await window.matslop.debugReapplyBreakpointsForFile(tab.filePath)
+      } catch { /* ignore — breakpoints are best-effort */ }
     } else {
       // Untitled buffer — write to a temp file and run from there.
       // Previously prompted Save As which blocked the UI; now the user
@@ -517,7 +522,17 @@ function EditorPanel({
 
     const lastSep = Math.max(tab.filePath.lastIndexOf('/'), tab.filePath.lastIndexOf('\\'))
     const dirPath = tab.filePath.substring(0, lastSep)
-    onRunRef.current?.(tab.filePath, dirPath)
+    if (onRunRef.current) {
+      onRunRef.current(tab.filePath, dirPath)
+    } else {
+      // Fallback: if onRun callback is not wired, run directly via IPC
+      const { command } = buildRunScriptCommand(tab.filePath, dirPath)
+      window.matslop.octaveExecute(command).then((result) => {
+        window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
+          detail: { display: `source('${tab.filename}')`, output: result.output, error: result.error },
+        }))
+      }).catch(() => {})
+    }
   }, [getActiveTab]) // reads onRunRef.current at call time
 
   /**
