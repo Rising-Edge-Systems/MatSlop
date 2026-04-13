@@ -219,24 +219,19 @@ export class OctaveProcessManager extends EventEmitter {
   }
 
   private cleanOutput(output: string): string {
+    // Strip ANSI escape sequences (cursor positioning, colors, etc.)
+    // Octave outputs these when it detects an interactive terminal.
+    // eslint-disable-next-line no-control-regex
+    let cleaned = output.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+    // Also strip carriage returns that cursor-positioning leaves behind
+    cleaned = cleaned.replace(/\r/g, '')
+
     // Remove Octave prompt markers (>> and octave:N>)
-    // Strip Octave prompts. Formats seen in the wild:
-    //   "octave:42> "  — normal prompt
-    //   ">> "          — secondary interactive prompt
-    //   "> "           — continuation prompt (multi-line input echoed back)
-    // Prompts can appear:
-    //   - at the start of a line (after a command echo / continuation)
-    //   - at the end of output from fprintf/printf without newlines
-    //     (the next prompt gets concatenated onto the same line)
-    // Strategy: strip leading prompt(s) per-line, then strip any remaining
-    // prompts that got concatenated without newlines.
-    const cleanedLines = output.split('\n').map((line) =>
-      // Repeatedly strip leading prompts to handle nested continuations
+    const cleanedLines = cleaned.split('\n').map((line) =>
       line.replace(/^(?:octave:\d+>\s*|>>\s*|>\s)+/, '')
     )
     return cleanedLines
       .join('\n')
-      // Strip prompts that got glued onto output without a newline boundary
       .replace(/octave:\d+>\s?/g, '')
       .replace(/>>\s?/g, '')
   }

@@ -105,6 +105,13 @@ def type_text(d, text):
                 '=': 'equal', '[': 'bracketleft', ']': 'bracketright',
                 ';': 'semicolon', "'": 'apostrophe', ',': 'comma',
                 '.': 'period', '`': 'grave',
+                '_': 'underscore', '(': 'parenleft', ')': 'parenright',
+                '!': 'exclam', '@': 'at', '#': 'numbersign',
+                '$': 'dollar', '%': 'percent', '^': 'asciicircum',
+                '&': 'ampersand', '*': 'asterisk', '+': 'plus',
+                '{': 'braceleft', '}': 'braceright', '|': 'bar',
+                ':': 'colon', '"': 'quotedbl', '<': 'less',
+                '>': 'greater', '?': 'question', '~': 'asciitilde',
             }
             if char in special:
                 keysym = XK.string_to_keysym(special[char])
