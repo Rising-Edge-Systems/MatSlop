@@ -75,3 +75,68 @@ describe('download-octave Linux support (.deb bundling)', () => {
     expect(cfg).toMatch(/findInPath\(['"]octave-cli['"]\)/)
   })
 })
+
+// US-B02: Font redirect shim, fonts.conf, and wrapper script
+describe('download-octave Linux support (US-B02: shim & wrapper)', () => {
+  const root = path.resolve(__dirname, '..', '..')
+  const scriptPath = path.join(root, 'scripts', 'download-octave.js')
+  const script = fs.readFileSync(scriptPath, 'utf-8')
+
+  it('contains a FONT_REDIRECT_C source string with openat interception', () => {
+    expect(script).toMatch(/FONT_REDIRECT_C/)
+    expect(script).toMatch(/openat/)
+    expect(script).toMatch(/dlsym\(RTLD_NEXT/)
+    expect(script).toMatch(/MATSLOP_OCTAVE_ROOT/)
+    expect(script).toMatch(/\/usr\/share\/fonts\/opentype\/freefont\//)
+  })
+
+  it('has a compileFontRedirect function that uses gcc', () => {
+    expect(script).toMatch(/function compileFontRedirect/)
+    expect(script).toMatch(/gcc -shared -fPIC/)
+    expect(script).toMatch(/font_redirect\.so/)
+    expect(script).toMatch(/-ldl/)
+  })
+
+  it('removes C source after compilation', () => {
+    // The finally block should unlink the .c file
+    expect(script).toMatch(/unlinkSync.*font_redirect\.c|unlink.*cPath/)
+  })
+
+  it('warns and skips when gcc is not available', () => {
+    expect(script).toMatch(/gcc not available/)
+    expect(script).toMatch(/WARNING/)
+  })
+
+  it('has a createFontsConf function producing fontconfig XML', () => {
+    expect(script).toMatch(/function createFontsConf/)
+    expect(script).toMatch(/fonts\.conf/)
+    expect(script).toMatch(/<fontconfig>/)
+    expect(script).toMatch(/usr\/share\/fonts\/opentype\/freefont/)
+    expect(script).toMatch(/\/usr\/share\/fonts/)
+  })
+
+  it('has a createWrapperScript function creating bin/octave-cli wrapper', () => {
+    expect(script).toMatch(/function createWrapperScript/)
+    expect(script).toMatch(/bin.*octave-cli/)
+    // Wrapper sets key environment variables
+    expect(script).toMatch(/MATSLOP_OCTAVE_ROOT/)
+    expect(script).toMatch(/LD_LIBRARY_PATH/)
+    expect(script).toMatch(/LD_PRELOAD/)
+    expect(script).toMatch(/OCTAVE_HOME/)
+    expect(script).toMatch(/GNUTERM.*pngcairo|pngcairo.*GNUTERM/)
+    expect(script).toMatch(/FONTCONFIG_FILE/)
+    // Execs real binary
+    expect(script).toMatch(/usr\/bin\/octave-cli/)
+  })
+
+  it('wrapper script is made executable (mode 0o755)', () => {
+    expect(script).toMatch(/0o755|755/)
+  })
+
+  it('main() calls compileFontRedirect, createFontsConf, createWrapperScript for linux', () => {
+    // After downloadLinuxDebs(), the three setup functions are called
+    expect(script).toMatch(/compileFontRedirect\(\)/)
+    expect(script).toMatch(/createFontsConf\(\)/)
+    expect(script).toMatch(/createWrapperScript\(\)/)
+  })
+})
