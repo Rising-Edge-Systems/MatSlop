@@ -9,6 +9,15 @@ interface OutputEntry {
   text: string
 }
 
+/** Strip Octave debug-mode noise from output before displaying. */
+function stripDebugNoise(text: string): string {
+  return text
+    .replace(/^debug>\s*/gm, '')
+    .replace(/^stopped in .+ at line \d+.*(?:\n\d+: .*)?/gm, '')
+    .replace(/\n{3,}/g, '\n\n')  // collapse excess blank lines left behind
+    .trim()
+}
+
 export interface PendingCommand {
   command: string
   display: string
@@ -81,11 +90,12 @@ function CommandWindow({ onCollapse, engineStatus: engineStatusProp, pendingComm
     // Execute it
     window.matslop.octaveExecute(pendingCommand.command).then((result) => {
       const newEntries: OutputEntry[] = []
-      if (result.output) {
-        newEntries.push({ type: 'output', text: result.output })
+      const cleaned = stripDebugNoise(result.output)
+      if (cleaned) {
+        newEntries.push({ type: 'output', text: cleaned })
       }
       if (result.error) {
-        newEntries.push({ type: 'error', text: result.error })
+        newEntries.push({ type: 'error', text: stripDebugNoise(result.error) })
       }
       if (newEntries.length > 0) {
         setOutputEntries((prev) => [...prev, ...newEntries])
@@ -122,10 +132,12 @@ function CommandWindow({ onCollapse, engineStatus: engineStatusProp, pendingComm
         entries.push({ type: 'output', text: `>> ${detail.display}` })
       }
       if (detail.output) {
-        entries.push({ type: 'output', text: detail.output })
+        const cleaned = stripDebugNoise(detail.output)
+        if (cleaned) entries.push({ type: 'output', text: cleaned })
       }
       if (detail.error) {
-        entries.push({ type: 'error', text: detail.error })
+        const cleaned = stripDebugNoise(detail.error)
+        if (cleaned) entries.push({ type: 'error', text: cleaned })
       }
       if (entries.length > 0) {
         setOutputEntries((prev) => [...prev, ...entries])
@@ -178,11 +190,12 @@ function CommandWindow({ onCollapse, engineStatus: engineStatusProp, pendingComm
     try {
       const result = await window.matslop.octaveExecute(command)
       const newEntries: OutputEntry[] = []
-      if (result.output) {
-        newEntries.push({ type: 'output', text: result.output })
+      const cleaned = stripDebugNoise(result.output)
+      if (cleaned) {
+        newEntries.push({ type: 'output', text: cleaned })
       }
       if (result.error) {
-        newEntries.push({ type: 'error', text: result.error })
+        newEntries.push({ type: 'error', text: stripDebugNoise(result.error) })
       }
       if (newEntries.length > 0) {
         setOutputEntries((prev) => [...prev, ...newEntries])
