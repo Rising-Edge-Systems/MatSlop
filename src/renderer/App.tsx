@@ -148,6 +148,8 @@ function App(): React.JSX.Element {
   const [profilerLoading, setProfilerLoading] = useState(false)
   const [pendingOpenLine, setPendingOpenLine] = useState<number | null>(null)
   const [octaveStatus, setOctaveStatus] = useState<OctaveStatus>({ path: null, version: null, configured: false, engineStatus: 'disconnected' })
+  const octaveEngineStatusRef = useRef<OctaveEngineStatus>('disconnected')
+  octaveEngineStatusRef.current = octaveStatus.engineStatus
   // US-S02: "Running…" indicator driven by a ref-counted in-flight tracker
   // wrapped around every `octaveExecute` IPC. Starts as 'idle'; flips to
   // 'running' only after 250ms of sustained activity so sub-threshold
@@ -199,6 +201,8 @@ function App(): React.JSX.Element {
   // index. Both reset when we're no longer paused. The stack is refreshed
   // on every `onOctavePaused` event via a `debug:getCallStack` IPC call.
   const [callStack, setCallStack] = useState<CallStackFrame[]>([])
+  const callStackRef = useRef<CallStackFrame[]>(callStack)
+  callStackRef.current = callStack
   const [callStackSelected, setCallStackSelected] = useState<number>(-1)
   // US-022: Pinned watch expressions. Values are refreshed on every
   // pause/step transition (see effect below) and when the user explicitly
@@ -346,12 +350,12 @@ function App(): React.JSX.Element {
   const handleCallStackSelect = useCallback(
     (index: number) => {
       setCallStackSelected(index)
-      const frame = callStack[index]
+      const frame = callStackRef.current[index]
       if (frame && frame.file) {
         setPausedLocation({ file: frame.file, line: Math.floor(frame.line) })
       }
     },
-    [callStack],
+    [],
   )
 
   // US-019: Re-query the Workspace panel whenever the debugger's paused
@@ -423,14 +427,14 @@ function App(): React.JSX.Element {
   const refreshAllWatches = useCallback(async () => {
     const current = watchesRef.current
     if (current.length === 0) return
-    if (octaveStatus.engineStatus === 'disconnected') return
+    if (octaveEngineStatusRef.current === 'disconnected') return
     // Fire serially so commands don't race through Octave's queue (the
     // underlying executor is already serial, but awaiting one at a time
     // makes ordering deterministic for tests).
     for (const w of current) {
       await evaluateWatch(w.id, w.expression)
     }
-  }, [evaluateWatch, octaveStatus.engineStatus])
+  }, [evaluateWatch])
 
   // US-022: Re-evaluate watches whenever Octave's paused location changes
   // (entering a breakpoint, stepping, or leaving debug mode all update
@@ -966,9 +970,6 @@ function App(): React.JSX.Element {
     setPendingOpenLine(null)
   }, [])
 
-  const octaveEngineStatusRef = useRef<OctaveEngineStatus>('disconnected')
-  octaveEngineStatusRef.current = octaveStatus.engineStatus
-
   const handleCwdChange = useCallback((newCwd: string) => {
     setCwd(newCwd)
     // Sync Octave's working directory when FileBrowser changes
@@ -998,7 +999,7 @@ function App(): React.JSX.Element {
   cwdRef.current = cwd
 
   const runCaptureAndRefresh = useCallback(async () => {
-    if (octaveStatus.engineStatus === 'disconnected') {
+    if (octaveEngineStatusRef.current === 'disconnected') {
       setWorkspaceRefreshTrigger((prev) => prev + 1)
       return
     }
@@ -1056,7 +1057,7 @@ function App(): React.JSX.Element {
     // do we trigger the workspace refresh.  WorkspacePanel's `whos` call
     // will not compete with the capture script for the Octave command slot.
     setWorkspaceRefreshTrigger((prev) => prev + 1)
-  }, [octaveStatus.engineStatus])
+  }, [])
 
   // US-S05: Run (F5) sources the saved .m file via `source('<abs path>')`
   // so the Command Window surfaces any output the script prints. We cd into
