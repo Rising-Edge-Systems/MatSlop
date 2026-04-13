@@ -1,18 +1,18 @@
 {
   "project": "MatSlop",
   "branchName": "ralph/fix-known-limitations",
-  "description": "Fix all actionable known limitations documented in KNOWN_LIMITATIONS.md. This PRD addresses: busy indicator not wired up, rc-dock stale closures via React Context, workspace first-refresh race condition hardening, command capture race with workspace refresh, welcome file UX (function vs plain script), and session restore robustness. Each story is scoped to be independently testable and commitable.",
+  "description": "Fix the systemic rc-dock stale closure bug. Every callback and value prop passed through MatslopDockLayout's loadTab cache is frozen at mount time. The fix: move ALL dynamic value props into AppContext, and stabilize ALL callbacks via refs so they have [] deps.",
   "userStories": [
     {
-      "id": "US-L01",
-      "title": "Wire up octaveBusyTracker via wrapOctaveExecute in main.tsx",
-      "description": "The busy indicator (US-S02) is fully implemented in octaveBusyTracker.ts but never activated. The `wrapOctaveExecute` Proxy approach works — it returns a new Proxy object that intercepts `octaveExecute` calls. The problem was that main.tsx tried to reassign `window.matslop` after contextBridge froze it. The fix: call `wrapOctaveExecute(window.matslop)` in main.tsx BEFORE ReactDOM.createRoot, and assign the result back to `window.matslop`. `window.matslop` itself (as a property of `window`) IS writable — only the properties OF the bridge object are frozen. The Proxy intercepts property access without mutating the frozen object. Read the comment at lines 7-14 of src/renderer/main.tsx and the wrapOctaveExecute function in src/renderer/octaveBusyTracker.ts (lines 128-152) to understand the existing code. The status bar in App.tsx already subscribes to octaveBusyTracker state (lines 154-157) — it just never gets driven because wrapOctaveExecute is never called.",
+      "id": "US-SC01",
+      "title": "Stabilize broken callbacks in App.tsx via ref pattern",
+      "description": "Six callbacks in App.tsx have state variables in their dependency arrays, making them unstable. When rc-dock caches the React element, the stale closure captures old state.\n\nFix each one by reading from a ref instead of closing over state:\n\n1. `runCaptureAndRefresh` depends on `octaveStatus.engineStatus` in its dep array. Fix: read `octaveEngineStatusRef.current` (already exists) inside the callback instead. Remove octaveStatus.engineStatus from deps, make deps `[]`.\n\n2. `handleRunScript` depends on `[runCaptureAndRefresh]`. Once #1 is stable ([] deps), handleRunScript becomes stable too since its only dep is now stable. Verify it ends up with `[]` or only stable deps.\n\n3. `handleRunSection` depends on `[runCaptureAndRefresh]`. Same cascade as #2.\n\n4. `handleCommandExecuted` — check its deps. If it depends on runCaptureAndRefresh, same cascade.\n\n5. `handleCallStackSelect` depends on `[callStack]`. Fix: create `const callStackRef = useRef(callStack)` and sync it via `callStackRef.current = callStack` after the useState. Read `callStackRef.current[index]` inside the callback. Change deps to `[]`.\n\n6. `refreshAllWatches` depends on `[evaluateWatch, octaveStatus.engineStatus]`. Fix: read `octaveEngineStatusRef.current` inside, and create/use `watchesRef` for the watches list. `evaluateWatch` is already stable.\n\nIMPORTANT: Do NOT change any component interfaces or props. Only change callback implementations inside App.tsx.",
       "acceptanceCriteria": [
-        "In src/renderer/main.tsx, before ReactDOM.createRoot, call: `(window as any).matslop = wrapOctaveExecute((window as any).matslop)` (import wrapOctaveExecute from './octaveBusyTracker')",
-        "The status bar shows 'Running...' during commands that take >250ms (the debounce threshold in octaveBusyTracker)",
-        "Fast commands (<250ms) do NOT flicker the status bar",
-        "The existing octaveBusyTracker unit tests still pass",
-        "No infinite recursion or errors on HMR reload (the Proxy's idempotency guard __matslopBusyTrackerWrapped prevents double-wrapping)",
+        "runCaptureAndRefresh has [] deps",
+        "handleRunScript has [] or only-stable deps",
+        "handleRunSection has [] or only-stable deps",
+        "handleCallStackSelect has [] deps",
+        "refreshAllWatches has only stable deps",
         "Typecheck passes",
         "All tests pass"
       ],
@@ -20,18 +20,12 @@
       "passes": true
     },
     {
-      "id": "US-L02",
-      "title": "Move dynamic panel state into React Context to fix rc-dock stale closures",
-      "description": "rc-dock's loadTab factory caches React elements. When App.tsx passes props that change (like helpState, cwd, octaveStatus) to panel components through the loadTab factory, those updates are silently dropped because rc-dock's PureComponent optimization prevents re-rendering cached tabs. The current workaround is `contentVersion` — a string built from all mutable state that forces a full layout rebuild when any value changes. This works but destroys component state (command window scroll position, editor undo history, etc.) on every help topic change or cwd update.\n\nThe correct fix: create a React Context (or extend the existing OctaveContext) that holds ALL dynamic state that panels need. Panel components read from context instead of props. Context updates bypass rc-dock's caching entirely because React's context propagation works through any component tree.\n\nSpecifically:\n1. Create `src/renderer/AppContext.tsx` with a context that holds: engineStatus, cwd, helpState (topic + content + loading), octaveBusyState, debugState (paused, currentFile, currentLine), and any other frequently-changing values currently passed as props through loadTab.\n2. Wrap the DockLayout in `<AppContext.Provider value={...}>` in App.tsx.\n3. In each panel component that reads these values, replace prop access with `useAppContext()` hook calls.\n4. Remove `contentVersion` from MatslopDockLayout props and the layout-rebuild logic it triggers. The layout should only rebuild on visibility/detached changes, not on data changes.\n5. Keep the existing OctaveContext for engineStatus (it's already used by WorkspacePanel) or merge it into the new AppContext.\n\nIMPORTANT: Do NOT touch the loadTab factory itself — it should continue to read from slotsRef for the initial render. The point is that the React elements it caches will internally read from context, so they stay up-to-date even when rc-dock doesn't re-call loadTab.",
+      "id": "US-SC02",
+      "title": "Fix EditorPanel internal stale callbacks",
+      "description": "Two callbacks inside EditorPanel.tsx have state in their deps:\n\n1. `handleOpenFile` depends on `[tabs]`. Fix: use `tabsRef.current` (already exists at line 114) instead of `tabs`. Change deps to `[]`.\n\n2. `handleCloseWelcome` depends on `[welcomeTabId, activeTabId]`. Fix: create `welcomeTabIdRef` synced to welcomeTabId. Use `activeTabIdRef.current` (already exists) and `welcomeTabIdRef.current` inside the callback. Change deps to `[]`.\n\nDo NOT change any component interfaces.",
       "acceptanceCriteria": [
-        "A new AppContext exists in src/renderer/AppContext.tsx with a provider and useAppContext hook",
-        "HelpBrowser reads helpState from context, not props — changing help topic updates the panel without a layout rebuild",
-        "WorkspacePanel reads engineStatus from context (can keep existing OctaveContext or merge)",
-        "The `contentVersion` prop is removed from MatslopDockLayout",
-        "Changing help topic does NOT cause CommandWindow to lose scroll position or input text",
-        "Changing cwd does NOT cause editor tabs to remount",
-        "All 12 panel types still render correctly in the dock",
-        "Drag-and-drop between panels still works",
+        "handleOpenFile has [] deps",
+        "handleCloseWelcome has [] deps",
         "Typecheck passes",
         "All tests pass"
       ],
@@ -39,15 +33,13 @@
       "passes": true
     },
     {
-      "id": "US-L03",
-      "title": "Harden workspace first-refresh: eliminate timeout race in WorkspacePanel",
-      "description": "The init-handshake race in OctaveProcessManager was fixed in US-T02 (setImmediate drain). But WorkspacePanel still has a defensive 1.5s timeout + 3-retry loop (lines 250-262 of WorkspacePanel.tsx) that was added as a workaround. Now that the root cause is fixed, simplify the refresh logic:\n\n1. Remove the Promise.race timeout wrapper (whosWithTimeout). Just call `window.matslop.octaveExecute('whos')` directly.\n2. Keep a single retry (not 3) with a longer delay (500ms) as a safety net for slow Octave startup — but document it as a safety net, not a workaround.\n3. Add a 30-second AbortController-style timeout for truly hung processes (replaced the 1.5s race).\n4. Make sure the watchdog timer (if it still exists elsewhere in WorkspacePanel) uses a reasonable timeout (30s, not 2s).\n\nAlso verify: after a fresh `octave:start`, the FIRST call to `whos` from WorkspacePanel resolves correctly without any timeout or retry firing. Write a test that simulates the startup sequence.",
+      "id": "US-SC03",
+      "title": "Expand AppContext with all dynamic panel state and stable callbacks",
+      "description": "Add ALL remaining dynamic value props to AppContext so panels can read from context instead of stale rc-dock cached props.\n\nIn src/renderer/AppContext.tsx:\n1. Add these value fields to AppContextValue: pendingCommand, pasteCommand, menuAction, refreshTrigger (number), debugPaused (boolean), debugFrameName (string|null), pausedLocation ({file,line}|null), editorTheme (string), editorSettings (object), callStack (array), callStackSelected (number), watches (array), figures (array), historyVersion (number), gitBadges (ReadonlyMap).\n\n2. Add these callback fields: onRunScript, onRunSection, onCommandExecuted, onDocCommand, onMenuActionConsumed, onPasteConsumed, onHistoryChanged, onCallStackSelect, onAddWatch, onRemoveWatch, onUpdateWatch, onRefreshWatches.\n\n3. Provide sensible defaults in createContext (null, [], 0, noop functions).\n\n4. Import necessary types — use inline type definitions to avoid circular imports.\n\nThen in src/renderer/App.tsx, populate ALL new fields in the `appCtx` useMemo. Use the stabilized callbacks from US-SC01. Add all value state variables to the useMemo dependency array.\n\nIMPORTANT: Keep ALL existing AppContext fields (help*, profiler*, cwd, pendingOpenPath, etc). Only ADD new ones.",
       "acceptanceCriteria": [
-        "WorkspacePanel.refreshWorkspace no longer has a 1.5s Promise.race timeout",
-        "A single retry with 500ms delay exists as a documented safety net",
-        "A 30s overall timeout protects against truly hung processes",
-        "The first whos call after octave:start resolves within 2 seconds in the unit test",
-        "Existing workspace panel tests still pass",
+        "AppContextValue has all listed value and callback fields",
+        "createContext has defaults for every field",
+        "App.tsx appCtx useMemo populates every field",
         "Typecheck passes",
         "All tests pass"
       ],
@@ -55,81 +47,17 @@
       "passes": true
     },
     {
-      "id": "US-L04",
-      "title": "Serialize command capture script and workspace refresh to prevent race",
-      "description": "After every user command in CommandWindow, App.tsx runs a multi-line capture script (`__mslp_r__=pwd(); ...`) to detect figures and update CWD. This runs concurrently with WorkspacePanel's `whos` refresh. On slower systems, `whos` returns empty because the capture script holds the Octave command slot (OctaveProcessManager is single-command — the queue serializes but IPC ordering between two independent React components is not guaranteed).\n\nThe fix: make the capture script and workspace refresh sequential, not concurrent. In App.tsx's handleCommandExecuted callback:\n1. First, run the capture script and await its result.\n2. Then, trigger the workspace refresh (via the existing refreshTrigger counter or a direct call).\n3. This guarantees the workspace `whos` runs AFTER the capture script releases the command slot.\n\nLook at App.tsx for `handleCommandExecuted` and the capture script logic. The workspace refresh is triggered by incrementing a `refreshTrigger` counter that WorkspacePanel watches via useEffect.",
+      "id": "US-SC04",
+      "title": "Update all panel components to read from AppContext",
+      "description": "Update each panel component to read dynamic state from AppContext instead of (or in addition to) props. Keep props as optional fallbacks for tests.\n\nPattern: `const ctx = useAppContext(); const val = ctx.field ?? propField;`\n\nPanels to update (import useAppContext in each):\n\n1. CommandWindow.tsx — read: pendingCommand, pasteCommand, menuAction, onCommandExecuted, onDocCommand, onMenuActionConsumed, onPasteConsumed, onHistoryChanged\n2. WorkspacePanel.tsx — read: refreshTrigger, debugPaused, debugFrameName\n3. EditorPanel.tsx — read: pausedLocation, editorTheme, editorSettings, menuAction, onMenuActionConsumed, onRunScript (as onRun), onRunSection\n4. CallStackPanel.tsx — read: callStack (as frames), callStackSelected (as selectedIndex), onCallStackSelect (as onSelectFrame)\n5. WatchesPanel.tsx — read: watches, onAddWatch, onRemoveWatch, onUpdateWatch, onRefreshWatches (as onRefresh)\n6. FigurePanel.tsx — read: figures\n7. CommandHistoryPanel.tsx — read: historyVersion\n8. FileBrowser.tsx — read: gitBadges, cwd (as externalCwd)\n\nFor each: make the props optional (add ?) where context provides the value. Context value takes precedence (ctx.x ?? propX).\n\nDo NOT remove props from App.tsx MatslopDockLayout slots — keep them as fallbacks.",
       "acceptanceCriteria": [
-        "handleCommandExecuted awaits the capture script before incrementing refreshTrigger",
-        "WorkspacePanel refresh no longer races with the capture script",
-        "The retry loop count in WorkspacePanel can be reduced to 1 (or removed if US-L03 already did this)",
-        "Running `x = 42` in CommandWindow reliably shows x in Workspace on the first refresh attempt",
+        "All 8 panels import and use useAppContext",
+        "Each panel reads its dynamic values from context with prop fallback",
+        "Affected props are optional in interfaces",
         "Typecheck passes",
         "All tests pass"
       ],
       "priority": 4,
-      "passes": true
-    },
-    {
-      "id": "US-L05",
-      "title": "Change welcome file from function definition to runnable plain script",
-      "description": "On first launch, the editor opens with `untitled.m` containing a `function result = hello()` stub. Clicking Run (F5) shows a confusing 'This file only defines function(s); nothing to run' banner. New users expect Run to do something visible.\n\nReplace the welcome content with a plain script that produces visible output when run. Something like:\n```\n% Welcome to MatSlop!\n% Press F5 or click Run to execute this script.\n\ndisp('Hello from MatSlop!')\nx = magic(3)\ndisp(x)\n```\n\nFind where the welcome file content is defined (search for 'hello' or 'function result' in the renderer source) and replace it.",
-      "acceptanceCriteria": [
-        "The welcome file is a plain script (no `function` keyword at the top level)",
-        "Running the welcome file with F5 produces visible output in the Command Window",
-        "The welcome file demonstrates at least one MatSlop feature (e.g., matrix creation, disp output)",
-        "The 'only defines function(s)' banner does NOT appear when running the welcome file",
-        "Typecheck passes",
-        "All tests pass"
-      ],
-      "priority": 5,
-      "passes": true
-    },
-    {
-      "id": "US-L06",
-      "title": "Verify and fix session restore after rc-dock migration",
-      "description": "US-034 added session save/restore (open tabs, cursor, layout). The polish cycles migrated from Allotment to rc-dock. Session restore has not been verified since that migration.\n\nVerify:\n1. Open the app, create some state: open a file, type in command window, rearrange panels.\n2. Check that session.json is being written (look at the IPC handler for session:save or layout:set).\n3. Close and reopen — verify the layout, open tabs, and any cursor positions are restored.\n4. If saved sessions from before rc-dock are encountered, they should be gracefully discarded (not crash).\n\nLook at:\n- App.tsx for session save/restore logic\n- The main process IPC handlers for session/layout persistence\n- MatslopDockLayout for savedDockLayout handling\n\nFix anything that doesn't round-trip correctly. Common issues:\n- rc-dock layout serialization may include non-serializable React elements\n- Tab ids might not survive JSON round-trip\n- Floating panels might not restore",
-      "acceptanceCriteria": [
-        "Opening the app, rearranging panels, closing, and reopening restores the panel layout",
-        "Open editor tabs are restored with correct file paths",
-        "rc-dock's serialized layout round-trips through JSON correctly",
-        "Old/invalid session.json files are gracefully discarded (app starts with default layout)",
-        "Typecheck passes",
-        "All tests pass"
-      ],
-      "priority": 6,
-      "passes": true
-    },
-    {
-      "id": "US-L07",
-      "title": "Verify and fix debugger against real Octave dbstop/dbcont",
-      "description": "The debugger UI (US-014 through US-023) was implemented and unit tested but never live-verified against real Octave debugging commands. The main process parses Octave's debug output to detect breakpoints, and the renderer shows call stack, watches, and breakpoint gutters.\n\nWrite an integration test that:\n1. Creates a test .m file with a loop\n2. Sends `dbstop in <file> at <line>` via octaveExecute\n3. Runs the file via `source('<file>')`\n4. Verifies the `octave:paused` event fires with the correct file and line\n5. Sends `dbcont` and verifies execution completes\n6. Tests `dbstep` for single-stepping\n7. Tests variable inspection while paused (e.g., `disp(i)` while stopped in a loop)\n\nAlso verify the renderer-side components:\n- DebugToolbar responds to paused state\n- CallStackPanel shows the current frame\n- WatchesPanel can evaluate expressions while paused\n- Breakpoint gutter marks show in the editor\n\nLook at:\n- src/main/octaveProcess.ts: parsePausedMarker function\n- src/renderer/panels/CallStackPanel.tsx\n- src/renderer/panels/WatchesPanel.tsx\n- src/renderer/panels/DebugToolbar.tsx\n- src/renderer/EditorPanel.tsx for breakpoint gutter\n\nFix any issues found. Common problems:\n- Octave's debug output format may differ between versions\n- The paused marker regex may not match actual Octave 8.4 output\n- dbstep/dbcont commands may need to be sent differently when already paused",
-      "acceptanceCriteria": [
-        "Integration test demonstrates dbstop → run → pause → dbcont cycle with real Octave",
-        "parsePausedMarker correctly parses Octave 8.4's debug output format",
-        "The octave:paused IPC event fires with correct file and line number",
-        "dbstep advances one line and fires a new paused event",
-        "Variable inspection works while paused",
-        "If any debug feature doesn't work with real Octave, it is fixed",
-        "Typecheck passes",
-        "All tests pass"
-      ],
-      "priority": 7,
-      "passes": true
-    },
-    {
-      "id": "US-L08",
-      "title": "Verify and fix plotting pipeline with real Octave",
-      "description": "US-007 through US-013 implemented the plotting pipeline: Octave figure → matslop_export_fig → JSON → PlotRenderer (Plotly.js). Unit tests pass but the full pipeline has never been live-tested.\n\nThe dev environment uses extracted Octave 8.4 debs at /tmp/octave-root/octave-cli-wrap. Plotting fails there with fontconfig errors. To work around this:\n\n1. Check if `sudo apt install octave` is available (preferred — gives a fully working Octave).\n2. If not, try to fix the fontconfig issue in the extracted debs by setting FONTCONFIG_PATH or similar env vars.\n3. If neither works, verify the pipeline with a mock: create a test that feeds known Plotly JSON into PlotRenderer and verifies it renders.\n\nThe pipeline works like this:\n- User runs `plot(1:10)` in CommandWindow\n- App.tsx's capture script runs `matslop_export_fig` after each command\n- matslop_export_fig converts the current Octave figure to Plotly JSON format\n- The JSON is sent to the Figure panel via IPC\n- PlotRenderer uses Plotly.js to render it\n\nVerify each step. Look at:\n- src/renderer/panels/FigurePanel.tsx or PlotRenderer component\n- The matslop_export_fig Octave function (should be in an m-file somewhere)\n- App.tsx capture script for figure detection logic\n\nFix any broken steps in the pipeline.",
-      "acceptanceCriteria": [
-        "The plotting pipeline from Octave figure to Plotly render is verified or fixed",
-        "PlotRenderer correctly renders valid Plotly JSON (verified by unit or integration test)",
-        "If real Octave plotting works, an integration test demonstrates plot(1:10) → figure JSON → render",
-        "If real plotting is blocked by the dev environment, a clear note is added to KNOWN_LIMITATIONS.md explaining why and what was verified",
-        "matslop_export_fig function exists and is loadable by Octave",
-        "Typecheck passes",
-        "All tests pass"
-      ],
-      "priority": 8,
       "passes": true
     }
   ]
