@@ -661,10 +661,9 @@ export function figureToPlotly(figure: PlotFigure): PlotlyFigure {
     paper_bgcolor: rgbToCss(figure.backgroundColor),
     plot_bgcolor: rgbToCss(figure.axes[0]?.backgroundColor),
     showlegend: false,
-    // US-010: nearest-point hover for MATLAB-style data cursor tooltips
     hovermode: 'closest',
-    // Empty annotations list so plotly_click handlers can append pinned
-    // data-cursor labels via Plotly.relayout without first creating it.
+    // MATLAB-like: drag to pan, scroll to zoom, double-click to reset
+    dragmode: 'pan',
     annotations: [],
   }
 
@@ -680,7 +679,12 @@ export function figureToPlotly(figure: PlotFigure): PlotlyFigure {
   const config: PlotlyConfig = {
     responsive: true,
     displaylogo: false,
-    modeBarButtonsToRemove: ['sendDataToCloud', 'lasso2d', 'select2d'],
+    scrollZoom: true,  // scroll wheel to zoom
+    modeBarButtonsToRemove: [
+      'sendDataToCloud', 'lasso2d', 'select2d',
+      'toggleSpikelines', 'hoverCompareCartesian',
+      'hoverClosestCartesian',
+    ],
   }
 
   return { data, layout, config }
