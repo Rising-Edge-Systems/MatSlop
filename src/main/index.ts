@@ -549,10 +549,11 @@ ipcMain.handle('octave:interrupt', () => {
   octaveProcess?.interrupt()
 })
 
-// Send a raw command to Octave's stdin, bypassing the command queue.
-// Used for debug commands (dbcont, dbstep) while paused at a breakpoint.
-ipcMain.handle('octave:sendRaw', (_event, command: string) => {
-  return { sent: octaveProcess?.sendRawCommand(command) ?? false }
+// Send a raw debug command to Octave's stdin, bypassing the command queue.
+// Returns the output produced after the command (e.g. script output after dbcont).
+ipcMain.handle('octave:sendRaw', async (_event, command: string) => {
+  if (!octaveProcess) return { output: '', error: '', isComplete: true }
+  return await octaveProcess.sendRawCommand(command)
 })
 
 

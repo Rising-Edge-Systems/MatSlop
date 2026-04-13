@@ -479,11 +479,15 @@ function EditorPanel({
     // Uses sendRaw which bypasses the command queue and writes directly
     // to Octave's stdin.
     if (isPausedRef.current) {
-      try { void window.matslop.octaveSendRaw('dbcont').catch(() => {}) } catch { /* ignore */ }
-      // Clear paused state locally — the script will either hit another
-      // breakpoint (setting pausedLocation again) or finish.
-      // Dispatch a synthetic event to notify App.tsx to clear pausedLocation.
       window.dispatchEvent(new CustomEvent('matslop:debugContinued'))
+      // sendRaw returns the output produced after dbcont (e.g. disp() output)
+      window.matslop.octaveSendRaw('dbcont').then((result) => {
+        if (result.output?.trim()) {
+          window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
+            detail: { display: '', output: result.output, error: result.error },
+          }))
+        }
+      }).catch(() => {})
       return
     }
     const tab = getActiveTab()

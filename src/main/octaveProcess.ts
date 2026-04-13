@@ -287,16 +287,29 @@ export class OctaveProcessManager extends EventEmitter {
    * Instead, we write the command, then write ANOTHER delimiter so the
    * pending executeCommand still resolves.
    */
-  sendRawCommand(command: string): boolean {
-    if (!this.process?.stdin) return false
-    // Clear paused state so the next delimiter resolves normally.
-    this.paused = false
-    // Write the debug command, then re-send the delimiter so the pending
-    // executeCommand resolves when the script finishes (the original
-    // delimiter was consumed at the debug> prompt without resolving).
-    this.process.stdin.write(command + '\n')
-    this.process.stdin.write(DELIMITER_COMMAND)
-    return true
+  /**
+   * Send a debug command (dbcont/dbstep) directly to stdin, bypassing the
+   * command queue. Returns a promise that resolves with the output produced
+   * after the command (e.g. script output after dbcont).
+   */
+  sendRawCommand(command: string): Promise<CommandResult> {
+    return new Promise((resolve) => {
+      if (!this.process?.stdin) {
+        resolve({ output: '', error: '', isComplete: true })
+        return
+      }
+      this.paused = false
+      this.stdoutBuffer = ''
+      this.stderrBuffer = ''
+      // Install a resolver so the output between dbcont and the delimiter
+      // is captured (e.g. the script's disp() output after resuming).
+      this.pendingResolve = (result: CommandResult): void => {
+        resolve(result)
+        setImmediate(() => this.processQueue())
+      }
+      this.process.stdin.write(command + '\n')
+      this.process.stdin.write(DELIMITER_COMMAND)
+    })
   }
 
   executeCommand(command: string): Promise<CommandResult> {

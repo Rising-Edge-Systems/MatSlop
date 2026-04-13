@@ -1188,7 +1188,14 @@ function App(): React.JSX.Element {
     try {
       // Debug commands must bypass the command queue (sendRaw) because
       // octaveExecute queues behind the pending source() command.
-      void window.matslop.octaveSendRaw(command).catch(() => {})
+      // sendRaw returns the output produced after the command.
+      window.matslop.octaveSendRaw(command).then((result) => {
+        if (result.output?.trim()) {
+          window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
+            detail: { display: '', output: result.output, error: result.error },
+          }))
+        }
+      }).catch(() => {})
       if (action === 'stop') {
         void window.matslop.octaveSendRaw('dbclear all').catch(() => {})
       }
