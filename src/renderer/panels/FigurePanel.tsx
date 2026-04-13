@@ -40,29 +40,38 @@ function FigurePanel({ figures: figuresProp, onCollapse, onSaveFigure }: FigureP
         </div>
       ) : (
         <>
-          <div className="figure-toolbar">
-            <div className="figure-tabs">
-              {figures.map((fig) => (
-                <button
-                  key={fig.handle}
-                  className={`figure-tab ${fig.handle === (activeFigure?.handle) ? 'active' : ''}`}
-                  onClick={() => setActiveHandle(fig.handle)}
-                >
-                  Figure {fig.handle}
-                </button>
-              ))}
+          {/* Only show figure tabs when there are multiple figures.
+              Plotly has its own toolbar (modebar) so the Save button
+              is only shown for static PNG figures. */}
+          {(figures.length > 1 || (activeFigure && !activeFigure.plotJson)) && (
+            <div className="figure-toolbar">
+              {figures.length > 1 && (
+                <div className="figure-tabs">
+                  {figures.map((fig) => (
+                    <button
+                      key={fig.handle}
+                      className={`figure-tab ${fig.handle === (activeFigure?.handle) ? 'active' : ''}`}
+                      onClick={() => setActiveHandle(fig.handle)}
+                    >
+                      Figure {fig.handle}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {activeFigure && !activeFigure.plotJson && (
+                <div className="figure-actions">
+                  <button
+                    className="figure-save-btn"
+                    onClick={handleSave}
+                    title="Save as Image (PNG/SVG/PDF)"
+                  >
+                    <Download size={14} />
+                    <span>Save</span>
+                  </button>
+                </div>
+              )}
             </div>
-            <div className="figure-actions">
-              <button
-                className="figure-save-btn"
-                onClick={handleSave}
-                title="Save as Image (PNG/SVG/PDF)"
-              >
-                <Download size={14} />
-                <span>Save</span>
-              </button>
-            </div>
-          </div>
+          )}
           <div className="panel-content figure-content">
             {activeFigure && activeFigure.plotJson ? (
               (() => {
