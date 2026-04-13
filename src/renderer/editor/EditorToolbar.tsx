@@ -81,9 +81,7 @@ function EditorToolbar({
       <div className="toolbar-separator" />
       <button
         className="toolbar-btn toolbar-btn-run"
-        onClick={() => {
-          window.dispatchEvent(new CustomEvent('matslop:runActiveScript'))
-        }}
+        onClick={onRun}
         title="Run (F5)"
         disabled={runDisabled}
       >

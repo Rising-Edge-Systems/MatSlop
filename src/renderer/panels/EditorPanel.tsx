@@ -103,6 +103,11 @@ function EditorPanel({
   const onMenuActionConsumed = appCtx._provided ? appCtx.onMenuActionConsumed : onMenuActionConsumedProp
   const onRun = appCtx._provided ? appCtx.onRunScript : onRunProp
   const onRunSection = appCtx._provided ? appCtx.onRunSection : onRunSectionProp
+  // Refs for callbacks used inside stable useCallback closures
+  const onRunRef = useRef(onRun)
+  onRunRef.current = onRun
+  const onRunSectionRef = useRef(onRunSection)
+  onRunSectionRef.current = onRunSection
   // Start with an empty tab list. The session-restore / welcome-tab
   // useEffect below populates it after mount. Creating an untitled.m
   // dummy here caused the Run button to operate on the wrong tab when
@@ -491,7 +496,7 @@ function EditorPanel({
         const tmpPath = `${home}/${tmpName}`
         const saveResult = await window.matslop.saveFile(tmpPath, tab.content)
         if (!saveResult.success) return
-        onRun?.(tmpPath, home)
+        onRunRef.current?.(tmpPath, home)
       } catch {
         // Fall back to Save As
         const result = await window.matslop.saveFileAs(tab.content, tab.filename)
@@ -505,15 +510,15 @@ function EditorPanel({
         )
         const lastSep = Math.max(result.filePath.lastIndexOf('/'), result.filePath.lastIndexOf('\\'))
         const dirPath = result.filePath.substring(0, lastSep)
-        onRun?.(result.filePath, dirPath)
+        onRunRef.current?.(result.filePath, dirPath)
       }
       return
     }
 
     const lastSep = Math.max(tab.filePath.lastIndexOf('/'), tab.filePath.lastIndexOf('\\'))
     const dirPath = tab.filePath.substring(0, lastSep)
-    onRun?.(tab.filePath, dirPath)
-  }, [getActiveTab, onRun])
+    onRunRef.current?.(tab.filePath, dirPath)
+  }, [getActiveTab]) // reads onRunRef.current at call time
 
   /**
    * Get the section around the current cursor as a pure computation over
