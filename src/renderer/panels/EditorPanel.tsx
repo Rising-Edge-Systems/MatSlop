@@ -103,6 +103,7 @@ function EditorPanel({
   const [tabs, setTabs] = useState<EditorTab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [welcomeTabId, setWelcomeTabId] = useState<string | null>(null)
+  const welcomeTabIdRef = useRef<string | null>(null)
   const welcomeInitRef = useRef(false)
   // US-S05: banner text shown above the editor when a Run action is
   // blocked because the active buffer only defines function(s) and has
@@ -119,6 +120,9 @@ function EditorPanel({
   useEffect(() => {
     activeTabIdRef.current = activeTabId
   }, [activeTabId])
+  useEffect(() => {
+    welcomeTabIdRef.current = welcomeTabId
+  }, [welcomeTabId])
   // US-034: per-tab cursor snapshots (line/column), mirrored into session.json
   const tabCursorsRef = useRef<Record<string, CursorSnapshot>>({})
   // Guard so session persistence effect doesn't fire with uninitialized state
@@ -296,10 +300,11 @@ function EditorPanel({
   }, [tabs, activeTabId])
 
   const handleCloseWelcome = useCallback(() => {
-    if (!welcomeTabId) return
+    const wId = welcomeTabIdRef.current
+    if (!wId) return
     setTabs((prev) => {
-      const next = prev.filter((t) => t.id !== welcomeTabId)
-      if (welcomeTabId === activeTabId && next.length > 0) {
+      const next = prev.filter((t) => t.id !== wId)
+      if (wId === activeTabIdRef.current && next.length > 0) {
         setActiveTabId(next[0].id)
       } else if (next.length === 0) {
         setActiveTabId(null)
@@ -307,7 +312,7 @@ function EditorPanel({
       return next
     })
     setWelcomeTabId(null)
-  }, [welcomeTabId, activeTabId])
+  }, [])
 
   const handleNewFile = useCallback(() => {
     const tab = createTab()
@@ -326,7 +331,7 @@ function EditorPanel({
     const result = await window.matslop.openFile()
     if (!result) return
     // Check if the file is already open
-    const existing = tabs.find((t) => t.filePath === result.filePath)
+    const existing = tabsRef.current.find((t) => t.filePath === result.filePath)
     if (existing) {
       setActiveTabId(existing.id)
       window.matslop.recentFilesAdd(result.filePath)
@@ -337,7 +342,7 @@ function EditorPanel({
     setTabs((prev) => [...prev, tab])
     setActiveTabId(tab.id)
     window.matslop.recentFilesAdd(result.filePath)
-  }, [tabs])
+  }, [])
 
   // US-023: keep the latest paused-location / callback in refs so the
   // handleSave closure doesn't need to be re-created whenever debugger
