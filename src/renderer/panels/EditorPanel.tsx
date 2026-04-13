@@ -100,9 +100,9 @@ function EditorPanel({
   const editorTheme = appCtx.editorTheme ?? editorThemeProp
   const editorSettings = appCtx.editorSettings ?? editorSettingsProp
   const menuAction = appCtx.menuAction ?? menuActionProp
-  const onMenuActionConsumed = appCtx.onMenuActionConsumed ?? onMenuActionConsumedProp
-  const onRun = appCtx.onRunScript ?? onRunProp
-  const onRunSection = appCtx.onRunSection ?? onRunSectionProp
+  const onMenuActionConsumed = appCtx._provided ? appCtx.onMenuActionConsumed : onMenuActionConsumedProp
+  const onRun = appCtx._provided ? appCtx.onRunScript : onRunProp
+  const onRunSection = appCtx._provided ? appCtx.onRunSection : onRunSectionProp
   // Start with an empty tab list. The session-restore / welcome-tab
   // useEffect below populates it after mount. Creating an untitled.m
   // dummy here caused the Run button to operate on the wrong tab when

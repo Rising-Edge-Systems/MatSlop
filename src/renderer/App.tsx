@@ -1696,6 +1696,7 @@ function App(): React.JSX.Element {
   // PureComponent optimisation without forcing a full layout rebuild.
   const appCtx: AppContextValue = useMemo(
     () => ({
+      _provided: true,
       helpTopic: helpState.topic,
       helpContent: helpState.content,
       helpError: helpState.error,

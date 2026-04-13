@@ -46,11 +46,11 @@ function CommandWindow({ onCollapse, engineStatus: engineStatusProp, pendingComm
   const pendingCommand = (ctx.pendingCommand as PendingCommand | null) ?? pendingCommandProp ?? null
   const pasteCommand = ctx.pasteCommand ?? pasteCommandProp ?? null
   const menuAction: CtxMenuAction = ctx.menuAction ?? menuActionProp ?? null
-  const onCommandExecuted = ctx.onCommandExecuted ?? onCommandExecutedProp
-  const onDocCommand = ctx.onDocCommand ?? onDocCommandProp
-  const onMenuActionConsumed = ctx.onMenuActionConsumed ?? onMenuActionConsumedProp
-  const onPasteConsumed = ctx.onPasteConsumed ?? onPasteConsumedProp
-  const onHistoryChanged = ctx.onHistoryChanged ?? onHistoryChangedProp
+  const onCommandExecuted = ctx._provided ? ctx.onCommandExecuted : onCommandExecutedProp
+  const onDocCommand = ctx._provided ? ctx.onDocCommand : onDocCommandProp
+  const onMenuActionConsumed = ctx._provided ? ctx.onMenuActionConsumed : onMenuActionConsumedProp
+  const onPasteConsumed = ctx._provided ? ctx.onPasteConsumed : onPasteConsumedProp
+  const onHistoryChanged = ctx._provided ? ctx.onHistoryChanged : onHistoryChangedProp
   const [outputEntries, setOutputEntries] = useState<OutputEntry[]>([])
   const [inputValue, setInputValue] = useState('')
   const [commandHistory, setCommandHistory] = useState<string[]>([])

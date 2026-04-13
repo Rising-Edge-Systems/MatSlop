@@ -46,6 +46,8 @@ export interface CtxFigureData {
 }
 
 export interface AppContextValue {
+  /** True when the real AppContext.Provider is mounted (vs createContext default). */
+  _provided: boolean
   // ── Help panel ──────────────────────────────────────────────────────
   helpTopic: string | null
   helpContent: string | null
@@ -116,6 +118,7 @@ export interface AppContextValue {
 const noop = (): void => {}
 
 export const AppContext = createContext<AppContextValue>({
+  _provided: false,
   helpTopic: null,
   helpContent: null,
   helpError: null,

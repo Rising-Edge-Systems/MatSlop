@@ -32,10 +32,10 @@ function WatchesPanel({
   // US-SC04: Read dynamic state from AppContext (bypasses rc-dock caching)
   const ctx = useAppContext()
   const watches = (ctx.watches as WatchEntry[]) ?? watchesProp ?? []
-  const onAddWatch = ctx.onAddWatch ?? onAddWatchProp ?? (() => {})
-  const onRemoveWatch = ctx.onRemoveWatch ?? onRemoveWatchProp ?? (() => {})
-  const onUpdateWatch = ctx.onUpdateWatch ?? onUpdateWatchProp ?? (() => {})
-  const onRefresh = ctx.onRefreshWatches ?? onRefreshProp
+  const onAddWatch = ctx._provided ? ctx.onAddWatch : (onAddWatchProp ?? (() => {}))
+  const onRemoveWatch = ctx._provided ? ctx.onRemoveWatch : (onRemoveWatchProp ?? (() => {}))
+  const onUpdateWatch = ctx._provided ? ctx.onUpdateWatch : (onUpdateWatchProp ?? (() => {}))
+  const onRefresh = ctx._provided ? ctx.onRefreshWatches : onRefreshProp
   const [draft, setDraft] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState('')

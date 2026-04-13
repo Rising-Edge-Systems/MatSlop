@@ -44,7 +44,7 @@ function CallStackPanel({
   const ctx = useAppContext()
   const frames = (ctx.callStack as CallStackFrame[]) ?? framesProp ?? []
   const selectedIndex = ctx.callStackSelected ?? selectedIndexProp ?? -1
-  const onSelectFrame = ctx.onCallStackSelect ?? onSelectFrameProp ?? (() => {})
+  const onSelectFrame = ctx._provided ? ctx.onCallStackSelect : (onSelectFrameProp ?? (() => {}))
   const rows = useMemo(() => {
     return frames.map((f, i) => {
       const short = basename(f.file) || '<anonymous>'
