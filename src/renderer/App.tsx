@@ -1059,6 +1059,9 @@ function App(): React.JSX.Element {
     setWorkspaceRefreshTrigger((prev) => prev + 1)
   }, [])
 
+  const runCaptureAndRefreshRef = useRef(runCaptureAndRefresh)
+  runCaptureAndRefreshRef.current = runCaptureAndRefresh
+
   // US-S05: Run (F5) sources the saved .m file via `source('<abs path>')`
   // so the Command Window surfaces any output the script prints. We cd into
   // the script's directory first so relative paths inside the script still
@@ -1074,38 +1077,35 @@ function App(): React.JSX.Element {
   const handleRunScript = useCallback(async (filePath: string, dirPath: string) => {
     lastRunRef.current = { filePath, dirPath }
     const { command, display } = buildRunScriptCommand(filePath, dirPath)
-    try {
-      const result = await window.matslop.octaveExecute(command)
-      // Push to command window output via a shared event
+    // Fire-and-forget: don't await the source command. If the script
+    // hits a breakpoint, the await would hang forever, blocking the
+    // capture script and workspace refresh. Instead, chain the capture
+    // as a .then() so it runs only when the command completes.
+    window.matslop.octaveExecute(command).then((result) => {
       window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
         detail: { display, output: result.output, error: result.error },
       }))
-    } catch (err) {
+      runCaptureAndRefreshRef.current()
+    }).catch((err) => {
       window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
         detail: { display, output: '', error: String(err) },
       }))
-    }
-    // US-L04: Run capture script (pwd + figures) then refresh workspace —
-    // serialized, not concurrent.
-    await runCaptureAndRefresh()
-  }, [runCaptureAndRefresh])
+    })
+  }, [])
 
-  const handleRunSection = useCallback(async (code: string) => {
+  const handleRunSection = useCallback((code: string) => {
     const display = code.length > 80 ? code.substring(0, 77) + '...' : code
-    try {
-      const result = await window.matslop.octaveExecute(code)
+    window.matslop.octaveExecute(code).then((result) => {
       window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
         detail: { display, output: result.output, error: result.error },
       }))
-    } catch (err) {
+      runCaptureAndRefreshRef.current()
+    }).catch((err) => {
       window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
         detail: { display, output: '', error: String(err) },
       }))
-    }
-    // US-L04: Run capture script (pwd + figures) then refresh workspace —
-    // serialized, not concurrent.
-    await runCaptureAndRefresh()
-  }, [runCaptureAndRefresh])
+    })
+  }, [])
 
   const handleStop = useCallback(() => {
     window.matslop.octaveInterrupt()
@@ -1192,18 +1192,27 @@ function App(): React.JSX.Element {
   // actions here; outside a paused state they fall through to the normal
   // editor shortcut manager (F5 = run, Shift+F5 = stop). Registered in the
   // capture phase so it takes precedence over the editor-panel listener.
-  useEffect(() => {
-    if (!pausedLocation) return
-    const handler = (e: KeyboardEvent): void => {
+  // Use a single stable handler that checks pausedLocation via ref.
+  // Previously the handler was registered/unregistered on pausedLocation
+  // changes, but if handleDebugAction identity changed between register
+  // and unregister, removeEventListener couldn't find the old handler,
+  // leaving a stale listener that intercepted F5 forever.
+  const debugKeyHandlerRef = useRef<((e: KeyboardEvent) => void) | null>(null)
+  if (!debugKeyHandlerRef.current) {
+    debugKeyHandlerRef.current = (e: KeyboardEvent): void => {
+      if (!pausedLocationRef.current) return
       const action = matchDebugShortcut(e)
       if (!action) return
       e.preventDefault()
       e.stopPropagation()
       handleDebugAction(action)
     }
+  }
+  useEffect(() => {
+    const handler = debugKeyHandlerRef.current!
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [pausedLocation, handleDebugAction])
+  }, [])
 
   // Listen for menu actions from main process
   useEffect(() => {

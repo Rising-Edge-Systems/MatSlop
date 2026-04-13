@@ -304,8 +304,8 @@ function EditorPanel({
   }, [])
 
   const getActiveTab = useCallback((): EditorTab | null => {
-    return tabs.find((t) => t.id === activeTabId) ?? null
-  }, [tabs, activeTabId])
+    return tabsRef.current.find((t) => t.id === activeTabIdRef.current) ?? null
+  }, [])
 
   const handleCloseWelcome = useCallback(() => {
     const wId = welcomeTabIdRef.current
@@ -644,7 +644,7 @@ function EditorPanel({
         handleOpenFile()
         break
       case 'closeTab':
-        if (activeTabId) handleTabClose(activeTabId)
+        if (activeTabIdRef.current) handleTabClose(activeTabIdRef.current)
         break
       case 'stop':
         handleStop()
@@ -678,7 +678,7 @@ function EditorPanel({
         break
       }
     }
-  }, [handleRun, handleRunSection, handleRunAndAdvance, handleSave, handleSaveAs, handleNewFile, handleOpenFile, activeTabId, handleTabClose, handleStop])
+  }, [handleRun, handleRunSection, handleRunAndAdvance, handleSave, handleSaveAs, handleNewFile, handleOpenFile, handleTabClose, handleStop])
 
   useEffect(() => {
     shortcutManager.start(handleShortcut)
