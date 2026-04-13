@@ -558,7 +558,7 @@ function EditorPanel({
 
   const handleTabClose = useCallback(
     async (tabId: string) => {
-      const tab = tabs.find((t) => t.id === tabId)
+      const tab = tabsRef.current.find((t) => t.id === tabId)
       if (!tab) return
 
       // Check for unsaved changes
@@ -587,7 +587,8 @@ function EditorPanel({
       setTabs((prev) => {
         const idx = prev.findIndex((t) => t.id === tabId)
         const next = prev.filter((t) => t.id !== tabId)
-        if (tabId === activeTabId && next.length > 0) {
+        const currentActive = activeTabIdRef.current
+        if (tabId === currentActive && next.length > 0) {
           const newIdx = Math.min(idx, next.length - 1)
           setActiveTabId(next[newIdx].id)
         } else if (next.length === 0) {
@@ -596,7 +597,7 @@ function EditorPanel({
         return next
       })
     },
-    [tabs, activeTabId]
+    [] // stable — uses refs for tabs and activeTabId
   )
 
   const handleContentChange = useCallback((tabId: string, content: string) => {
