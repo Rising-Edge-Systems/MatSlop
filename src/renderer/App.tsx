@@ -1025,11 +1025,16 @@ function App(): React.JSX.Element {
       "__mslp_r__=pwd();disp(['__MATSLOP_PWD__:' __mslp_r__]);",
       "__mslp_fh__=get(0,'children');",
       "for __mslp_k__=1:length(__mslp_fh__);",
+      // Try JSON export first (enables interactive Plotly rendering)
+      "try;__mslp_j__=matslop_export_fig(__mslp_fh__(__mslp_k__));",
+      "disp(['__MATSLOP_FIG_JSON__:' num2str(__mslp_fh__(__mslp_k__)) ':' __mslp_j__]);",
+      "catch;",
+      // Fall back to PNG if JSON export fails
       "__mslp_fp__=[tempdir() 'matslop_fig_' num2str(__mslp_fh__(__mslp_k__)) '.png'];",
       `try;print(__mslp_fh__(__mslp_k__),__mslp_fp__,'${pngDevice}','-r150');`,
       "disp(['__MATSLOP_FIG__:' num2str(__mslp_fh__(__mslp_k__)) ':' __mslp_fp__]);",
-      "catch;end;end;",
-      "clear __mslp_r__ __mslp_fh__ __mslp_k__ __mslp_fp__;"
+      "catch;end;end;end;",
+      "clear __mslp_r__ __mslp_fh__ __mslp_k__ __mslp_fp__ __mslp_j__;"
     ].join('')
 
     try {
@@ -1045,22 +1050,32 @@ function App(): React.JSX.Element {
         }
       }
 
-      // Parse figures
-      const figMatches = [...output.matchAll(/__MATSLOP_FIG__:(\d+):(.+)/g)]
-      if (figMatches.length > 0) {
-        const newFigures: FigureData[] = []
-        for (const m of figMatches) {
-          const handle = parseInt(m[1])
-          const tempPath = m[2].trim()
-          const base64 = await window.matslop.figuresReadImage(tempPath)
-          if (base64) {
-            newFigures.push({
-              handle,
-              imageDataUrl: `data:image/png;base64,${base64}`,
-              tempPath,
-            })
-          }
+      // Parse figures — prefer JSON (interactive Plotly) over PNG (static)
+      const jsonMatches = [...output.matchAll(/__MATSLOP_FIG_JSON__:(\d+):({.+})/g)]
+      const pngMatches = [...output.matchAll(/__MATSLOP_FIG__:(\d+):(.+)/g)]
+      const newFigures: FigureData[] = []
+
+      for (const m of jsonMatches) {
+        const handle = parseInt(m[1])
+        try {
+          const plotJson = JSON.parse(m[2])
+          newFigures.push({ handle, imageDataUrl: '', tempPath: '', plotJson })
+        } catch { /* invalid JSON, skip */ }
+      }
+
+      // Fall back to PNG for figures that didn't get JSON
+      const jsonHandles = new Set(newFigures.map((f) => f.handle))
+      for (const m of pngMatches) {
+        const handle = parseInt(m[1])
+        if (jsonHandles.has(handle)) continue
+        const tempPath = m[2].trim()
+        const base64 = await window.matslop.figuresReadImage(tempPath)
+        if (base64) {
+          newFigures.push({ handle, imageDataUrl: `data:image/png;base64,${base64}`, tempPath })
         }
+      }
+
+      if (newFigures.length > 0) {
         setFigures(newFigures)
       } else {
         setFigures([])

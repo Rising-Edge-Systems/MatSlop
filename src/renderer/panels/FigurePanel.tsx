@@ -1,11 +1,15 @@
 import { useState, useCallback } from 'react'
 import { Download } from 'lucide-react'
 import { useAppContext } from '../AppContext'
+import PlotRenderer from '../editor/PlotRenderer'
+import { parsePlotFigure } from '../../main/plotSchema'
 
 export interface FigureData {
   handle: number
   imageDataUrl: string
   tempPath: string
+  /** Interactive plot data from matslop_export_fig (Plotly JSON). */
+  plotJson?: unknown
 }
 
 interface FigurePanelProps {
@@ -60,7 +64,25 @@ function FigurePanel({ figures: figuresProp, onCollapse, onSaveFigure }: FigureP
             </div>
           </div>
           <div className="panel-content figure-content">
-            {activeFigure && (
+            {activeFigure && activeFigure.plotJson ? (
+              (() => {
+                try {
+                  const plotFig = parsePlotFigure(activeFigure.plotJson)
+                  return (
+                    <PlotRenderer
+                      figure={plotFig}
+                      height={400}
+                      canDetach={true}
+                    />
+                  )
+                } catch {
+                  // JSON parse failed — fall back to static image
+                  return activeFigure.imageDataUrl ? (
+                    <img src={activeFigure.imageDataUrl} alt={`Figure ${activeFigure.handle}`} className="figure-image" data-testid="figure-image" draggable={false} />
+                  ) : null
+                }
+              })()
+            ) : activeFigure ? (
               <img
                 src={activeFigure.imageDataUrl}
                 alt={`Figure ${activeFigure.handle}`}
@@ -68,7 +90,7 @@ function FigurePanel({ figures: figuresProp, onCollapse, onSaveFigure }: FigureP
                 data-testid="figure-image"
                 draggable={false}
               />
-            )}
+            ) : null}
           </div>
         </>
       )}
