@@ -1012,12 +1012,15 @@ function App(): React.JSX.Element {
     }
 
     // Combined query: get pwd + detect and capture figures
+    // US-B03: On Linux the bundled gnuplot only has cairo-based terminals,
+    // so use -dpngcairo instead of -dpng to produce valid PNG output.
+    const pngDevice = window.matslop.platform === 'linux' ? '-dpngcairo' : '-dpng'
     const captureScript = [
       "__mslp_r__=pwd();disp(['__MATSLOP_PWD__:' __mslp_r__]);",
       "__mslp_fh__=get(0,'children');",
       "for __mslp_k__=1:length(__mslp_fh__);",
       "__mslp_fp__=[tempdir() 'matslop_fig_' num2str(__mslp_fh__(__mslp_k__)) '.png'];",
-      "try;print(__mslp_fh__(__mslp_k__),__mslp_fp__,'-dpng','-r150');",
+      `try;print(__mslp_fh__(__mslp_k__),__mslp_fp__,'${pngDevice}','-r150');`,
       "disp(['__MATSLOP_FIG__:' num2str(__mslp_fh__(__mslp_k__)) ':' __mslp_fp__]);",
       "catch;end;end;",
       "clear __mslp_r__ __mslp_fh__ __mslp_k__ __mslp_fp__;"

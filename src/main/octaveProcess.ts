@@ -119,6 +119,13 @@ export class OctaveProcessManager extends EventEmitter {
       // not as external gnuplot windows.
       "set(0, 'defaultfigurevisible', 'off');",
       "more off;",
+      // US-B03: On Linux the bundled gnuplot only has cairo-based terminals,
+      // so force pngcairo as the default terminal. This ensures -dpng maps
+      // to pngcairo and produces valid PNGs without requiring the user to
+      // install additional gnuplot terminal packages.
+      ...(process.platform === 'linux'
+        ? ["setenv('GNUTERM', 'pngcairo');"]
+        : []),
       // US-020: enable debug-on-interrupt so SIGINT (from `pauseForDebug()`)
       // drops Octave into the debugger at the currently-executing line
       // rather than just aborting the script. This is the Octave equivalent
