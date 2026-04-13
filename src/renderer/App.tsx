@@ -282,12 +282,18 @@ function App(): React.JSX.Element {
       setCallStackSelected(-1)
     })
 
+    // Run capture script (pwd + figures) after any command window execution.
+    // This event bypasses the AppContext callback chain which may be stale.
+    const handleCmdExecuted = (): void => { runCaptureAndRefreshRef.current() }
+    window.addEventListener('matslop:commandExecuted', handleCmdExecuted)
+
     return () => {
       unsubStatus()
       unsubCrash()
       unsubPaused()
       unsubCrashCs()
       window.removeEventListener('matslop:debugContinued', handleDebugContinued)
+      window.removeEventListener('matslop:commandExecuted', handleCmdExecuted)
     }
   }, [])
 
