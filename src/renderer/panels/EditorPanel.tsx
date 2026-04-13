@@ -106,6 +106,15 @@ function EditorPanel({
   // Refs for callbacks used inside stable useCallback closures
   const onRunRef = useRef(onRun)
   onRunRef.current = onRun
+  // DEV: expose for debugging
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    (window as unknown as Record<string, unknown>).__matslopOnRunInfo = {
+      provided: appCtx._provided,
+      onRunIsNoop: onRun === undefined || onRun === null,
+      onRunType: typeof onRun,
+      onRunRefType: typeof onRunRef.current,
+    }
+  }
   const onRunSectionRef = useRef(onRunSection)
   onRunSectionRef.current = onRunSection
   // Start with an empty tab list. The session-restore / welcome-tab
@@ -460,6 +469,11 @@ function EditorPanel({
   }, [getActiveTab])
 
   const handleRun = useCallback(async () => {
+    // If paused at a breakpoint, continue instead of re-running
+    if (appCtx.pausedLocation) {
+      try { void window.matslop.octaveExecute('dbcont').catch(() => {}) } catch { /* ignore */ }
+      return
+    }
     const tab = getActiveTab()
     if (!tab) return
 
@@ -501,7 +515,12 @@ function EditorPanel({
         const tmpPath = `${home}/${tmpName}`
         const saveResult = await window.matslop.saveFile(tmpPath, tab.content)
         if (!saveResult.success) return
-        onRunRef.current?.(tmpPath, home)
+        const { command: tmpCmd } = buildRunScriptCommand(tmpPath, home)
+        window.matslop.octaveExecute(tmpCmd).then((r) => {
+          window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
+            detail: { display: `source('${tmpName}')`, output: r.output, error: r.error },
+          }))
+        }).catch(() => {})
       } catch {
         // Fall back to Save As
         const result = await window.matslop.saveFileAs(tab.content, tab.filename)
@@ -513,26 +532,28 @@ function EditorPanel({
               : t
           )
         )
-        const lastSep = Math.max(result.filePath.lastIndexOf('/'), result.filePath.lastIndexOf('\\'))
-        const dirPath = result.filePath.substring(0, lastSep)
-        onRunRef.current?.(result.filePath, dirPath)
+        const lastSep2 = Math.max(result.filePath.lastIndexOf('/'), result.filePath.lastIndexOf('\\'))
+        const dirPath2 = result.filePath.substring(0, lastSep2)
+        const { command: saCmd } = buildRunScriptCommand(result.filePath, dirPath2)
+        window.matslop.octaveExecute(saCmd).then((r) => {
+          window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
+            detail: { display: `source('${result.filename}')`, output: r.output, error: r.error },
+          }))
+        }).catch(() => {})
       }
       return
     }
 
     const lastSep = Math.max(tab.filePath.lastIndexOf('/'), tab.filePath.lastIndexOf('\\'))
     const dirPath = tab.filePath.substring(0, lastSep)
-    if (onRunRef.current) {
-      onRunRef.current(tab.filePath, dirPath)
-    } else {
-      // Fallback: if onRun callback is not wired, run directly via IPC
-      const { command } = buildRunScriptCommand(tab.filePath, dirPath)
-      window.matslop.octaveExecute(command).then((result) => {
-        window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
-          detail: { display: `source('${tab.filename}')`, output: result.output, error: result.error },
-        }))
-      }).catch(() => {})
-    }
+    // Run directly via IPC — bypasses the onRun callback chain which
+    // suffers from rc-dock stale closure issues with the AppContext.
+    const { command } = buildRunScriptCommand(tab.filePath, dirPath)
+    window.matslop.octaveExecute(command).then((result) => {
+      window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
+        detail: { display: `source('${tab.filename}')`, output: result.output, error: result.error },
+      }))
+    }).catch(() => {})
   }, [getActiveTab]) // reads onRunRef.current at call time
 
   /**

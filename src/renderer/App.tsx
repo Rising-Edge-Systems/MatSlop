@@ -1085,11 +1085,15 @@ function App(): React.JSX.Element {
       window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
         detail: { display, output: result.output, error: result.error },
       }))
+      // Script finished (either ran to completion or exited debug mode).
+      // Clear paused state so the Play button switches back to Run.
+      setPausedLocation(null)
       runCaptureAndRefreshRef.current()
     }).catch((err) => {
       window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
         detail: { display, output: '', error: String(err) },
       }))
+      setPausedLocation(null)
     })
   }, [])
 
@@ -1184,7 +1188,14 @@ function App(): React.JSX.Element {
     } catch {
       /* ignore */
     }
-    setPausedLocation(null)
+    // Only clear paused state on stop. For continue/step, the next
+    // onOctavePaused event will update the location, or the command
+    // completing will clear it. Clearing immediately on continue creates
+    // a race where the Play button flips to "Run" before the next
+    // breakpoint hit, causing re-source if clicked quickly.
+    if (action === 'stop') {
+      setPausedLocation(null)
+    }
   }, [])
 
   // US-017: Global keyboard shortcuts that are only active while the
