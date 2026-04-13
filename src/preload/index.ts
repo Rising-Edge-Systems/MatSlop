@@ -64,6 +64,10 @@ contextBridge.exposeInMainWorld('matslop', {
   },
   octaveInterrupt: (): Promise<void> =>
     ipcRenderer.invoke('octave:interrupt'),
+  // Send raw command to Octave stdin — bypasses command queue.
+  // Used for debug commands (dbcont, dbstep) while paused.
+  octaveSendRaw: (command: string): Promise<{ sent: boolean }> =>
+    ipcRenderer.invoke('octave:sendRaw', command),
   // US-020: Pause a running script and drop into the debugger at the
   // currently-executing line.
   octavePauseForDebug: (): Promise<{ sent: boolean }> =>

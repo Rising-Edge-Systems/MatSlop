@@ -468,10 +468,22 @@ function EditorPanel({
     }
   }, [getActiveTab])
 
+  // Ref for pausedLocation — used by handleRun to check debug state at call time.
+  // The actual useRef is declared later (line ~372) for the breakpoint decoration
+  // effect, but we need it earlier. So we create a dedicated one here.
+  const isPausedRef = useRef(false)
+  isPausedRef.current = pausedLocation !== null
+
   const handleRun = useCallback(async () => {
-    // If paused at a breakpoint, continue instead of re-running
-    if (appCtx.pausedLocation) {
-      try { void window.matslop.octaveExecute('dbcont').catch(() => {}) } catch { /* ignore */ }
+    // If paused at a breakpoint, continue instead of re-running.
+    // Uses sendRaw which bypasses the command queue and writes directly
+    // to Octave's stdin.
+    if (isPausedRef.current) {
+      try { void window.matslop.octaveSendRaw('dbcont').catch(() => {}) } catch { /* ignore */ }
+      // Clear paused state locally — the script will either hit another
+      // breakpoint (setting pausedLocation again) or finish.
+      // Dispatch a synthetic event to notify App.tsx to clear pausedLocation.
+      window.dispatchEvent(new CustomEvent('matslop:debugContinued'))
       return
     }
     const tab = getActiveTab()

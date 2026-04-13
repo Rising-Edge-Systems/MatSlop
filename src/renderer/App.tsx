@@ -269,6 +269,12 @@ function App(): React.JSX.Element {
       }
     }) ?? (() => {})
 
+    // When the user clicks Continue/Step, clear paused state immediately.
+    // The dbcont command bypasses the command queue, so the normal
+    // "command completed" flow doesn't clear pausedLocation.
+    const handleDebugContinued = (): void => { setPausedLocation(null) }
+    window.addEventListener('matslop:debugContinued', handleDebugContinued)
+
     // US-016 + US-018: if Octave crashes while paused, also clear the
     // call stack so the panel returns to its idle state.
     const unsubCrashCs = window.matslop.onOctaveCrashed(() => {
@@ -281,6 +287,7 @@ function App(): React.JSX.Element {
       unsubCrash()
       unsubPaused()
       unsubCrashCs()
+      window.removeEventListener('matslop:debugContinued', handleDebugContinued)
     }
   }, [])
 
@@ -1179,23 +1186,18 @@ function App(): React.JSX.Element {
     // Fire-and-forget; if Octave isn't running (e.g. during tests that only
     // simulate the paused state) the IPC rejects harmlessly.
     try {
-      void window.matslop.octaveExecute(command).catch(() => {})
-      // On stop, also clear all breakpoints so the Pause-inserted dbstop
-      // doesn't fire again on the next Run.
+      // Debug commands must bypass the command queue (sendRaw) because
+      // octaveExecute queues behind the pending source() command.
+      void window.matslop.octaveSendRaw(command).catch(() => {})
       if (action === 'stop') {
-        void window.matslop.octaveExecute('dbclear all').catch(() => {})
+        void window.matslop.octaveSendRaw('dbclear all').catch(() => {})
       }
     } catch {
       /* ignore */
     }
-    // Only clear paused state on stop. For continue/step, the next
-    // onOctavePaused event will update the location, or the command
-    // completing will clear it. Clearing immediately on continue creates
-    // a race where the Play button flips to "Run" before the next
-    // breakpoint hit, causing re-source if clicked quickly.
-    if (action === 'stop') {
-      setPausedLocation(null)
-    }
+    // Clear paused state. For step commands, the next onOctavePaused
+    // event will re-set it if we hit another breakpoint.
+    setPausedLocation(null)
   }, [])
 
   // US-017: Global keyboard shortcuts that are only active while the

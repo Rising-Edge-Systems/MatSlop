@@ -162,13 +162,33 @@ export class OctaveProcessManager extends EventEmitter {
     }
   }
 
+  private paused = false
+
   private handleStdout(data: string): void {
     this.stdoutBuffer += data
-    this.maybeEmitPaused(data)
+    const wasPaused = this.paused
+    const loc = parsePausedMarker(data)
+    if (loc) {
+      this.paused = true
+      this.emit('paused', loc)
+    }
 
     // Check if delimiter is in the buffer
     const delimIdx = this.stdoutBuffer.indexOf(DELIMITER)
     if (delimIdx !== -1) {
+      // If paused at a breakpoint, the delimiter was evaluated at the
+      // debug> prompt (not as a normal command completion). Don't resolve
+      // the pending command — wait for dbcont to resume, which will
+      // produce another delimiter when the script finishes.
+      if (this.paused) {
+        // Consume the delimiter from the buffer but don't resolve
+        this.stdoutBuffer = this.stdoutBuffer.substring(delimIdx + DELIMITER.length)
+        if (this.stdoutBuffer.startsWith('\n')) {
+          this.stdoutBuffer = this.stdoutBuffer.substring(1)
+        }
+        return
+      }
+
       // Extract output before the delimiter
       let output = this.stdoutBuffer.substring(0, delimIdx)
 
@@ -184,6 +204,7 @@ export class OctaveProcessManager extends EventEmitter {
       const error = this.stderrBuffer
       this.stderrBuffer = ''
 
+      this.paused = false
       this.setStatus('ready')
 
       if (this.pendingResolve) {
@@ -246,6 +267,37 @@ export class OctaveProcessManager extends EventEmitter {
     resolve: (result: CommandResult) => void
     reject: (err: Error) => void
   }> = []
+
+  /**
+   * Write a command directly to Octave's stdin, bypassing the command queue.
+   * Used for debug commands (dbcont, dbstep) that must be sent while the
+   * previous command is still pending at a debug> prompt.
+   */
+  /**
+   * Write a debug command directly to Octave's stdin. When Octave is paused
+   * at a breakpoint, the stdin buffer already contains the pending delimiter
+   * (`disp('___MATSLOP_CMD_DONE___')`). The debug prompt reads that as a
+   * debug-context command instead of the normal delimiter. So we prepend
+   * our command before Octave reads the buffered delimiter, and the
+   * sequence becomes: dbcont → (script resumes + finishes) → delimiter
+   * is read as a normal command → resolves the pending executeCommand.
+   *
+   * Actually, Octave reads stdin line-by-line. At `debug>` it reads the
+   * NEXT line from the buffer, which is the delimiter. We can't reorder.
+   * Instead, we write the command, then write ANOTHER delimiter so the
+   * pending executeCommand still resolves.
+   */
+  sendRawCommand(command: string): boolean {
+    if (!this.process?.stdin) return false
+    // Clear paused state so the next delimiter resolves normally.
+    this.paused = false
+    // Write the debug command, then re-send the delimiter so the pending
+    // executeCommand resolves when the script finishes (the original
+    // delimiter was consumed at the debug> prompt without resolving).
+    this.process.stdin.write(command + '\n')
+    this.process.stdin.write(DELIMITER_COMMAND)
+    return true
+  }
 
   executeCommand(command: string): Promise<CommandResult> {
     return new Promise((resolve, reject) => {
