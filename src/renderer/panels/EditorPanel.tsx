@@ -970,6 +970,7 @@ function EditorPanel({
     >
       <EditorToolbar
         hasActiveFile={activeTabId !== null}
+        isLiveScript={getActiveTab()?.mode === 'livescript'}
         onNewFile={handleNewFile}
         onOpenFile={handleOpenFile}
         onSave={handleSave}

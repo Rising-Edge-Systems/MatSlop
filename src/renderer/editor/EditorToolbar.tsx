@@ -7,15 +7,17 @@ import {
   Square,
   LayoutList,
   FastForward,
-  StepForward,
-  SkipForward,
-  ArrowDownToLine,
+  ArrowBigRight,
+  ArrowDownRight,
+  ArrowUpRight,
 } from 'lucide-react'
 import { useOctaveStatus } from '../OctaveContext'
 import type { DebugAction } from './debugCommands'
 
 interface EditorToolbarProps {
   hasActiveFile: boolean
+  /** True when the active file is a live script (.mls) — enables section-run buttons. */
+  isLiveScript?: boolean
   onNewFile: () => void
   onOpenFile: () => void
   onSave: () => void
@@ -34,6 +36,7 @@ interface EditorToolbarProps {
 
 function EditorToolbar({
   hasActiveFile,
+  isLiveScript = false,
   onNewFile,
   onOpenFile,
   onSave,
@@ -48,11 +51,10 @@ function EditorToolbar({
   const engineStatus = useOctaveStatus()
   const isBusy = engineStatus === 'busy'
   const runDisabled = !hasActiveFile || isBusy || engineStatus === 'disconnected'
-  const stopDisabled = !isBusy
-  // US-020: Pause button is only meaningful while a script is actively
-  // running and we're not ALREADY in the debugger.
+  const stopDisabled = !isBusy && !debugPaused
   const pauseDisabled = !isBusy || debugPaused
   const stepDisabled = !debugPaused
+  const sectionDisabled = runDisabled || !isLiveScript
 
   return (
     <div className="editor-toolbar">
@@ -112,7 +114,7 @@ function EditorToolbar({
         data-testid="toolbar-step-over"
         disabled={stepDisabled}
       >
-        <StepForward size={16} />
+        <ArrowBigRight size={16} />
       </button>
       <button
         className="toolbar-btn"
@@ -121,7 +123,7 @@ function EditorToolbar({
         data-testid="toolbar-step-in"
         disabled={stepDisabled}
       >
-        <ArrowDownToLine size={16} />
+        <ArrowDownRight size={16} />
       </button>
       <button
         className="toolbar-btn"
@@ -130,7 +132,7 @@ function EditorToolbar({
         data-testid="toolbar-step-out"
         disabled={stepDisabled}
       >
-        <SkipForward size={16} />
+        <ArrowUpRight size={16} />
       </button>
       <div className="toolbar-separator" />
       <button
@@ -138,7 +140,7 @@ function EditorToolbar({
         onClick={onRunSection}
         title="Run Section (Ctrl+Enter)"
         data-testid="toolbar-run-section"
-        disabled={runDisabled}
+        disabled={sectionDisabled}
       >
         <LayoutList size={16} />
       </button>
@@ -147,7 +149,7 @@ function EditorToolbar({
         onClick={onRunAndAdvance}
         title="Run Section and Advance (Ctrl+Shift+Enter)"
         data-testid="toolbar-run-and-advance"
-        disabled={runDisabled || !onRunAndAdvance}
+        disabled={sectionDisabled || !onRunAndAdvance}
       >
         <FastForward size={16} />
       </button>
