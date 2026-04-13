@@ -1,79 +1,70 @@
 # Ralph Progress Log
-Started: 2026-04-13
-Branch: ralph/fix-known-limitations
+Started: Mon Apr 13 01:49:40 PM EDT 2026
 ---
 
 ## Codebase Patterns
-- rc-dock caches React elements in loadTab via PureComponent. ALL props passed through dock slots are frozen at mount time.
-- The ONLY way to pass dynamic data to dock panels is React Context (useAppContext / useOctaveStatus). Props are stale.
-- Stable callbacks: useCallback with [] deps, or useCallback that reads from refs internally. These are safe as dock props.
-- Unstable callbacks: useCallback with state in deps like [tabs, octaveStatus, callStack]. These MUST be converted to ref-based.
-- The ref-stabilization pattern: `const fooRef = useRef(foo); fooRef.current = foo;` then read fooRef.current inside useCallback with [] deps.
-- AppContext.tsx holds dynamic state. OctaveContext.tsx holds engineStatus. Both bypass rc-dock caching.
-- Panel components use `const ctx = useAppContext(); const val = ctx.field ?? propField;` pattern for context+prop fallback.
-- octaveEngineStatusRef already exists in App.tsx for stable access to engine status.
-- tabsRef, activeTabIdRef already exist in EditorPanel.tsx.
-- Tests render panels without providers, so props must remain as optional fallbacks.
+- `download-octave.js` is a plain JS ESM script (not TypeScript) — it uses `import` syntax and runs via `node scripts/download-octave.js`
+- Linux wrapper script is at `resources/octave/bin/octave-cli`, real binary at `resources/octave/usr/bin/octave-cli` — octaveConfig.ts auto-discovers the wrapper
+- The script uses a `download()` helper with redirect following for HTTP/HTTPS downloads
+- Platform detection: `--platform=<name>` CLI arg or `process.platform`
+- Typecheck is `tsc --noEmit`, tests are `vitest run`
+- Tests read the source file as a string and match patterns — be aware template literals won't resolve in source text matching
+- Renderer accesses platform via `window.matslop.platform`; main process uses `process.platform`
+- Figure capture script is in App.tsx `runCaptureAndRefresh` (~line 1015) — print device and resolution are set there
+- Ubuntu .deb URLs must be verified against the actual archive listing — versions change (e.g. 1build4→1build5)
+- hasBundledOctaveBinary() tests execution, not just file existence — needed because .deb extraction requires system shared libs
+
+## 2026-04-13 13:50 - US-B01
+- Implemented Linux .deb package downloading and extraction in `scripts/download-octave.js`
+- Added `LINUX_DEBS` array with 4 packages: octave, octave-common, liboctave-dev, fonts-freefont-otf
+- Added `extractDeb()` helper with dpkg-deb primary and ar+tar fallback extraction
+- Added `downloadLinuxDebs()` function with idempotency check (checks for usr/bin/octave-cli)
+- Updated `tests/unit/download-octave-linux.test.ts` to validate new bundling behavior
+- Files changed: `scripts/download-octave.js`, `tests/unit/download-octave-linux.test.ts`
+- **Learnings for future iterations:**
+  - The LINUX_DEBS URLs use template literals with `LINUX_OCTAVE_VERSION` — tests reading source text must use flexible regex
+  - Extraction goes to `resources/octave/` root, creating `usr/bin/octave-cli` and `usr/share/fonts/opentype/freefont/FreeSans.otf`
+  - The wrapper script (US-B02) should go at `resources/octave/bin/octave-cli` (separate from the real binary at `usr/bin/`)
+  - `octaveConfig.ts` already has a candidate path for `resources/octave/bin/octave-cli`
 ---
 
-## 2026-04-13 - US-SC01
-- Stabilized 6 broken callbacks in App.tsx by converting state-in-deps to ref-based reads
-- Moved `octaveEngineStatusRef` declaration earlier (after octaveStatus useState) so refreshAllWatches and runCaptureAndRefresh can use it
-- Created `callStackRef` for handleCallStackSelect
-- runCaptureAndRefresh: [] deps (was [octaveStatus.engineStatus])
-- handleCallStackSelect: [] deps (was [callStack])
-- refreshAllWatches: [evaluateWatch] only-stable deps (was [evaluateWatch, octaveStatus.engineStatus])
-- handleRunScript/handleRunSection/handleCommandExecuted: cascade-stable via [runCaptureAndRefresh]
-- Files changed: src/renderer/App.tsx
+## 2026-04-13 13:54 - US-B02
+- Implemented font_redirect.so LD_PRELOAD shim: C source as string constant, compiled with gcc, intercepts openat() to redirect /usr/share/fonts/opentype/freefont/ to MATSLOP_OCTAVE_ROOT
+- Created fonts.conf XML for fontconfig pointing to bundled + system fonts
+- Created wrapper script at resources/octave/bin/octave-cli that sets LD_LIBRARY_PATH, LD_PRELOAD, MATSLOP_OCTAVE_ROOT, OCTAVE_HOME, GNUTERM=pngcairo, FONTCONFIG_FILE and execs the real binary
+- Added compileFontRedirect(), createFontsConf(), createWrapperScript() functions called from main() linux path
+- Added 8 tests in download-octave-linux.test.ts for US-B02
+- Files changed: `scripts/download-octave.js`, `tests/unit/download-octave-linux.test.ts`
 - **Learnings for future iterations:**
-  - octaveEngineStatusRef must be declared before refreshAllWatches (near top of component, after octaveStatus state)
-  - callStackRef is new — declared right after callStack useState
-  - watchesRef already existed, no changes needed
-  - evaluateWatch already had [] deps, so refreshAllWatches only needed the engine status ref fix
+  - Wrapper script uses bash array join pattern to avoid escaping conflicts between JS template literals and bash $variables
+  - The wrapper script's LINUX_OCTAVE_VERSION is interpolated at build time by JS, not at runtime by bash
+  - gcc compilation failure is non-fatal — app still runs but font redirection won't work
+  - octaveConfig.ts already looks for `bin/octave-cli` on Linux, so the wrapper is auto-discovered
 ---
 
-## 2026-04-13 - US-SC02
-- Fixed 2 stale callbacks in EditorPanel.tsx by converting state-in-deps to ref-based reads
-- handleOpenFile: changed `tabs.find(...)` to `tabsRef.current.find(...)`, deps now `[]` (was `[tabs]`)
-- handleCloseWelcome: created `welcomeTabIdRef` synced to `welcomeTabId`, reads `welcomeTabIdRef.current` and `activeTabIdRef.current` inside callback, deps now `[]` (was `[welcomeTabId, activeTabId]`)
-- Files changed: src/renderer/panels/EditorPanel.tsx
+## 2026-04-13 13:57 - US-B03
+- Added `setenv('GNUTERM', 'pngcairo')` to Octave init script in octaveProcess.ts when `process.platform === 'linux'`
+- Updated capture script in App.tsx to use `-dpngcairo` instead of `-dpng` on Linux via `window.matslop.platform` check
+- Both changes ensure the bundled gnuplot's cairo-based terminals produce valid PNG output
+- Files changed: `src/main/octaveProcess.ts`, `src/renderer/App.tsx`
 - **Learnings for future iterations:**
-  - welcomeTabIdRef is new — declared right after welcomeTabId useState, synced via useEffect
-  - tabsRef and activeTabIdRef already existed in EditorPanel.tsx, only needed to be used in callbacks
-  - handleCloseWelcome uses setTabs functional updater for the filter, but still needs the ref for the activeTabId comparison
+  - `window.matslop.platform` is the renderer-side equivalent of `process.platform` (exposed via preload bridge)
+  - The init script in octaveProcess.ts uses a spread array pattern `...(condition ? [item] : [])` for conditional entries
+  - The capture script at line ~1015 of App.tsx is the main place figure PNGs are generated — any print device changes need to go there
+  - The export dialog (line ~1377) uses format-specific flags (-dsvg, -dpdf) but PNG export copies the already-captured file, so no change needed there
 ---
 
-## 2026-04-13 - US-SC03
-- Expanded AppContextValue with 16 value fields and 12 callback fields for all dynamic panel state
-- Added inline mirror types (CtxPendingCommand, CtxWatchEntry, CtxCallStackFrame, CtxFigureData) to avoid circular imports
-- Added sensible defaults in createContext for all new fields
-- Populated all new fields in App.tsx appCtx useMemo with proper dependency array
-- Files changed: src/renderer/AppContext.tsx, src/renderer/App.tsx
+## 2026-04-13 14:04 - US-B04
+- Fixed .deb package URLs in download-octave.js: 1build4→1build5, liboctave-dev→octave-dev, fonts pool main→universe
+- Added comprehensive e2e-plotting-verification.test.ts with 20 tests (15 unit, 5 integration requiring Octave)
+- Hardened tests/helpers/octaveBinary.ts to verify binary can execute (not just exist on disk)
+- Updated octave-plot.test.ts to use -dpngcairo on Linux (matches app behavior)
+- Updated download-octave-linux.test.ts to match corrected package names
+- Files changed: `scripts/download-octave.js`, `tests/helpers/octaveBinary.ts`, `tests/integration/e2e-plotting-verification.test.ts`, `tests/integration/octave-plot.test.ts`, `tests/unit/download-octave-linux.test.ts`
 - **Learnings for future iterations:**
-  - Inline types must exactly mirror the source interfaces (field names, nullability) — check actual source before defining
-  - handleAddWatch takes required `expression: string`, not optional
-  - CallStackFrame has no `scope` field; FigureData uses `handle`/`imageDataUrl`/`tempPath` not `id`/`dataUrl`
-  - The existing eslint-disable block for no-empty-function was incorrectly scoped; use eslint-disable-next-line instead
-  - debugPaused is derived: `pausedLocation !== null`; debugFrameName is derived: `callStack[callStackSelected]?.name ?? null`
-  - editorTheme is derived from resolvedTheme: `resolvedTheme === 'light' ? 'vs-light' : 'vs-dark'`
----
-
-## 2026-04-13 - US-SC04
-- Updated all 8 panel components to read dynamic state from AppContext with prop fallback
-- Pattern: `const ctx = useAppContext(); const val = ctx.field ?? propField`
-- CommandWindow.tsx — reads: pendingCommand, pasteCommand, menuAction, onCommandExecuted, onDocCommand, onMenuActionConsumed, onPasteConsumed, onHistoryChanged
-- WorkspacePanel.tsx — reads: refreshTrigger, debugPaused, debugFrameName
-- EditorPanel.tsx — reads: pausedLocation, editorTheme, editorSettings, menuAction, onMenuActionConsumed, onRunScript (as onRun), onRunSection
-- CallStackPanel.tsx — reads: callStack (as frames), callStackSelected (as selectedIndex), onCallStackSelect (as onSelectFrame)
-- WatchesPanel.tsx — reads: watches, onAddWatch, onRemoveWatch, onUpdateWatch, onRefreshWatches (as onRefresh)
-- FigurePanel.tsx — reads: figures
-- CommandHistoryPanel.tsx — reads: historyVersion
-- FileBrowser.tsx — reads: gitBadges, cwd (as externalCwd)
-- Made affected props optional (added ?) so tests without providers still work
-- Files changed: 8 panel files in src/renderer/panels/
-- **Learnings for future iterations:**
-  - EditorPanel already had useAppContext for pendingOpenPath — extend it, don't duplicate
-  - CtxCallStackFrame/CtxWatchEntry/CtxFigureData mirror the real types so `as` casts work for context→prop mapping
-  - Context values default to noop/empty via createContext defaults, so `ctx.field ?? propField` always resolves
-  - The onCollapse prop is defined but unused in most panels (pre-existing lint warning)
+  - Ubuntu Noble packages use `-1build5` suffix, not `-1build4` — always verify URLs before committing
+  - The `fonts-freefont-otf` package is in the `universe` pool, not `main`
+  - The package is `octave-dev` (not `liboctave-dev`) for 8.4.0
+  - hasBundledOctaveBinary() must try executing the binary, not just check file existence — .deb-extracted binaries need system shared libs (libhdf5, libcholmod, etc.)
+  - Integration tests that need Octave should always use describe.skipIf(!HAS_OCTAVE) pattern
 ---
