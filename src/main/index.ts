@@ -897,8 +897,16 @@ function currentOctaveExecutor(): ((cmd: string) => Promise<unknown>) | null {
 
 ipcMain.handle(
   'debug:setBreakpoint',
-  (_event, filePath: string | null, line: number) => {
-    const ok = applySetBreakpoint(debugBreakpoints, filePath, line, currentOctaveExecutor())
+  async (_event, filePath: string | null, line: number) => {
+    const exec = currentOctaveExecutor()
+    // Ensure the file's directory is on Octave's path so dbstop can find it
+    if (exec && filePath) {
+      const dir = path.dirname(filePath).replace(/'/g, "''")
+      try {
+        await exec(`addpath('${dir}')`)
+      } catch { /* ignore — best effort */ }
+    }
+    const ok = applySetBreakpoint(debugBreakpoints, filePath, line, exec)
     return { success: ok }
   },
 )

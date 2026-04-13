@@ -31,14 +31,14 @@ function makeRecorder(): {
 }
 
 describe('formatDbstopCommand', () => {
-  it('quotes the basename with .m extension', () => {
+  it('quotes the basename without .m extension', () => {
     expect(formatDbstopCommand('/home/user/project/myfunc.m', 12)).toBe(
-      'dbstop in "myfunc.m" at 12',
+      'dbstop in "myfunc" at 12',
     )
   })
 
   it('floors fractional lines', () => {
-    expect(formatDbstopCommand('foo.m', 3.9)).toBe('dbstop in "foo.m" at 3')
+    expect(formatDbstopCommand('foo.m', 3.9)).toBe('dbstop in "foo" at 3')
   })
 
   it('handles windows-style paths', () => {
@@ -46,13 +46,13 @@ describe('formatDbstopCommand', () => {
     // slashes only get stripped on win32. The important part is that file
     // paths with forward slashes collapse to just the file name.
     expect(formatDbstopCommand('C:/work/alpha.m', 1)).toBe(
-      'dbstop in "alpha.m" at 1',
+      'dbstop in "alpha" at 1',
     )
   })
 
   it('escapes embedded double quotes in the file name', () => {
     expect(formatDbstopCommand('weird"name.m', 7)).toBe(
-      'dbstop in "weird\\"name.m" at 7',
+      'dbstop in "weird\\"name" at 7',
     )
   })
 })
@@ -60,37 +60,37 @@ describe('formatDbstopCommand', () => {
 describe('formatDbstopConditionalCommand (US-021)', () => {
   it('formats a conditional dbstop with single-quoted expression', () => {
     expect(formatDbstopConditionalCommand('/abs/foo.m', 12, 'i > 10')).toBe(
-      `dbstop in "foo.m" at 12 if 'i > 10'`,
+      `dbstop in "foo" at 12 if 'i > 10'`,
     )
   })
 
   it('falls back to a plain dbstop when the condition is null or empty', () => {
     expect(formatDbstopConditionalCommand('/abs/foo.m', 12, null)).toBe(
-      'dbstop in "foo.m" at 12',
+      'dbstop in "foo" at 12',
     )
     expect(formatDbstopConditionalCommand('/abs/foo.m', 12, '')).toBe(
-      'dbstop in "foo.m" at 12',
+      'dbstop in "foo" at 12',
     )
     expect(formatDbstopConditionalCommand('/abs/foo.m', 12, '   ')).toBe(
-      'dbstop in "foo.m" at 12',
+      'dbstop in "foo" at 12',
     )
   })
 
   it('escapes embedded single quotes in the condition (Octave string escape)', () => {
     expect(
       formatDbstopConditionalCommand('/abs/foo.m', 3, "strcmp(s, 'hi')"),
-    ).toBe(`dbstop in "foo.m" at 3 if 'strcmp(s, ''hi'')'`)
+    ).toBe(`dbstop in "foo" at 3 if 'strcmp(s, ''hi'')'`)
   })
 
   it('floors fractional lines', () => {
     expect(formatDbstopConditionalCommand('foo.m', 3.9, 'ok')).toBe(
-      `dbstop in "foo.m" at 3 if 'ok'`,
+      `dbstop in "foo" at 3 if 'ok'`,
     )
   })
 
   it('trims surrounding whitespace on the condition', () => {
     expect(formatDbstopConditionalCommand('foo.m', 1, '   i > 10   ')).toBe(
-      `dbstop in "foo.m" at 1 if 'i > 10'`,
+      `dbstop in "foo" at 1 if 'i > 10'`,
     )
   })
 })
@@ -104,8 +104,8 @@ describe('setBreakpointWithCondition (US-021)', () => {
     expect(map.get('/p/foo.m')).toEqual(new Set([7]))
     await Promise.resolve()
     expect(rec.sent).toEqual([
-      'dbclear in "foo.m" at 7',
-      `dbstop in "foo.m" at 7 if 'i > 10'`,
+      'dbclear in "foo" at 7',
+      `dbstop in "foo" at 7 if 'i > 10'`,
     ])
   })
 
@@ -117,8 +117,8 @@ describe('setBreakpointWithCondition (US-021)', () => {
     expect(ok).toBe(true)
     await Promise.resolve()
     expect(rec.sent).toEqual([
-      'dbclear in "foo.m" at 7',
-      'dbstop in "foo.m" at 7',
+      'dbclear in "foo" at 7',
+      'dbstop in "foo" at 7',
     ])
   })
 
@@ -142,7 +142,7 @@ describe('setBreakpointWithCondition (US-021)', () => {
 describe('formatDbclearCommand', () => {
   it('produces a dbclear line for the same inputs', () => {
     expect(formatDbclearCommand('/abs/plot.m', 5)).toBe(
-      'dbclear in "plot.m" at 5',
+      'dbclear in "plot" at 5',
     )
   })
 })
@@ -168,7 +168,7 @@ describe('setBreakpoint', () => {
     expect(map.get('/proj/foo.m')).toEqual(new Set([42]))
     // allow microtask for the Promise.resolve
     await Promise.resolve()
-    expect(rec.sent).toEqual(['dbstop in "foo.m" at 42'])
+    expect(rec.sent).toEqual(['dbstop in "foo" at 42'])
   })
 
   it('still records unsaved-tab breakpoints but does NOT forward to Octave', async () => {
@@ -205,7 +205,7 @@ describe('setBreakpoint', () => {
     setBreakpoint(map, '/p/x.m', 9, rec.exec)
     expect(map.get('/p/x.m')).toEqual(new Set([3, 9]))
     await Promise.resolve()
-    expect(rec.sent).toEqual(['dbstop in "x.m" at 3', 'dbstop in "x.m" at 9'])
+    expect(rec.sent).toEqual(['dbstop in "x" at 3', 'dbstop in "x" at 9'])
   })
 })
 
@@ -218,7 +218,7 @@ describe('clearBreakpoint', () => {
     expect(ok).toBe(true)
     expect(map.get('/p/x.m')).toEqual(new Set([9]))
     await Promise.resolve()
-    expect(rec.sent).toEqual(['dbclear in "x.m" at 3'])
+    expect(rec.sent).toEqual(['dbclear in "x" at 3'])
   })
 
   it('drops the bucket entirely when the last line is cleared', () => {
@@ -237,7 +237,7 @@ describe('clearBreakpoint', () => {
     const ok = clearBreakpoint(map, '/p/x.m', 11, rec.exec)
     expect(ok).toBe(true)
     await Promise.resolve()
-    expect(rec.sent).toEqual(['dbclear in "x.m" at 11'])
+    expect(rec.sent).toEqual(['dbclear in "x" at 11'])
   })
 
   it('rejects bad lines', () => {
@@ -256,9 +256,9 @@ describe('reapplyAllBreakpoints', () => {
     const sent = reapplyAllBreakpoints(map, rec.exec)
     // Keys sort ascending, lines sort ascending within each key.
     expect(sent).toEqual([
-      'dbstop in "a.m" at 5',
-      'dbstop in "b.m" at 2',
-      'dbstop in "b.m" at 7',
+      'dbstop in "a" at 5',
+      'dbstop in "b" at 2',
+      'dbstop in "b" at 7',
     ])
     await Promise.resolve()
     expect(rec.sent).toEqual(sent)
@@ -270,7 +270,7 @@ describe('reapplyAllBreakpoints', () => {
     map.set('/project/real.m', new Set([9]))
     const rec = makeRecorder()
     const sent = reapplyAllBreakpoints(map, rec.exec)
-    expect(sent).toEqual(['dbstop in "real.m" at 9'])
+    expect(sent).toEqual(['dbstop in "real" at 9'])
   })
 
   it('is a no-op on an empty registry', () => {
@@ -288,8 +288,8 @@ describe('reapplyAllBreakpoints', () => {
     const rec = makeRecorder()
     const sent = reapplyAllBreakpoints(map, rec.exec, conds)
     expect(sent).toEqual([
-      'dbstop in "foo.m" at 5',
-      `dbstop in "foo.m" at 12 if 'i > 10'`,
+      'dbstop in "foo" at 5',
+      `dbstop in "foo" at 12 if 'i > 10'`,
     ])
     await Promise.resolve()
     expect(rec.sent).toEqual(sent)
@@ -303,7 +303,7 @@ describe('reapplyAllBreakpoints', () => {
     conds.set('/p/a.m', { 7: 'x == 0' })
     const rec = makeRecorder()
     const sent = reapplyAllBreakpoints(map, rec.exec, conds)
-    expect(sent).toEqual([`dbstop in "a.m" at 7 if 'x == 0'`])
+    expect(sent).toEqual([`dbstop in "a" at 7 if 'x == 0'`])
   })
 
   it('survives a throwing executor and still records the full command list', () => {
@@ -316,7 +316,7 @@ describe('reapplyAllBreakpoints', () => {
     }
     // Should not bubble; both commands should still appear in the return.
     const sent = reapplyAllBreakpoints(map, throwingExec)
-    expect(sent).toEqual(['dbstop in "a.m" at 1', 'dbstop in "b.m" at 2'])
+    expect(sent).toEqual(['dbstop in "a" at 1', 'dbstop in "b" at 2'])
   })
 })
 
@@ -329,10 +329,10 @@ describe('reapplyBreakpointsForFile (US-023 edit-and-continue)', () => {
     const sent = reapplyBreakpointsForFile(map, '/project/a.m', rec.exec)
     // Phase 1 clears ALL lines (sorted), phase 2 stops them back.
     expect(sent).toEqual([
-      'dbclear in "a.m" at 5',
-      'dbclear in "a.m" at 12',
-      'dbstop in "a.m" at 5',
-      'dbstop in "a.m" at 12',
+      'dbclear in "a" at 5',
+      'dbclear in "a" at 12',
+      'dbstop in "a" at 5',
+      'dbstop in "a" at 12',
     ])
     await Promise.resolve()
     expect(rec.sent).toEqual(sent)
@@ -348,10 +348,10 @@ describe('reapplyBreakpointsForFile (US-023 edit-and-continue)', () => {
     const rec = makeRecorder()
     const sent = reapplyBreakpointsForFile(map, '/p/foo.m', rec.exec, conds)
     expect(sent).toEqual([
-      'dbclear in "foo.m" at 2',
-      'dbclear in "foo.m" at 7',
-      'dbstop in "foo.m" at 2',
-      `dbstop in "foo.m" at 7 if 'i > 10'`,
+      'dbclear in "foo" at 2',
+      'dbclear in "foo" at 7',
+      'dbstop in "foo" at 2',
+      `dbstop in "foo" at 7 if 'i > 10'`,
     ])
   })
 
@@ -387,10 +387,10 @@ describe('reapplyBreakpointsForFile (US-023 edit-and-continue)', () => {
     }
     const sent = reapplyBreakpointsForFile(map, '/p/a.m', throwingExec)
     expect(sent).toEqual([
-      'dbclear in "a.m" at 1',
-      'dbclear in "a.m" at 2',
-      'dbstop in "a.m" at 1',
-      'dbstop in "a.m" at 2',
+      'dbclear in "a" at 1',
+      'dbclear in "a" at 2',
+      'dbstop in "a" at 1',
+      'dbstop in "a" at 2',
     ])
   })
 })

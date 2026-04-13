@@ -34,7 +34,8 @@ export const UNSAVED_BUCKET = '<unsaved>'
  * editor tabs.
  */
 function fileToken(filePath: string): string {
-  return path.basename(filePath).replace(/"/g, '\\"')
+  // Octave's dbstop expects the function/script name WITHOUT extension
+  return path.basename(filePath).replace(/\.m$/, '').replace(/"/g, '\\"')
 }
 
 /**
