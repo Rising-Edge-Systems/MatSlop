@@ -1,64 +1,74 @@
 {
   "project": "MatSlop",
-  "branchName": "ralph/fix-known-limitations",
-  "description": "Fix the systemic rc-dock stale closure bug. Every callback and value prop passed through MatslopDockLayout's loadTab cache is frozen at mount time. The fix: move ALL dynamic value props into AppContext, and stabilize ALL callbacks via refs so they have [] deps.",
+  "branchName": "ralph/linux-octave-bundling",
+  "description": "Bundle Octave on Linux from Ubuntu .deb packages with fonts and an LD_PRELOAD font redirect shim so plotting works out of the box without the user installing anything.",
   "userStories": [
     {
-      "id": "US-SC01",
-      "title": "Stabilize broken callbacks in App.tsx via ref pattern",
-      "description": "Six callbacks in App.tsx have state variables in their dependency arrays, making them unstable. When rc-dock caches the React element, the stale closure captures old state.\n\nFix each one by reading from a ref instead of closing over state:\n\n1. `runCaptureAndRefresh` depends on `octaveStatus.engineStatus` in its dep array. Fix: read `octaveEngineStatusRef.current` (already exists) inside the callback instead. Remove octaveStatus.engineStatus from deps, make deps `[]`.\n\n2. `handleRunScript` depends on `[runCaptureAndRefresh]`. Once #1 is stable ([] deps), handleRunScript becomes stable too since its only dep is now stable. Verify it ends up with `[]` or only stable deps.\n\n3. `handleRunSection` depends on `[runCaptureAndRefresh]`. Same cascade as #2.\n\n4. `handleCommandExecuted` — check its deps. If it depends on runCaptureAndRefresh, same cascade.\n\n5. `handleCallStackSelect` depends on `[callStack]`. Fix: create `const callStackRef = useRef(callStack)` and sync it via `callStackRef.current = callStack` after the useState. Read `callStackRef.current[index]` inside the callback. Change deps to `[]`.\n\n6. `refreshAllWatches` depends on `[evaluateWatch, octaveStatus.engineStatus]`. Fix: read `octaveEngineStatusRef.current` inside, and create/use `watchesRef` for the watches list. `evaluateWatch` is already stable.\n\nIMPORTANT: Do NOT change any component interfaces or props. Only change callback implementations inside App.tsx.",
+      "id": "US-B01",
+      "title": "Download and extract Octave .deb packages for Linux",
+      "description": "As a developer running download-octave.js --platform linux, I want the script to download Octave 8.4 .deb packages from the Ubuntu archive and extract them to resources/octave/, so Linux has a bundled Octave.",
       "acceptanceCriteria": [
-        "runCaptureAndRefresh has [] deps",
-        "handleRunScript has [] or only-stable deps",
-        "handleRunSection has [] or only-stable deps",
-        "handleCallStackSelect has [] deps",
-        "refreshAllWatches has only stable deps",
-        "Typecheck passes",
-        "All tests pass"
+        "download-octave.js --platform linux downloads octave_8.4.0-1build4_amd64.deb, octave-common_8.4.0-1build4_all.deb, and liboctave-dev_8.4.0-1build4_amd64.deb from http://archive.ubuntu.com/ubuntu/pool/universe/o/octave/",
+        "Also downloads fonts-freefont-otf_20211204+svn4273-2_all.deb from http://archive.ubuntu.com/ubuntu/pool/main/f/fonts-freefont/",
+        "Extracts all packages to resources/octave/ using dpkg-deb -x (or ar x + tar xf as fallback)",
+        "resources/octave/usr/bin/octave-cli exists after extraction",
+        "resources/octave/usr/share/fonts/opentype/freefont/FreeSans.otf exists after extraction",
+        "Running the script twice does not re-download (checks for existing binary)",
+        "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true
+      "passes": true,
+      "notes": "Ubuntu Noble 24.04 package URLs. The .deb extraction uses dpkg-deb on Debian/Ubuntu systems. For fallback on non-Debian: ar x pkg.deb && tar xf data.tar.* Both approaches must be tried."
     },
     {
-      "id": "US-SC02",
-      "title": "Fix EditorPanel internal stale callbacks",
-      "description": "Two callbacks inside EditorPanel.tsx have state in their deps:\n\n1. `handleOpenFile` depends on `[tabs]`. Fix: use `tabsRef.current` (already exists at line 114) instead of `tabs`. Change deps to `[]`.\n\n2. `handleCloseWelcome` depends on `[welcomeTabId, activeTabId]`. Fix: create `welcomeTabIdRef` synced to welcomeTabId. Use `activeTabIdRef.current` (already exists) and `welcomeTabIdRef.current` inside the callback. Change deps to `[]`.\n\nDo NOT change any component interfaces.",
+      "id": "US-B02",
+      "title": "Compile font_redirect.so LD_PRELOAD shim and create wrapper script",
+      "description": "As part of the Linux bundling, compile a tiny C shared library that redirects font openat() calls from the hardcoded system path to the bundle, and create a wrapper shell script that sets up the environment.",
       "acceptanceCriteria": [
-        "handleOpenFile has [] deps",
-        "handleCloseWelcome has [] deps",
-        "Typecheck passes",
-        "All tests pass"
+        "download-octave.js writes a C source file, compiles it with gcc -shared -fPIC -o resources/octave/font_redirect.so font_redirect.c -ldl, then deletes the source",
+        "The shim intercepts openat() calls where pathname starts with /usr/share/fonts/opentype/freefont/ and replaces the prefix with $MATSLOP_OCTAVE_ROOT/usr/share/fonts/opentype/freefont/",
+        "The redirect path is read from MATSLOP_OCTAVE_ROOT env var at runtime (not hardcoded)",
+        "If gcc is not available, print a warning and skip (plotting won't work but app still runs)",
+        "Creates a wrapper script at resources/octave/bin/octave-cli that sets LD_LIBRARY_PATH, LD_PRELOAD (font_redirect.so), MATSLOP_OCTAVE_ROOT, OCTAVE_HOME, GNUTERM=pngcairo, FONTCONFIG_FILE, and execs the real binary at usr/bin/octave-cli",
+        "Creates a fonts.conf XML file at resources/octave/fonts.conf that includes both the bundled font dir and /usr/share/fonts as fallback",
+        "The wrapper script is executable (chmod +x)",
+        "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true
+      "passes": true,
+      "notes": "The C shim source should be a string constant in download-octave.js. The wrapper script creates a bin/ directory at resources/octave/bin/ (different from usr/bin/). MATSLOP_OCTAVE_ROOT should point to the resources/octave/ directory (the root of the extracted tree). The real octave binary is at resources/octave/usr/bin/octave-cli."
     },
     {
-      "id": "US-SC03",
-      "title": "Expand AppContext with all dynamic panel state and stable callbacks",
-      "description": "Add ALL remaining dynamic value props to AppContext so panels can read from context instead of stale rc-dock cached props.\n\nIn src/renderer/AppContext.tsx:\n1. Add these value fields to AppContextValue: pendingCommand, pasteCommand, menuAction, refreshTrigger (number), debugPaused (boolean), debugFrameName (string|null), pausedLocation ({file,line}|null), editorTheme (string), editorSettings (object), callStack (array), callStackSelected (number), watches (array), figures (array), historyVersion (number), gitBadges (ReadonlyMap).\n\n2. Add these callback fields: onRunScript, onRunSection, onCommandExecuted, onDocCommand, onMenuActionConsumed, onPasteConsumed, onHistoryChanged, onCallStackSelect, onAddWatch, onRemoveWatch, onUpdateWatch, onRefreshWatches.\n\n3. Provide sensible defaults in createContext (null, [], 0, noop functions).\n\n4. Import necessary types — use inline type definitions to avoid circular imports.\n\nThen in src/renderer/App.tsx, populate ALL new fields in the `appCtx` useMemo. Use the stabilized callbacks from US-SC01. Add all value state variables to the useMemo dependency array.\n\nIMPORTANT: Keep ALL existing AppContext fields (help*, profiler*, cwd, pendingOpenPath, etc). Only ADD new ones.",
+      "id": "US-B03",
+      "title": "Update OctaveProcessManager to use -dpngcairo on Linux",
+      "description": "When spawning Octave on Linux, ensure the gnuplot graphics toolkit uses pngcairo terminal since the extracted Octave's gnuplot only has cairo-based terminals.",
       "acceptanceCriteria": [
-        "AppContextValue has all listed value and callback fields",
-        "createContext has defaults for every field",
-        "App.tsx appCtx useMemo populates every field",
+        "In src/main/octaveProcess.ts, the init script adds setenv('GNUTERM', 'pngcairo') when process.platform === 'linux'",
+        "The capture script in src/renderer/App.tsx uses -dpngcairo instead of -dpng for print() calls when on Linux, OR the GNUTERM env var handles this automatically (test both)",
+        "plot(1:10) followed by print('/tmp/test.png', '-dpng') produces a valid non-empty PNG file on Linux",
         "Typecheck passes",
         "All tests pass"
       ],
       "priority": 3,
-      "passes": true
+      "passes": true,
+      "notes": "The GNUTERM=pngcairo env var in the wrapper script may be sufficient — gnuplot maps -dpng to pngcairo when GNUTERM is set. Test whether the init-script setenv is also needed or redundant. The capture script uses print(handle, path, '-dpng', '-r150') — verify this produces a real image."
     },
     {
-      "id": "US-SC04",
-      "title": "Update all panel components to read from AppContext",
-      "description": "Update each panel component to read dynamic state from AppContext instead of (or in addition to) props. Keep props as optional fallbacks for tests.\n\nPattern: `const ctx = useAppContext(); const val = ctx.field ?? propField;`\n\nPanels to update (import useAppContext in each):\n\n1. CommandWindow.tsx — read: pendingCommand, pasteCommand, menuAction, onCommandExecuted, onDocCommand, onMenuActionConsumed, onPasteConsumed, onHistoryChanged\n2. WorkspacePanel.tsx — read: refreshTrigger, debugPaused, debugFrameName\n3. EditorPanel.tsx — read: pausedLocation, editorTheme, editorSettings, menuAction, onMenuActionConsumed, onRunScript (as onRun), onRunSection\n4. CallStackPanel.tsx — read: callStack (as frames), callStackSelected (as selectedIndex), onCallStackSelect (as onSelectFrame)\n5. WatchesPanel.tsx — read: watches, onAddWatch, onRemoveWatch, onUpdateWatch, onRefreshWatches (as onRefresh)\n6. FigurePanel.tsx — read: figures\n7. CommandHistoryPanel.tsx — read: historyVersion\n8. FileBrowser.tsx — read: gitBadges, cwd (as externalCwd)\n\nFor each: make the props optional (add ?) where context provides the value. Context value takes precedence (ctx.x ?? propX).\n\nDo NOT remove props from App.tsx MatslopDockLayout slots — keep them as fallbacks.",
+      "id": "US-B04",
+      "title": "Verify end-to-end plotting in the app",
+      "description": "Verify that 2D and 3D plots render in MatSlop using the bundled Octave on Linux.",
       "acceptanceCriteria": [
-        "All 8 panels import and use useAppContext",
-        "Each panel reads its dynamic values from context with prop fallback",
-        "Affected props are optional in interfaces",
+        "Run plot(1:10) via octaveExecute — the print command produces a valid PNG (non-empty, >1KB)",
+        "Run surf(peaks) — produces a valid 3D surface PNG",
+        "Run title('Hello'); xlabel('X'); ylabel('Y') — labels appear in the PNG",
+        "The matslop_export_fig function is loadable by Octave (which matslop_export_fig returns a path)",
+        "The capture script in App.tsx detects figures and the Figure panel shows the plot image",
         "Typecheck passes",
         "All tests pass"
       ],
       "priority": 4,
-      "passes": true
+      "passes": true,
+      "notes": "Use the bundled Octave at resources/octave/bin/octave-cli. Update ~/.config/matslop/config.json to point to it. The existing capture script runs matslop_export_fig after each command to detect figures. If Plotly JSON export doesn't work with gnuplot, the PNG fallback path (capture script reads the PNG and shows it as an image) should still work."
     }
   ]
 }

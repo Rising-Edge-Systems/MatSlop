@@ -1,5 +1,6 @@
 import path from 'path'
 import fs from 'fs'
+import { execSync } from 'child_process'
 
 /**
  * Returns the path to the bundled Octave binary for the current platform,
@@ -16,11 +17,31 @@ export function getBundledOctaveBinaryPath(): string {
 }
 
 /**
- * @returns `true` if the bundled Octave binary exists on disk for the
- * current platform. Use with `describe.skipIf(!hasBundledOctaveBinary())`.
+ * @returns `true` if the bundled Octave binary exists on disk AND can
+ * actually execute (has all shared library dependencies satisfied).
+ * Use with `describe.skipIf(!hasBundledOctaveBinary())` to skip gracefully.
+ *
+ * On Linux, the .deb-extracted binary depends on system libraries (libhdf5,
+ * libcholmod, etc.) that may not be installed. A file-existence-only check
+ * would cause tests to fail with "error while loading shared libraries"
+ * instead of skipping gracefully.
  */
 export function hasBundledOctaveBinary(): boolean {
-  return fs.existsSync(getBundledOctaveBinaryPath())
+  const binPath = getBundledOctaveBinaryPath()
+  if (!fs.existsSync(binPath)) return false
+
+  // Verify the binary can actually start by running --version
+  try {
+    execSync(`"${binPath}" --version`, {
+      stdio: 'pipe',
+      timeout: 15000,
+      env: { ...process.env }
+    })
+    return true
+  } catch {
+    // Binary exists but can't execute (missing shared libs, wrong arch, etc.)
+    return false
+  }
 }
 
 /**

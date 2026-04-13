@@ -40,12 +40,12 @@ const MAC_OCTAVE_VERSION = '9.2'
 // Ubuntu Noble 24.04 packages for Linux bundling.
 const LINUX_OCTAVE_VERSION = '8.4.0'
 const LINUX_DEB_BASE = 'http://archive.ubuntu.com/ubuntu/pool/universe/o/octave'
-const LINUX_FONT_BASE = 'http://archive.ubuntu.com/ubuntu/pool/main/f/fonts-freefont'
+const LINUX_FONT_BASE = 'http://archive.ubuntu.com/ubuntu/pool/universe/f/fonts-freefont'
 
 const LINUX_DEBS = [
-  { url: `${LINUX_DEB_BASE}/octave_${LINUX_OCTAVE_VERSION}-1build4_amd64.deb`, filename: `octave_${LINUX_OCTAVE_VERSION}-1build4_amd64.deb` },
-  { url: `${LINUX_DEB_BASE}/octave-common_${LINUX_OCTAVE_VERSION}-1build4_all.deb`, filename: `octave-common_${LINUX_OCTAVE_VERSION}-1build4_all.deb` },
-  { url: `${LINUX_DEB_BASE}/liboctave-dev_${LINUX_OCTAVE_VERSION}-1build4_amd64.deb`, filename: `liboctave-dev_${LINUX_OCTAVE_VERSION}-1build4_amd64.deb` },
+  { url: `${LINUX_DEB_BASE}/octave_${LINUX_OCTAVE_VERSION}-1build5_amd64.deb`, filename: `octave_${LINUX_OCTAVE_VERSION}-1build5_amd64.deb` },
+  { url: `${LINUX_DEB_BASE}/octave-common_${LINUX_OCTAVE_VERSION}-1build5_all.deb`, filename: `octave-common_${LINUX_OCTAVE_VERSION}-1build5_all.deb` },
+  { url: `${LINUX_DEB_BASE}/octave-dev_${LINUX_OCTAVE_VERSION}-1build5_amd64.deb`, filename: `octave-dev_${LINUX_OCTAVE_VERSION}-1build5_amd64.deb` },
   { url: `${LINUX_FONT_BASE}/fonts-freefont-otf_20211204+svn4273-2_all.deb`, filename: 'fonts-freefont-otf_20211204+svn4273-2_all.deb' }
 ]
 

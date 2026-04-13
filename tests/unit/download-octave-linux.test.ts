@@ -17,15 +17,15 @@ describe('download-octave Linux support (.deb bundling)', () => {
   it('defines LINUX_DEBS array with the expected .deb packages', () => {
     expect(script).toMatch(/LINUX_DEBS/)
     // Template literals use LINUX_OCTAVE_VERSION for octave packages
-    expect(script).toMatch(/octave_.*-1build4_amd64\.deb/)
-    expect(script).toMatch(/octave-common_.*-1build4_all\.deb/)
-    expect(script).toMatch(/liboctave-dev_.*-1build4_amd64\.deb/)
+    expect(script).toMatch(/octave_.*-1build5_amd64\.deb/)
+    expect(script).toMatch(/octave-common_.*-1build5_all\.deb/)
+    expect(script).toMatch(/octave-dev_.*-1build5_amd64\.deb/)
     expect(script).toMatch(/fonts-freefont-otf_20211204/)
   })
 
   it('downloads from archive.ubuntu.com', () => {
     expect(script).toMatch(/archive\.ubuntu\.com\/ubuntu\/pool\/universe\/o\/octave/)
-    expect(script).toMatch(/archive\.ubuntu\.com\/ubuntu\/pool\/main\/f\/fonts-freefont/)
+    expect(script).toMatch(/archive\.ubuntu\.com\/ubuntu\/pool\/universe\/f\/fonts-freefont/)
   })
 
   it('has a downloadLinuxDebs function with dpkg-deb extraction and ar fallback', () => {

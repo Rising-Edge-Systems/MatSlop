@@ -46,8 +46,10 @@ describe.skipIf(!HAS_OCTAVE)('Octave plotting', () => {
     const tmpPath = path.join(os.tmpdir(), `matslop-test-plot-${Date.now()}.png`)
     // Use forward slashes / double backslashes for Octave string
     const octavePath = tmpPath.replace(/\\/g, '/')
+    // US-B03: Use -dpngcairo on Linux (bundled gnuplot only has cairo terminals)
+    const printDevice = process.platform === 'linux' ? '-dpngcairo' : '-dpng'
     await mgr.executeCommand('x = linspace(0, 2*pi, 50); y = cos(x); plot(x, y);')
-    await mgr.executeCommand(`print('${octavePath}', '-dpng', '-r100');`)
+    await mgr.executeCommand(`print('${octavePath}', '${printDevice}', '-r100');`)
     // Wait briefly for gnuplot to flush
     await new Promise((r) => setTimeout(r, 1000))
     expect(fs.existsSync(tmpPath)).toBe(true)
