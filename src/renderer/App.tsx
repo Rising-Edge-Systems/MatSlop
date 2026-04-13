@@ -191,6 +191,8 @@ function App(): React.JSX.Element {
   // US-016: when Octave hits a breakpoint we track the paused location so the
   // editor can highlight the line and the status bar can flip into debug mode.
   const [pausedLocation, setPausedLocation] = useState<{ file: string; line: number } | null>(null)
+  const pausedLocationRef = useRef(pausedLocation)
+  pausedLocationRef.current = pausedLocation
   // Track the last file/dir run via F5 so Pause can re-run with a breakpoint
   const lastRunRef = useRef<{ filePath: string; dirPath: string } | null>(null)
   // US-018: Current call stack (top frame first) and the selected frame
@@ -1106,6 +1108,14 @@ function App(): React.JSX.Element {
 
   const handleStop = useCallback(() => {
     window.matslop.octaveInterrupt()
+    // If we're in debug mode, also exit it and clear breakpoints
+    if (pausedLocationRef.current) {
+      try {
+        void window.matslop.octaveExecute('dbquit').catch(() => {})
+        void window.matslop.octaveExecute('dbclear all').catch(() => {})
+      } catch { /* ignore */ }
+    }
+    setPausedLocation(null)
   }, [])
 
   // US-020: Pause a running script and drop into the debugger at the
@@ -1128,27 +1138,25 @@ function App(): React.JSX.Element {
     // Octave's debug_on_interrupt doesn't work with pipe-based stdin.
     // Instead: interrupt current execution, set a breakpoint at line 1
     // of the last-run script, and re-run it so the user can step through.
+    const last = lastRunRef.current
+    if (!last) return
     try {
       await window.matslop.octaveInterrupt()
     } catch { /* ignore */ }
-    const last = lastRunRef.current
-    if (!last) return
     // Wait for the interrupt to settle
     await new Promise<void>((r) => setTimeout(r, 500))
     try {
       const basename = last.filePath.replace(/.*[\\/]/, '').replace(/\.m$/, '')
       const escapedDir = last.dirPath.replace(/'/g, "''")
-      const escapedPath = last.filePath.replace(/'/g, "''")
       await window.matslop.octaveExecute(`addpath('${escapedDir}'); dbstop in ${basename} at 1`)
       // Re-run — this will hit the breakpoint at line 1
-      const { command, display } = buildRunScriptCommand(last.filePath, last.dirPath)
-      window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
-        detail: { display: `[Debug] ${display}`, output: '', error: '' },
-      }))
+      const { command } = buildRunScriptCommand(last.filePath, last.dirPath)
       void window.matslop.octaveExecute(command).then((result) => {
-        window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
-          detail: { display: '', output: result.output, error: result.error },
-        }))
+        if (result.output || result.error) {
+          window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
+            detail: { display: '', output: result.output, error: result.error },
+          }))
+        }
       })
     } catch {
       /* ignore — best effort */
@@ -1173,6 +1181,11 @@ function App(): React.JSX.Element {
     // simulate the paused state) the IPC rejects harmlessly.
     try {
       void window.matslop.octaveExecute(command).catch(() => {})
+      // On stop, also clear all breakpoints so the Pause-inserted dbstop
+      // doesn't fire again on the next Run.
+      if (action === 'stop') {
+        void window.matslop.octaveExecute('dbclear all').catch(() => {})
+      }
     } catch {
       /* ignore */
     }
