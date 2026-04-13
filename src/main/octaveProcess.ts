@@ -237,7 +237,7 @@ export class OctaveProcessManager extends EventEmitter {
       // Strip debug-mode noise — the UI handles paused state via events.
       // "debug>" prompt, "stopped in X at line N [path]" marker, and the
       // source-line echo that follows it (e.g. "2: y = 2;").
-      .replace(/^debug>\s*/gm, '')
+      .replace(/^(?:\[\d+\])?debug>\s*/gm, '')
       .replace(/^stopped in .+ at line \d+.*\n?(?:\d+: .*\n?)?/gm, '')
   }
 

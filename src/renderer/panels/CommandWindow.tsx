@@ -12,9 +12,9 @@ interface OutputEntry {
 /** Strip Octave debug-mode noise from output before displaying. */
 function stripDebugNoise(text: string): string {
   return text
-    .replace(/^debug>\s*/gm, '')
+    .replace(/^(?:\[\d+\])?debug>\s*/gm, '')
     .replace(/^stopped in .+ at line \d+.*(?:\n\d+: .*)?/gm, '')
-    .replace(/\n{3,}/g, '\n\n')  // collapse excess blank lines left behind
+    .replace(/\n{3,}/g, '\n\n')
     .trim()
 }
 
