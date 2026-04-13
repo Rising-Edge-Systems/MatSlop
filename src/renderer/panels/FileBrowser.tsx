@@ -230,7 +230,13 @@ function FileBrowser({ onCollapse, onOpenFile, onCwdChange, externalCwd, gitBadg
           data-git-badge={badge || undefined}
           data-file-path={entry.path}
           onDoubleClick={() => handleDoubleClick(entry)}
-          onClick={() => entry.isDirectory ? toggleDir(entry) : onOpenFile(entry.path)}
+          onClick={() => {
+            if (entry.isDirectory) {
+              toggleDir(entry)
+            } else if (entry.name.endsWith('.m') || entry.name.endsWith('.mls')) {
+              onOpenFile(entry.path)
+            }
+          }}
           onContextMenu={(e) => handleContextMenu(e, entry)}
         >
           {entry.isDirectory && (

@@ -1136,28 +1136,22 @@ function App(): React.JSX.Element {
       w.__matslopLastPauseForDebug = { at: Date.now() }
     }
     // Octave's debug_on_interrupt doesn't work with pipe-based stdin.
-    // Instead: interrupt current execution, set a breakpoint at line 1
-    // of the last-run script, and re-run it so the user can step through.
+    // Instead: interrupt current execution and set a breakpoint at line 1.
+    // The user presses F5 again to re-run in debug mode.
     const last = lastRunRef.current
     if (!last) return
     try {
       await window.matslop.octaveInterrupt()
     } catch { /* ignore */ }
-    // Wait for the interrupt to settle
-    await new Promise<void>((r) => setTimeout(r, 500))
+    // Wait for the interrupt and any pending capture scripts to settle
+    await new Promise<void>((r) => setTimeout(r, 800))
     try {
       const basename = last.filePath.replace(/.*[\\/]/, '').replace(/\.m$/, '')
       const escapedDir = last.dirPath.replace(/'/g, "''")
       await window.matslop.octaveExecute(`addpath('${escapedDir}'); dbstop in ${basename} at 1`)
-      // Re-run — this will hit the breakpoint at line 1
-      const { command } = buildRunScriptCommand(last.filePath, last.dirPath)
-      void window.matslop.octaveExecute(command).then((result) => {
-        if (result.output || result.error) {
-          window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
-            detail: { display: '', output: result.output, error: result.error },
-          }))
-        }
-      })
+      window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
+        detail: { display: '', output: `Breakpoint set at ${basename}:1. Press F5 to debug.`, error: '' },
+      }))
     } catch {
       /* ignore — best effort */
     }
