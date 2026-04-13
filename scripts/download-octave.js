@@ -37,6 +37,18 @@ const WIN_OCTAVE_VERSION = '9.4.0'
 // https://github.com/octave-app/octave-app/releases (currently v9.2).
 const MAC_OCTAVE_VERSION = '9.2'
 
+// Ubuntu Noble 24.04 packages for Linux bundling.
+const LINUX_OCTAVE_VERSION = '8.4.0'
+const LINUX_DEB_BASE = 'http://archive.ubuntu.com/ubuntu/pool/universe/o/octave'
+const LINUX_FONT_BASE = 'http://archive.ubuntu.com/ubuntu/pool/main/f/fonts-freefont'
+
+const LINUX_DEBS = [
+  { url: `${LINUX_DEB_BASE}/octave_${LINUX_OCTAVE_VERSION}-1build4_amd64.deb`, filename: `octave_${LINUX_OCTAVE_VERSION}-1build4_amd64.deb` },
+  { url: `${LINUX_DEB_BASE}/octave-common_${LINUX_OCTAVE_VERSION}-1build4_all.deb`, filename: `octave-common_${LINUX_OCTAVE_VERSION}-1build4_all.deb` },
+  { url: `${LINUX_DEB_BASE}/liboctave-dev_${LINUX_OCTAVE_VERSION}-1build4_amd64.deb`, filename: `liboctave-dev_${LINUX_OCTAVE_VERSION}-1build4_amd64.deb` },
+  { url: `${LINUX_FONT_BASE}/fonts-freefont-otf_20211204+svn4273-2_all.deb`, filename: 'fonts-freefont-otf_20211204+svn4273-2_all.deb' }
+]
+
 const DOWNLOADS = {
   win32: {
     url: `https://ftp.gnu.org/gnu/octave/windows/octave-${WIN_OCTAVE_VERSION}-w64.zip`,
@@ -50,7 +62,7 @@ const DOWNLOADS = {
     // Relative to OCTAVE_DIR, this is the binary we expect after extraction.
     binary: 'Octave.app/Contents/Resources/usr/bin/octave-cli'
   }
-  // Linux: intentionally absent. See main() for the fallback message.
+  // Linux uses a separate code path with multiple .deb packages — see main().
 }
 
 function download(url, dest) {
@@ -104,23 +116,99 @@ function download(url, dest) {
   })
 }
 
+/**
+ * Extract a .deb package into destDir.
+ * Tries dpkg-deb first (available on Debian/Ubuntu), then falls back to
+ * ar x + tar xf which works on any Linux.
+ */
+function extractDeb(debPath, destDir) {
+  try {
+    execSync(`dpkg-deb -x "${debPath}" "${destDir}"`, { stdio: 'pipe', timeout: 120000 })
+    return
+  } catch {
+    // dpkg-deb not available — fall back to ar + tar
+  }
+
+  // Fallback: ar x to extract data.tar.*, then tar xf into destDir
+  const tmpDir = path.join(destDir, `.deb-extract-${Date.now()}`)
+  fs.mkdirSync(tmpDir, { recursive: true })
+  try {
+    execSync(`ar x "${debPath}"`, { cwd: tmpDir, stdio: 'pipe', timeout: 120000 })
+    // Find the data tarball (data.tar.xz, data.tar.gz, data.tar.zst, etc.)
+    const dataTar = fs.readdirSync(tmpDir).find((f) => f.startsWith('data.tar'))
+    if (!dataTar) {
+      throw new Error(`No data.tar.* found in ${debPath}`)
+    }
+    execSync(`tar xf "${path.join(tmpDir, dataTar)}" -C "${destDir}"`, {
+      stdio: 'pipe',
+      timeout: 120000
+    })
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Download and extract Octave .deb packages from the Ubuntu archive for Linux.
+ */
+async function downloadLinuxDebs() {
+  const binaryPath = path.join(OCTAVE_DIR, 'usr', 'bin', 'octave-cli')
+
+  // Idempotency check
+  if (fs.existsSync(binaryPath)) {
+    console.log(`Octave ${LINUX_OCTAVE_VERSION} already downloaded at: ${binaryPath}`)
+    return
+  }
+
+  console.log(`Downloading GNU Octave ${LINUX_OCTAVE_VERSION} .deb packages for Linux...`)
+  fs.mkdirSync(OCTAVE_DIR, { recursive: true })
+
+  // Download all .deb packages
+  for (const deb of LINUX_DEBS) {
+    const debPath = path.join(OCTAVE_DIR, deb.filename)
+    if (!fs.existsSync(debPath)) {
+      console.log(`  From: ${deb.url}`)
+      await download(deb.url, debPath)
+      console.log('  Download complete.')
+    } else {
+      console.log(`  Already downloaded: ${deb.filename}`)
+    }
+  }
+
+  // Extract all .deb packages into OCTAVE_DIR
+  console.log('  Extracting .deb packages...')
+  for (const deb of LINUX_DEBS) {
+    const debPath = path.join(OCTAVE_DIR, deb.filename)
+    console.log(`    Extracting ${deb.filename}...`)
+    extractDeb(debPath, OCTAVE_DIR)
+    // Clean up the .deb after extraction
+    fs.unlinkSync(debPath)
+  }
+
+  // Verify binary
+  if (fs.existsSync(binaryPath)) {
+    console.log(`  Octave ${LINUX_OCTAVE_VERSION} ready at: ${binaryPath}`)
+  } else {
+    console.error('  ERROR: Binary not found after extraction:', binaryPath)
+    console.log('  Directory contents:', fs.readdirSync(OCTAVE_DIR))
+    process.exit(1)
+  }
+
+  // Verify fonts
+  const fontPath = path.join(OCTAVE_DIR, 'usr', 'share', 'fonts', 'opentype', 'freefont', 'FreeSans.otf')
+  if (fs.existsSync(fontPath)) {
+    console.log(`  Fonts ready at: ${fontPath}`)
+  } else {
+    console.warn('  WARNING: FreeSans.otf font not found at expected path:', fontPath)
+  }
+}
+
 async function main() {
   const platformArg = process.argv.find((a) => a.startsWith('--platform='))
   const platform = platformArg ? platformArg.split('=')[1] : process.platform
 
   if (platform === 'linux') {
-    // We deliberately do not bundle Octave on Linux — there is no upstream
-    // static tarball / maintained AppImage we can pin to. Linux packages
-    // (apt/dnf/pacman/flatpak/brew) ship a working Octave, and MatSlop's
-    // runtime PATH lookup (src/main/octaveConfig.ts) will find it.
-    console.log('No bundled Octave for Linux.')
-    console.log('Please install GNU Octave via your distribution\'s package manager, e.g.:')
-    console.log('  Debian/Ubuntu:  sudo apt install octave')
-    console.log('  Fedora:         sudo dnf install octave')
-    console.log('  Arch:           sudo pacman -S octave')
-    console.log('  Flatpak:        flatpak --user install flathub org.octave.Octave')
-    console.log('  Homebrew:       brew install octave')
-    console.log('MatSlop will locate Octave on PATH at runtime.')
+    await downloadLinuxDebs()
     return
   }
 
