@@ -284,8 +284,10 @@ function App(): React.JSX.Element {
 
     // Run capture script (pwd + figures) after any command window execution.
     // This event bypasses the AppContext callback chain which may be stale.
-    const handleCmdExecuted = (): void => { runCaptureAndRefreshRef.current() }
-    window.addEventListener('matslop:commandExecuted', handleCmdExecuted)
+    window.addEventListener('matslop:commandExecuted', () => {
+      // Handled by a separate useEffect below (after runCaptureAndRefreshRef is declared)
+      window.dispatchEvent(new CustomEvent('matslop:runCapture'))
+    })
 
     return () => {
       unsubStatus()
@@ -293,7 +295,7 @@ function App(): React.JSX.Element {
       unsubPaused()
       unsubCrashCs()
       window.removeEventListener('matslop:debugContinued', handleDebugContinued)
-      window.removeEventListener('matslop:commandExecuted', handleCmdExecuted)
+      // matslop:commandExecuted → matslop:runCapture forwarding is anonymous, cleaned up by page unload
     }
   }, [])
 
@@ -1092,6 +1094,14 @@ function App(): React.JSX.Element {
 
   const runCaptureAndRefreshRef = useRef(runCaptureAndRefresh)
   runCaptureAndRefreshRef.current = runCaptureAndRefresh
+
+  // Listen for capture trigger events (from CommandWindow and EditorPanel).
+  // Must be after runCaptureAndRefreshRef is declared.
+  useEffect(() => {
+    const handler = (): void => { runCaptureAndRefreshRef.current() }
+    window.addEventListener('matslop:runCapture', handler)
+    return () => window.removeEventListener('matslop:runCapture', handler)
+  }, [])
 
   // US-S05: Run (F5) sources the saved .m file via `source('<abs path>')`
   // so the Command Window surfaces any output the script prints. We cd into

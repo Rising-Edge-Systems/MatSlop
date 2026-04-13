@@ -27,6 +27,9 @@ export default defineConfig({
         input: 'src/renderer/index.html'
       }
     },
-    plugins: [react()]
+    plugins: [react()],
+    optimizeDeps: {
+      include: ['plotly.js-dist-min']
+    }
   }
 })

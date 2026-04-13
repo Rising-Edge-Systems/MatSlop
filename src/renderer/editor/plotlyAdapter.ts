@@ -9,6 +9,15 @@
  * component stays a ~30-line shell.
  */
 
+/** Strip keys with undefined values — Plotly crashes on explicit undefined. */
+function clean<T extends Record<string, unknown>>(obj: T): T {
+  const out = {} as Record<string, unknown>
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) out[k] = v
+  }
+  return out as T
+}
+
 import type {
   PlotAxes,
   PlotFigure,
@@ -150,7 +159,7 @@ function seriesToTraces(
       const hasMarker = series.marker && series.marker !== 'none'
       const hasLine = series.lineStyle !== 'none'
       return [
-        {
+        clean({
           type: 'scatter',
           mode: hasLine && hasMarker ? 'lines+markers' : hasMarker ? 'markers' : 'lines',
           x: series.x,
@@ -160,19 +169,19 @@ function seriesToTraces(
           xaxis: xaxisKey,
           yaxis: yaxisKey,
           line: lineColor || dash || series.lineWidth
-            ? { color: lineColor, dash, width: series.lineWidth }
+            ? clean({ color: lineColor, dash, width: series.lineWidth })
             : undefined,
           marker: hasMarker
-            ? {
+            ? clean({
                 symbol: markerSymbol(series.marker),
                 size: series.markerSize,
                 color: rgbToCss(series.markerFaceColor) ?? lineColor,
-                line: series.markerEdgeColor
-                  ? { color: rgbToCss(series.markerEdgeColor) }
-                  : undefined,
-              }
+                ...(series.markerEdgeColor
+                  ? { line: { color: rgbToCss(series.markerEdgeColor) } }
+                  : {}),
+              })
             : undefined,
-        },
+        }),
       ]
     }
     case 'line3': {

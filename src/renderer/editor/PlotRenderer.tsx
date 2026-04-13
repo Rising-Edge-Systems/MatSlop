@@ -2,10 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PlotFigure } from '../../main/plotSchema'
 import { defaultExportFilename, figureToPlotly, formatCursorLabel } from './plotlyAdapter'
 
-// `plotly.js-dist-min` has no .d.ts of its own. A minimal module
-// declaration lives in `src/renderer/env.d.ts` so the import below type-
-// checks without pulling in @types/plotly.js (which is sized for the
-// full bundle and doesn't target the -dist-min entrypoint).
+// Plotly is loaded dynamically to avoid blocking initial render.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _Plotly: any = null
+const getPlotly = async () => {
+  if (!_Plotly) {
+    const mod = await import('plotly.js-dist-min')
+    _Plotly = mod.default
+  }
+  return _Plotly
+}
 
 export interface PlotRendererProps {
   figure: PlotFigure
@@ -87,8 +93,7 @@ function PlotRenderer({
       }
       const rawFormat = (dialogResult.format || 'png').toLowerCase()
       const format: 'png' | 'svg' = rawFormat === 'svg' ? 'svg' : 'png'
-      const mod = await import('plotly.js-dist-min')
-      const Plotly = mod.default
+      const Plotly = await getPlotly()
       const bounds = el.getBoundingClientRect()
       const width = Math.max(400, Math.round(bounds.width))
       const imgHeight = Math.max(300, Math.round(bounds.height))
@@ -130,12 +135,8 @@ function PlotRenderer({
 
     const { data, layout, config } = figureToPlotly(figure)
 
-    // Lazy import so tests (and the initial app bundle before the first
-    // plot renders) don't pay the Plotly bundle cost up front.
-    import('plotly.js-dist-min')
-      .then((mod) => {
-        if (cancelled || !divRef.current) return
-        const Plotly = mod.default
+    getPlotly().then((Plotly) => {
+        if (cancelled || !divRef.current) { return }
         const el = divRef.current as HTMLDivElement & {
           on?: (event: string, handler: (ev: unknown) => void) => void
           layout?: { annotations?: unknown[]; scene?: { annotations?: unknown[] } }
@@ -238,26 +239,15 @@ function PlotRenderer({
             void Plotly.relayout(el, relayoutUpdate)
           })
         })
-      })
-      .catch((err) => {
+      }).catch((err) => {
         // eslint-disable-next-line no-console
-        console.error('[PlotRenderer] failed to load plotly.js-dist-min', err)
+        console.error('[PlotRenderer] Plotly render failed', err)
       })
 
     return () => {
       cancelled = true
-      if (root) {
-        import('plotly.js-dist-min')
-          .then((mod) => {
-            try {
-              mod.default.purge(root)
-            } catch {
-              /* ignore */
-            }
-          })
-          .catch(() => {
-            /* ignore */
-          })
+      if (root && _Plotly) {
+        try { _Plotly.purge(root) } catch { /* ignore */ }
       }
     }
   }, [figure])
