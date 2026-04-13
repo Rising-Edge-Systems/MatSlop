@@ -7,9 +7,9 @@ import {
   Square,
   LayoutList,
   FastForward,
-  ArrowBigRight,
-  ArrowDownRight,
-  ArrowUpRight,
+  Redo2,
+  ArrowDownToLine,
+  SkipForward,
 } from 'lucide-react'
 import { useOctaveStatus } from '../OctaveContext'
 import type { DebugAction } from './debugCommands'
@@ -114,7 +114,7 @@ function EditorToolbar({
         data-testid="toolbar-step-over"
         disabled={stepDisabled}
       >
-        <ArrowBigRight size={16} />
+        <Redo2 size={16} />
       </button>
       <button
         className="toolbar-btn"
@@ -123,7 +123,7 @@ function EditorToolbar({
         data-testid="toolbar-step-in"
         disabled={stepDisabled}
       >
-        <ArrowDownRight size={16} />
+        <ArrowDownToLine size={16} />
       </button>
       <button
         className="toolbar-btn"
@@ -132,7 +132,7 @@ function EditorToolbar({
         data-testid="toolbar-step-out"
         disabled={stepDisabled}
       >
-        <ArrowUpRight size={16} />
+        <SkipForward size={16} />
       </button>
       <div className="toolbar-separator" />
       <button
