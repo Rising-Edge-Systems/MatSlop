@@ -83,9 +83,9 @@ function EditorToolbar({
       <div className="toolbar-separator" />
       <button
         className="toolbar-btn toolbar-btn-run"
-        onClick={onRun}
-        title="Run (F5)"
-        disabled={runDisabled}
+        onClick={debugPaused ? () => onDebugAction?.('continue') : onRun}
+        title={debugPaused ? "Continue (F5)" : "Run (F5)"}
+        disabled={debugPaused ? false : runDisabled}
       >
         <Play size={16} />
       </button>
