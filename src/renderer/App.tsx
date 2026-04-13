@@ -191,6 +191,8 @@ function App(): React.JSX.Element {
   // US-016: when Octave hits a breakpoint we track the paused location so the
   // editor can highlight the line and the status bar can flip into debug mode.
   const [pausedLocation, setPausedLocation] = useState<{ file: string; line: number } | null>(null)
+  // Track the last file/dir run via F5 so Pause can re-run with a breakpoint
+  const lastRunRef = useRef<{ filePath: string; dirPath: string } | null>(null)
   // US-018: Current call stack (top frame first) and the selected frame
   // index. Both reset when we're no longer paused. The stack is refreshed
   // on every `onOctavePaused` event via a `debug:getCallStack` IPC call.
@@ -1067,6 +1069,7 @@ function App(): React.JSX.Element {
   // on layout changes, so prop updates to components inside dock panes
   // are silently dropped).
   const handleRunScript = useCallback(async (filePath: string, dirPath: string) => {
+    lastRunRef.current = { filePath, dirPath }
     const { command, display } = buildRunScriptCommand(filePath, dirPath)
     try {
       const result = await window.matslop.octaveExecute(command)
@@ -1115,18 +1118,40 @@ function App(): React.JSX.Element {
   //
   // Also exposes `window.__matslopLastPauseForDebug` so e2e tests can
   // observe that the button fired without needing a real Octave process.
-  const handlePauseForDebug = useCallback(() => {
+  const handlePauseForDebug = useCallback(async () => {
     if (typeof window !== 'undefined') {
       const w = window as unknown as {
         __matslopLastPauseForDebug?: { at: number }
       }
       w.__matslopLastPauseForDebug = { at: Date.now() }
     }
+    // Octave's debug_on_interrupt doesn't work with pipe-based stdin.
+    // Instead: interrupt current execution, set a breakpoint at line 1
+    // of the last-run script, and re-run it so the user can step through.
     try {
-      const bridge = (window as unknown as { matslop?: Window['matslop'] }).matslop
-      void bridge?.octavePauseForDebug?.().catch(() => {})
+      await window.matslop.octaveInterrupt()
+    } catch { /* ignore */ }
+    const last = lastRunRef.current
+    if (!last) return
+    // Wait for the interrupt to settle
+    await new Promise<void>((r) => setTimeout(r, 500))
+    try {
+      const basename = last.filePath.replace(/.*[\\/]/, '').replace(/\.m$/, '')
+      const escapedDir = last.dirPath.replace(/'/g, "''")
+      const escapedPath = last.filePath.replace(/'/g, "''")
+      await window.matslop.octaveExecute(`addpath('${escapedDir}'); dbstop in ${basename} at 1`)
+      // Re-run — this will hit the breakpoint at line 1
+      const { command, display } = buildRunScriptCommand(last.filePath, last.dirPath)
+      window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
+        detail: { display: `[Debug] ${display}`, output: '', error: '' },
+      }))
+      void window.matslop.octaveExecute(command).then((result) => {
+        window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
+          detail: { display: '', output: result.output, error: result.error },
+        }))
+      })
     } catch {
-      /* ignore */
+      /* ignore — best effort */
     }
   }, [])
 
