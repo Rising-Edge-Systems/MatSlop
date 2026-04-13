@@ -292,7 +292,7 @@ function PlotRenderer({
           {detachStatus === 'opening' ? 'Opening…' : 'Detach'}
         </button>
       ) : null}
-      <button
+      {canDetach ? <button
         type="button"
         className="matslop-plot-export-btn"
         data-testid="plot-export-btn"
@@ -317,8 +317,8 @@ function PlotRenderer({
         }}
       >
         {exportStatus === 'saving' ? 'Saving…' : 'Export'}
-      </button>
-      {exportStatus === 'error' && exportError ? (
+      </button> : null}
+      {canDetach && exportStatus === 'error' && exportError ? (
         <div
           role="alert"
           data-testid="plot-export-error"

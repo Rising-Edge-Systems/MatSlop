@@ -81,7 +81,7 @@ function FigurePanel({ figures: figuresProp, onCollapse, onSaveFigure }: FigureP
                     <PlotRenderer
                       figure={plotFig}
                       height={400}
-                      canDetach={true}
+                      canDetach={false}
                     />
                   )
                 } catch {
