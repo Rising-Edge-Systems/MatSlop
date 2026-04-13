@@ -1,12 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useAppContext } from '../AppContext'
 
 interface CommandHistoryPanelProps {
   onCollapse: () => void
   onExecuteCommand?: (command: string) => void
-  historyVersion: number
+  historyVersion?: number
 }
 
-function CommandHistoryPanel({ onCollapse, onExecuteCommand, historyVersion }: CommandHistoryPanelProps): React.JSX.Element {
+function CommandHistoryPanel({ onCollapse, onExecuteCommand, historyVersion: historyVersionProp }: CommandHistoryPanelProps): React.JSX.Element {
+  // US-SC04: Read dynamic state from AppContext (bypasses rc-dock caching)
+  const ctx = useAppContext()
+  const historyVersion = ctx.historyVersion ?? historyVersionProp ?? 0
   const [history, setHistory] = useState<string[]>([])
   const [filter, setFilter] = useState('')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; index: number } | null>(null)

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import type { WatchEntry } from '../editor/watchesStore'
+import { useAppContext } from '../AppContext'
 
 /**
  * US-022: Watch expressions panel. Shows one row per pinned expression
@@ -12,22 +13,29 @@ import type { WatchEntry } from '../editor/watchesStore'
  * edited" state. Value re-evaluation on pause/step is driven by App.tsx.
  */
 export interface WatchesPanelProps {
-  watches: WatchEntry[]
-  onAddWatch: (expression: string) => void
-  onRemoveWatch: (id: string) => void
-  onUpdateWatch: (id: string, expression: string) => void
+  watches?: WatchEntry[]
+  onAddWatch?: (expression: string) => void
+  onRemoveWatch?: (id: string) => void
+  onUpdateWatch?: (id: string, expression: string) => void
   onRefresh?: () => void
   onCollapse?: () => void
 }
 
 function WatchesPanel({
-  watches,
-  onAddWatch,
-  onRemoveWatch,
-  onUpdateWatch,
-  onRefresh,
+  watches: watchesProp,
+  onAddWatch: onAddWatchProp,
+  onRemoveWatch: onRemoveWatchProp,
+  onUpdateWatch: onUpdateWatchProp,
+  onRefresh: onRefreshProp,
   onCollapse,
 }: WatchesPanelProps): React.JSX.Element {
+  // US-SC04: Read dynamic state from AppContext (bypasses rc-dock caching)
+  const ctx = useAppContext()
+  const watches = (ctx.watches as WatchEntry[]) ?? watchesProp ?? []
+  const onAddWatch = ctx.onAddWatch ?? onAddWatchProp ?? (() => {})
+  const onRemoveWatch = ctx.onRemoveWatch ?? onRemoveWatchProp ?? (() => {})
+  const onUpdateWatch = ctx.onUpdateWatch ?? onUpdateWatchProp ?? (() => {})
+  const onRefresh = ctx.onRefreshWatches ?? onRefreshProp
   const [draft, setDraft] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editDraft, setEditDraft] = useState('')

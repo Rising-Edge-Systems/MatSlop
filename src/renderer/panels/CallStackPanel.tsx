@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useAppContext } from '../AppContext'
 
 /**
  * US-018: A single frame reported by Octave's `dbstack()` and surfaced via
@@ -13,11 +14,11 @@ export interface CallStackFrame {
 
 interface CallStackPanelProps {
   /** Top-to-bottom list of frames. Empty = show the idle "not paused" state. */
-  frames: CallStackFrame[]
+  frames?: CallStackFrame[]
   /** Index of the currently-selected frame (highlighted); -1 when none. */
-  selectedIndex: number
+  selectedIndex?: number
   /** Called with a frame index when the user clicks a row. */
-  onSelectFrame: (index: number) => void
+  onSelectFrame?: (index: number) => void
   /** Called when the ✕ button is clicked (collapse this panel). */
   onCollapse?: () => void
 }
@@ -34,11 +35,16 @@ function basename(filePath: string): string {
  * announce themselves as buttons so keyboard users can navigate.
  */
 function CallStackPanel({
-  frames,
-  selectedIndex,
-  onSelectFrame,
+  frames: framesProp,
+  selectedIndex: selectedIndexProp,
+  onSelectFrame: onSelectFrameProp,
   onCollapse,
 }: CallStackPanelProps): React.JSX.Element {
+  // US-SC04: Read dynamic state from AppContext (bypasses rc-dock caching)
+  const ctx = useAppContext()
+  const frames = (ctx.callStack as CallStackFrame[]) ?? framesProp ?? []
+  const selectedIndex = ctx.callStackSelected ?? selectedIndexProp ?? -1
+  const onSelectFrame = ctx.onCallStackSelect ?? onSelectFrameProp ?? (() => {})
   const rows = useMemo(() => {
     return frames.map((f, i) => {
       const short = basename(f.file) || '<anonymous>'

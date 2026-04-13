@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import type { OctaveEngineStatus } from '../App'
 import { useOctaveStatus } from '../OctaveContext'
+import { useAppContext } from '../AppContext'
 import { parseDocCommand, parseHelpCommand } from '../editor/helpDoc'
 
 interface OutputEntry {
@@ -33,10 +34,23 @@ interface CommandWindowProps {
   onDocCommand?: (topic: string) => void
 }
 
-function CommandWindow({ onCollapse, engineStatus: engineStatusProp, pendingCommand, onCommandExecuted, onHistoryChanged, pasteCommand, onPasteConsumed, menuAction, onMenuActionConsumed, onDocCommand }: CommandWindowProps): React.JSX.Element {
+// US-SC04: Type-safe context-to-prop mapping (avoids importing full CtxPendingCommand)
+type CtxMenuAction = { action: string; id: number } | null
+
+function CommandWindow({ onCollapse, engineStatus: engineStatusProp, pendingCommand: pendingCommandProp, onCommandExecuted: onCommandExecutedProp, onHistoryChanged: onHistoryChangedProp, pasteCommand: pasteCommandProp, onPasteConsumed: onPasteConsumedProp, menuAction: menuActionProp, onMenuActionConsumed: onMenuActionConsumedProp, onDocCommand: onDocCommandProp }: CommandWindowProps): React.JSX.Element {
   // US-L02: Read from OctaveContext to bypass rc-dock stale prop cache
   const contextStatus = useOctaveStatus()
   const engineStatus = contextStatus !== 'disconnected' ? contextStatus : engineStatusProp
+  // US-SC04: Read dynamic state from AppContext (bypasses rc-dock caching)
+  const ctx = useAppContext()
+  const pendingCommand = (ctx.pendingCommand as PendingCommand | null) ?? pendingCommandProp ?? null
+  const pasteCommand = ctx.pasteCommand ?? pasteCommandProp ?? null
+  const menuAction: CtxMenuAction = ctx.menuAction ?? menuActionProp ?? null
+  const onCommandExecuted = ctx.onCommandExecuted ?? onCommandExecutedProp
+  const onDocCommand = ctx.onDocCommand ?? onDocCommandProp
+  const onMenuActionConsumed = ctx.onMenuActionConsumed ?? onMenuActionConsumedProp
+  const onPasteConsumed = ctx.onPasteConsumed ?? onPasteConsumedProp
+  const onHistoryChanged = ctx.onHistoryChanged ?? onHistoryChangedProp
   const [outputEntries, setOutputEntries] = useState<OutputEntry[]>([])
   const [inputValue, setInputValue] = useState('')
   const [commandHistory, setCommandHistory] = useState<string[]>([])

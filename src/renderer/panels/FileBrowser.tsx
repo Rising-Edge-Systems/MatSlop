@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useAppContext } from '../AppContext'
 
 interface DirEntry {
   name: string
@@ -27,7 +28,11 @@ interface FileBrowserProps {
   gitBadges?: ReadonlyMap<string, string>
 }
 
-function FileBrowser({ onCollapse, onOpenFile, onCwdChange, externalCwd, gitBadges }: FileBrowserProps): React.JSX.Element {
+function FileBrowser({ onCollapse, onOpenFile, onCwdChange, externalCwd: externalCwdProp, gitBadges: gitBadgesProp }: FileBrowserProps): React.JSX.Element {
+  // US-SC04: Read dynamic state from AppContext (bypasses rc-dock caching)
+  const ctx = useAppContext()
+  const gitBadges = ctx.gitBadges ?? gitBadgesProp
+  const externalCwd = ctx.cwd ?? externalCwdProp
   const [cwd, setCwd] = useState<string>('')
   const [entries, setEntries] = useState<DirEntry[]>([])
   const [treeState, setTreeState] = useState<Record<string, TreeNodeState>>({})

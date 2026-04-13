@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Download } from 'lucide-react'
+import { useAppContext } from '../AppContext'
 
 export interface FigureData {
   handle: number
@@ -8,12 +9,15 @@ export interface FigureData {
 }
 
 interface FigurePanelProps {
-  figures: FigureData[]
+  figures?: FigureData[]
   onCollapse?: () => void
   onSaveFigure?: (figure: FigureData) => void
 }
 
-function FigurePanel({ figures, onCollapse, onSaveFigure }: FigurePanelProps): React.JSX.Element {
+function FigurePanel({ figures: figuresProp, onCollapse, onSaveFigure }: FigurePanelProps): React.JSX.Element {
+  // US-SC04: Read dynamic state from AppContext (bypasses rc-dock caching)
+  const ctx = useAppContext()
+  const figures = (ctx.figures as FigureData[]) ?? figuresProp ?? []
   const [activeHandle, setActiveHandle] = useState<number | null>(null)
 
   const activeFigure = figures.find((f) => f.handle === activeHandle) ?? figures[0] ?? null

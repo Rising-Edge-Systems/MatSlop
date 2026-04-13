@@ -78,15 +78,15 @@ function EditorPanel({
   onCursorPositionChange,
   onErrorCountChange,
   engineStatus,
-  onRun,
+  onRun: onRunProp,
   onStop,
   onPauseForDebug,
-  onRunSection,
-  menuAction,
-  onMenuActionConsumed,
-  editorTheme,
-  editorSettings,
-  pausedLocation,
+  onRunSection: onRunSectionProp,
+  menuAction: menuActionProp,
+  onMenuActionConsumed: onMenuActionConsumedProp,
+  editorTheme: editorThemeProp,
+  editorSettings: editorSettingsProp,
+  pausedLocation: pausedLocationProp,
   onFileSavedWhilePaused,
   onDebugAction,
 }: EditorPanelProps): React.JSX.Element {
@@ -95,6 +95,14 @@ function EditorPanel({
   const openFilePath = appCtx.pendingOpenPath ?? openFilePathProp
   const openFileLine = appCtx.pendingOpenLine ?? openFileLineProp
   const onFileOpened = appCtx.pendingOpenPath !== null ? appCtx.onFileOpened : onFileOpenedProp
+  // US-SC04: Read additional dynamic state from AppContext
+  const pausedLocation = appCtx.pausedLocation ?? pausedLocationProp
+  const editorTheme = appCtx.editorTheme ?? editorThemeProp
+  const editorSettings = appCtx.editorSettings ?? editorSettingsProp
+  const menuAction = appCtx.menuAction ?? menuActionProp
+  const onMenuActionConsumed = appCtx.onMenuActionConsumed ?? onMenuActionConsumedProp
+  const onRun = appCtx.onRunScript ?? onRunProp
+  const onRunSection = appCtx.onRunSection ?? onRunSectionProp
   // Start with an empty tab list. The session-restore / welcome-tab
   // useEffect below populates it after mount. Creating an untitled.m
   // dummy here caused the Run button to operate on the wrong tab when

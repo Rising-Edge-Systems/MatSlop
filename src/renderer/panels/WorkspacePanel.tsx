@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { OctaveEngineStatus } from '../App'
 import { useOctaveStatus } from '../OctaveContext'
+import { useAppContext } from '../AppContext'
 
 interface WorkspaceVariable {
   name: string
@@ -15,7 +16,7 @@ export type { WorkspaceVariable }
 export interface WorkspacePanelProps {
   onCollapse: () => void
   engineStatus: OctaveEngineStatus
-  refreshTrigger: number
+  refreshTrigger?: number
   onInspectVariable?: (variable: { name: string; size: string; class: string }) => void
   onVariablesChanged?: (variables: Array<{ name: string; size: string; class: string }>) => void
   /** US-019: True when Octave is paused in the debugger. When true the
@@ -203,12 +204,17 @@ function formatNumber(n: number): string {
   return precision
 }
 
-function WorkspacePanel({ onCollapse, engineStatus: engineStatusProp, refreshTrigger, onInspectVariable, onVariablesChanged, debugPaused = false, debugFrameName = null }: WorkspacePanelProps): React.JSX.Element {
+function WorkspacePanel({ onCollapse, engineStatus: engineStatusProp, refreshTrigger: refreshTriggerProp, onInspectVariable, onVariablesChanged, debugPaused: debugPausedProp = false, debugFrameName: debugFrameNameProp = null }: WorkspacePanelProps): React.JSX.Element {
   // US-L02: rc-dock caches props from loadTab, so engineStatus prop may be
   // stale ('disconnected' from initial mount). Read from OctaveContext which
   // bypasses rc-dock's cache. Fall back to prop for tests without a provider.
   const contextStatus = useOctaveStatus()
   const engineStatus = contextStatus !== 'disconnected' ? contextStatus : engineStatusProp
+  // US-SC04: Read dynamic state from AppContext (bypasses rc-dock caching)
+  const ctx = useAppContext()
+  const refreshTrigger = ctx.refreshTrigger ?? refreshTriggerProp ?? 0
+  const debugPaused = ctx.debugPaused ?? debugPausedProp
+  const debugFrameName = ctx.debugFrameName ?? debugFrameNameProp
   const [variables, setVariables] = useState<WorkspaceVariable[]>([])
   const [sortColumn, setSortColumn] = useState<'name' | 'size' | 'class'>('name')
   const [sortAsc, setSortAsc] = useState(true)
