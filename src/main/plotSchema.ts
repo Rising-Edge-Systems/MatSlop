@@ -210,6 +210,8 @@ export interface PlotAxes {
   backgroundColor?: RGBColor
   /** Legend location/visibility. */
   legend?: { visible: boolean; location?: string; entries?: string[] }
+  /** Whether the Octave figure had an explicit colorbar. */
+  colorbar?: boolean
   /** Series drawn on this axes. */
   series: PlotSeries[]
 }
@@ -522,6 +524,7 @@ function parseAxes(raw: unknown): PlotAxes {
     position,
     backgroundColor: parseColor(raw.backgroundColor),
     legend,
+    colorbar: typeof raw.colorbar === 'boolean' ? raw.colorbar : undefined,
     series: seriesRaw.map(parseSeries),
   }
 }

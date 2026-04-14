@@ -40,9 +40,37 @@ function FigurePanel({ figures: figuresProp, onCollapse, onSaveFigure }: FigureP
         </div>
       ) : (
         <>
-          {/* Only show figure tabs when there are multiple figures.
-              Plotly has its own toolbar (modebar) so the Save button
-              is only shown for static PNG figures. */}
+          <div className="panel-content figure-content">
+            {activeFigure && activeFigure.plotJson ? (
+              (() => {
+                try {
+                  const plotFig = parsePlotFigure(activeFigure.plotJson)
+                  return (
+                    <PlotRenderer
+                      key={JSON.stringify(activeFigure.plotJson).substring(0, 100)}
+                      figure={plotFig}
+                      className="figure-panel-plot"
+                      canDetach={false}
+                    />
+                  )
+                } catch {
+                  // JSON parse failed — fall back to static image
+                  return activeFigure.imageDataUrl ? (
+                    <img src={activeFigure.imageDataUrl} alt={`Figure ${activeFigure.handle}`} className="figure-image" data-testid="figure-image" draggable={false} />
+                  ) : null
+                }
+              })()
+            ) : activeFigure ? (
+              <img
+                src={activeFigure.imageDataUrl}
+                alt={`Figure ${activeFigure.handle}`}
+                className="figure-image"
+                data-testid="figure-image"
+                draggable={false}
+              />
+            ) : null}
+          </div>
+          {/* Figure tabs at the bottom so they don't cover plot title/controls */}
           {(figures.length > 1 || (activeFigure && !activeFigure.plotJson)) && (
             <div className="figure-toolbar">
               {figures.length > 1 && (
@@ -72,36 +100,6 @@ function FigurePanel({ figures: figuresProp, onCollapse, onSaveFigure }: FigureP
               )}
             </div>
           )}
-          <div className="panel-content figure-content">
-            {activeFigure && activeFigure.plotJson ? (
-              (() => {
-                try {
-                  const plotFig = parsePlotFigure(activeFigure.plotJson)
-                  return (
-                    <PlotRenderer
-                      key={JSON.stringify(activeFigure.plotJson).substring(0, 100)}
-                      figure={plotFig}
-                      height={600}
-                      canDetach={false}
-                    />
-                  )
-                } catch {
-                  // JSON parse failed — fall back to static image
-                  return activeFigure.imageDataUrl ? (
-                    <img src={activeFigure.imageDataUrl} alt={`Figure ${activeFigure.handle}`} className="figure-image" data-testid="figure-image" draggable={false} />
-                  ) : null
-                }
-              })()
-            ) : activeFigure ? (
-              <img
-                src={activeFigure.imageDataUrl}
-                alt={`Figure ${activeFigure.handle}`}
-                className="figure-image"
-                data-testid="figure-image"
-                draggable={false}
-              />
-            ) : null}
-          </div>
         </>
       )}
     </div>

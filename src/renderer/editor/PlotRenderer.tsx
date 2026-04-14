@@ -15,8 +15,8 @@ const getPlotly = async () => {
 
 export interface PlotRendererProps {
   figure: PlotFigure
-  /** Explicit pixel height. Defaults to 320 for live-script inline plots. */
-  height?: number
+  /** Explicit height. Defaults to 320px for live-script inline plots. Accepts CSS values like '100%'. */
+  height?: number | string
   className?: string
   /**
    * Whether to show the "Detach" button (US-012). Set to false when this
@@ -24,6 +24,217 @@ export interface PlotRendererProps {
    * users could open a detached-of-a-detached window.
    */
   canDetach?: boolean
+}
+
+// ---------------------------------------------------------------------------
+// MATLAB-like 3D interaction helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Wire up MATLAB-style 3D interactions on a Plotly scene:
+ *  - Scroll wheel → zoom by changing axis ranges (not camera distance)
+ *  - Right-click drag → pan by shifting axis ranges (not camera center)
+ *  - Double-click → reset axis ranges to original extents
+ *
+ * In MATLAB, the axes box stays fixed on screen during zoom/pan; only the
+ * data inside moves. Plotly's built-in 3D interactions move the camera,
+ * which slides the entire scene (axes + data) together. We intercept
+ * those events in the capture phase and replace them with axis-limit
+ * mutations.
+ *
+ * Returns a cleanup function that removes all event listeners.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function setup3DInteractions(el: HTMLDivElement, Plotly: any): () => void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fullLayout = (el as any)._fullLayout
+  if (!fullLayout) return () => {}
+
+  // Discover all 3D scene keys (scene, scene2, scene3, …)
+  const sceneKeys = Object.keys(fullLayout).filter(
+    (k) => k === 'scene' || /^scene\d+$/.test(k),
+  )
+  if (sceneKeys.length === 0) return () => {}
+
+  // Snapshot original axis ranges so double-click can reset.
+  const originalRanges: Record<string, [number, number]> = {}
+  for (const sk of sceneKeys) {
+    const scene = fullLayout[sk]
+    if (!scene) continue
+    for (const ax of ['xaxis', 'yaxis', 'zaxis']) {
+      if (scene[ax]?.range) {
+        originalRanges[`${sk}.${ax}`] = [...scene[ax].range] as [number, number]
+      }
+    }
+  }
+
+  // Helper: read live axis ranges from _fullLayout (they change on relayout).
+  function liveRanges(): Record<string, [number, number]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fl = (el as any)._fullLayout
+    const out: Record<string, [number, number]> = {}
+    for (const sk of sceneKeys) {
+      const scene = fl?.[sk]
+      if (!scene) continue
+      for (const ax of ['xaxis', 'yaxis', 'zaxis']) {
+        if (scene[ax]?.range) {
+          out[`${sk}.${ax}`] = [...scene[ax].range] as [number, number]
+        }
+      }
+    }
+    return out
+  }
+
+  // ------ Scroll-wheel zoom → axis-range zoom ------ //
+  const onWheel = (e: WheelEvent): void => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    // Zoom factor: scroll down = zoom out (expand ranges), up = zoom in.
+    const factor = e.deltaY > 0 ? 1.08 : 1 / 1.08
+    const ranges = liveRanges()
+    const update: Record<string, unknown> = {}
+
+    for (const [key, [lo, hi]] of Object.entries(ranges)) {
+      const mid = (lo + hi) / 2
+      const half = ((hi - lo) / 2) * factor
+      update[`${key}.autorange`] = false
+      update[`${key}.range`] = [mid - half, mid + half]
+    }
+
+    void Plotly.relayout(el, update)
+  }
+
+  el.addEventListener('wheel', onWheel, { passive: false, capture: true })
+
+  // ------ Right-click drag → axis-range pan ------ //
+  let isPanning = false
+  let panStartX = 0
+  let panStartY = 0
+  let panRanges: Record<string, [number, number]> = {}
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let panCamera: any = null
+
+  const onContextMenu = (e: MouseEvent): void => {
+    e.preventDefault()
+  }
+
+  const onMouseDown = (e: MouseEvent): void => {
+    if (e.button !== 2) return // only right-click
+    e.preventDefault()
+    e.stopPropagation()
+
+    isPanning = true
+    panStartX = e.clientX
+    panStartY = e.clientY
+    panRanges = liveRanges()
+
+    // Grab the current camera orientation for projecting screen→data.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fl = (el as any)._fullLayout
+    const scene = fl?.[sceneKeys[0]]
+    if (scene?.camera) {
+      panCamera = {
+        eye: { ...scene.camera.eye },
+        up: { ...scene.camera.up },
+      }
+    }
+  }
+
+  const onMouseMove = (e: MouseEvent): void => {
+    if (!isPanning || !panCamera?.eye || !panCamera?.up) return
+    e.preventDefault()
+
+    const dx = e.clientX - panStartX
+    const dy = e.clientY - panStartY
+
+    const { eye, up } = panCamera
+
+    // View direction = normalize(-eye) (camera looks toward origin).
+    const viewLen = Math.sqrt(eye.x * eye.x + eye.y * eye.y + eye.z * eye.z)
+    const vx = -eye.x / viewLen
+    const vy = -eye.y / viewLen
+    const vz = -eye.z / viewLen
+
+    // Right = normalize(cross(view, up))
+    let rx = vy * up.z - vz * up.y
+    let ry = vz * up.x - vx * up.z
+    let rz = vx * up.y - vy * up.x
+    const rLen = Math.sqrt(rx * rx + ry * ry + rz * rz) || 1
+    rx /= rLen; ry /= rLen; rz /= rLen
+
+    // Screen-up = normalize(cross(right, view))
+    let sux = ry * vz - rz * vy
+    let suy = rz * vx - rx * vz
+    let suz = rx * vy - ry * vx
+    const suLen = Math.sqrt(sux * sux + suy * suy + suz * suz) || 1
+    sux /= suLen; suy /= suLen; suz /= suLen
+
+    const viewportSize = Math.min(el.clientWidth, el.clientHeight) || 500
+
+    const update: Record<string, unknown> = {}
+
+    for (const sk of sceneKeys) {
+      // Compute average axis span for scale calibration.
+      const axNames = ['xaxis', 'yaxis', 'zaxis'] as const
+      let totalSpan = 0
+      let count = 0
+      for (const ax of axNames) {
+        const r = panRanges[`${sk}.${ax}`]
+        if (r) { totalSpan += r[1] - r[0]; count++ }
+      }
+      const avgSpan = count > 0 ? totalSpan / count : 1
+      const scale = avgSpan / viewportSize
+
+      // Project mouse delta into data-space shift.
+      // Negate dx so dragging right moves data right (axis range shifts left).
+      const sx = scale * (-dx * rx + dy * sux)
+      const sy = scale * (-dx * ry + dy * suy)
+      const sz = scale * (-dx * rz + dy * suz)
+      const shifts = [sx, sy, sz]
+
+      for (let i = 0; i < 3; i++) {
+        const key = `${sk}.${axNames[i]}`
+        const orig = panRanges[key]
+        if (!orig) continue
+        update[`${key}.autorange`] = false
+        update[`${key}.range`] = [orig[0] + shifts[i], orig[1] + shifts[i]]
+      }
+    }
+
+    void Plotly.relayout(el, update)
+  }
+
+  const onMouseUp = (e: MouseEvent): void => {
+    if (e.button === 2) isPanning = false
+  }
+
+  el.addEventListener('contextmenu', onContextMenu)
+  el.addEventListener('mousedown', onMouseDown, { capture: true })
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+
+  // ------ Double-click → reset to original ranges ------ //
+  const onDblClick = (): void => {
+    const update: Record<string, unknown> = {}
+    for (const [key, range] of Object.entries(originalRanges)) {
+      update[`${key}.autorange`] = false
+      update[`${key}.range`] = [...range]
+    }
+    void Plotly.relayout(el, update)
+  }
+
+  el.addEventListener('dblclick', onDblClick)
+
+  // ------ Cleanup ------ //
+  return () => {
+    el.removeEventListener('wheel', onWheel, { capture: true })
+    el.removeEventListener('contextmenu', onContextMenu)
+    el.removeEventListener('mousedown', onMouseDown, { capture: true })
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+    el.removeEventListener('dblclick', onDblClick)
+  }
 }
 
 /**
@@ -42,11 +253,12 @@ export interface PlotRendererProps {
  */
 function PlotRenderer({
   figure,
-  height = 320,
+  height,
   className,
   canDetach = true,
 }: PlotRendererProps): React.JSX.Element {
   const divRef = useRef<HTMLDivElement | null>(null)
+  const cleanup3DRef = useRef<(() => void) | null>(null)
   const [exportStatus, setExportStatus] = useState<'idle' | 'saving' | 'error'>('idle')
   const [exportError, setExportError] = useState<string | null>(null)
   const [detachStatus, setDetachStatus] = useState<'idle' | 'opening' | 'error'>('idle')
@@ -143,12 +355,20 @@ function PlotRenderer({
         }
         void Plotly.react(el, data, layout, config).then(() => {
           if (cancelled) return
+
+          const has3D = data.some((t: Record<string, unknown>) =>
+            t.type === 'surface' || t.type === 'scatter3d' || t.type === 'mesh3d' || t.type === 'cone')
+
+          if (has3D) {
+            // Clean up previous 3D handlers if any.
+            cleanup3DRef.current?.()
+            cleanup3DRef.current = setup3DInteractions(el, Plotly)
+            return
+          }
+
           // Wire click-to-pin handlers for 2D plots only.
           // 3D (WebGL) plots freeze when relayout is called with annotations.
           if (typeof el.on !== 'function') return
-          const has3D = data.some((t: Record<string, unknown>) =>
-            t.type === 'surface' || t.type === 'scatter3d' || t.type === 'mesh3d')
-          if (has3D) return
 
           el.on('plotly_click', (ev: unknown) => {
             const evt = ev as {
@@ -247,8 +467,24 @@ function PlotRenderer({
         console.error('[PlotRenderer] Plotly render failed', err)
       })
 
+    // Auto-resize: Plotly's 3D WebGL canvas does not resize on its own
+    // when the container changes size. Watch for container size changes
+    // and trigger a Plotly resize.
+    let resizeObserver: ResizeObserver | undefined
+    if (root) {
+      resizeObserver = new ResizeObserver(() => {
+        if (!cancelled && divRef.current && _Plotly) {
+          try { _Plotly.Plots.resize(divRef.current) } catch { /* ignore */ }
+        }
+      })
+      resizeObserver.observe(root)
+    }
+
     return () => {
       cancelled = true
+      resizeObserver?.disconnect()
+      cleanup3DRef.current?.()
+      cleanup3DRef.current = null
       if (root && _Plotly) {
         try { _Plotly.purge(root) } catch { /* ignore */ }
       }
@@ -259,7 +495,7 @@ function PlotRenderer({
     <div
       className={`matslop-plot-renderer-wrap ${className ?? ''}`.trim()}
       data-testid="plot-renderer-wrap"
-      style={{ position: 'relative', width: '100%', height }}
+      style={{ position: 'relative', width: '100%', ...(height != null ? { height } : {}) }}
     >
       <div
         ref={divRef}

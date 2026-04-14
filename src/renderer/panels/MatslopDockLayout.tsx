@@ -26,15 +26,16 @@ import '../rc-dock-theme.css'
  *   horizontal
  *   ├── File Browser         (width 220)
  *   ├── vertical             (width 900)
- *   │   ├── Editor           (height 600)
+ *   │   ├── horizontal       (height 600)
+ *   │   │   ├── Editor
+ *   │   │   └── Figure        (only when figures present)
  *   │   └── panel with tabs  (height 300)
  *   │       ├── Command Window
  *   │       └── History       (only when visible)
  *   └── vertical             (width 280)
  *       ├── Workspace         (height 300)
  *       ├── Call Stack        (height 180, only when paused)
- *       ├── Watches           (height 180, only when active)
- *       └── Figure            (height 250, only when figures present)
+ *       └── Watches           (height 180, only when active)
  *
  * Optional panels (Command History, Call Stack, Watches, Figure) are
  * omitted from the layout tree entirely when not visible, so their
@@ -165,12 +166,34 @@ export function buildDockLayoutFromVisibility(
     }
   }
 
-  // Center column: Editor on top, Command Window / History panel beneath
+  // Center column: Editor (+ Figure beside it) on top, Command Window beneath
   const centerChildren: (BoxData | PanelData)[] = []
+  const wantFigure = vis.figure && !isDetached(DOCK_TAB_IDS.figure)
   if (!isDetached(DOCK_TAB_IDS.editor)) {
-    centerChildren.push({
+    const editorPanel = {
       size: 600,
       tabs: [idOnly(DOCK_TAB_IDS.editor)],
+    } as PanelData
+    if (wantFigure) {
+      // Place Figure to the right of the Editor, above the Command Window
+      centerChildren.push({
+        mode: 'horizontal',
+        size: 600,
+        children: [
+          editorPanel,
+          {
+            size: 400,
+            tabs: [idOnly(DOCK_TAB_IDS.figure)],
+          } as PanelData,
+        ],
+      } as BoxData)
+    } else {
+      centerChildren.push(editorPanel)
+    }
+  } else if (wantFigure) {
+    centerChildren.push({
+      size: 600,
+      tabs: [idOnly(DOCK_TAB_IDS.figure)],
     } as PanelData)
   }
   const wantCmdWindow = vis.commandWindow && !isDetached(DOCK_TAB_IDS.commandWindow)
@@ -233,12 +256,7 @@ export function buildDockLayoutFromVisibility(
       tabs: [idOnly(DOCK_TAB_IDS.watches)],
     } as PanelData)
   }
-  if (vis.figure && !isDetached(DOCK_TAB_IDS.figure)) {
-    rightChildren.push({
-      size: 250,
-      tabs: [idOnly(DOCK_TAB_IDS.figure)],
-    } as PanelData)
-  }
+  // Figure panel is now placed in the center column (next to editor)
   if (rightChildren.length > 0) {
     dockboxChildren.push({
       mode: 'vertical',

@@ -145,6 +145,7 @@ function seriesToTraces(
   series: PlotSeries,
   axesIndex: number,
   axesIs3D: boolean,
+  showColorbar: boolean,
 ): PlotlyTrace[] {
   const name = series.type === 'unknown' ? undefined : series.label
   const showlegend = typeof name === 'string' && name.length > 0
@@ -279,7 +280,10 @@ function seriesToTraces(
           showlegend,
           scene: sceneKey,
           hidesurface: wire || series.faceColor === 'none',
-          showscale: false,
+          showscale: showColorbar,
+          colorbar: showColorbar
+            ? { thickness: 15, len: 0.8, xpad: 4 }
+            : undefined,
           contours: wire
             ? {
                 x: { show: true, highlight: false },
@@ -508,11 +512,19 @@ function axesToLayoutKeys(axes: PlotAxes, axesIndex: number, layout: PlotlyLayou
         type: axes.zScale,
       },
       bgcolor: rgbToCss(axes.backgroundColor),
-      // MATLAB-like 3D controls: free orbit rotation (not constrained turntable)
-      dragmode: 'orbit',
+      // MATLAB-like 3D controls: turntable keeps z-axis pointing up
+      // (like MATLAB's rotate3d azimuth/elevation model, not a free trackball)
+      dragmode: 'turntable',
+      aspectmode: 'cube' as const,
     }
-    if (axes.view) {
-      scene.camera = cameraFromView(axes.view)
+    scene.camera = {
+      // Orthographic projection: no perspective distortion, parallel lines
+      // stay parallel — the default for scientific/engineering plots in MATLAB
+      projection: { type: 'orthographic' },
+      // Lock z as the up-vector (MATLAB convention)
+      up: { x: 0, y: 0, z: 1 },
+      center: { x: 0, y: 0, z: 0 },
+      ...(axes.view ? cameraFromView(axes.view) : { eye: { x: 1.5, y: 1.5, z: 1.5 } }),
     }
     if (domain) {
       scene.domain = domain
@@ -672,10 +684,15 @@ export function defaultExportFilename(figure: PlotFigure): string {
  */
 export function figureToPlotly(figure: PlotFigure): PlotlyFigure {
   const data: PlotlyTrace[] = []
+  const has3DAxes = figure.axes.some(is3D)
   const layout: PlotlyLayout = {
     autosize: true,
-    margin: { l: 50, r: 20, t: figure.axes[0]?.title ? 40 : 20, b: 50 },
-    paper_bgcolor: rgbToCss(figure.backgroundColor),
+    margin: has3DAxes
+      ? { l: 0, r: 0, t: figure.axes[0]?.title ? 30 : 0, b: 0 }
+      : { l: 50, r: 20, t: figure.axes[0]?.title ? 40 : 20, b: 50 },
+    // 3D plots: transparent paper so the WebGL scene blends with the panel
+    // background instead of showing white bars around the scene viewport.
+    paper_bgcolor: has3DAxes ? 'rgba(0,0,0,0)' : rgbToCss(figure.backgroundColor),
     plot_bgcolor: rgbToCss(figure.axes[0]?.backgroundColor),
     showlegend: false,
     hovermode: 'closest',
@@ -687,7 +704,7 @@ export function figureToPlotly(figure: PlotFigure): PlotlyFigure {
   figure.axes.forEach((axes, i) => {
     axesToLayoutKeys(axes, i, layout)
     for (const s of axes.series) {
-      for (const trace of seriesToTraces(s, i, is3D(axes))) {
+      for (const trace of seriesToTraces(s, i, is3D(axes), axes.colorbar === true)) {
         data.push(trace)
       }
     }

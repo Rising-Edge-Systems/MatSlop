@@ -764,7 +764,7 @@ function InlinePlots({ figures }: InlinePlotsProps): React.JSX.Element {
               </div>
             )}
             {canRenderPlotly ? (
-              <PlotRenderer figure={parsed!} />
+              <PlotRenderer figure={parsed!} height={320} />
             ) : (
               <InteractivePlot
                 src={fig.imageDataUrl}

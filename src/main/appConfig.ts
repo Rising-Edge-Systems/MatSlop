@@ -53,13 +53,15 @@ export interface LayoutConfig {
 }
 
 /**
- * US-Q07: Current layout schema version. Bumped from the implicit `1`
- * (no field) to `2` for the polish-v2 cycle so stale persisted dock
- * layouts from pre-polish builds are dropped on first launch and the
- * new polished column ratios / pane backgrounds become visible. Only
- * the `dockLayout` tree is discarded; visibility + sizes are preserved.
+ * US-Q07: Current layout schema version. Bumped when default panel
+ * positions change so stale persisted dock layouts are dropped on first
+ * launch. Only the `dockLayout` tree is discarded; visibility + sizes
+ * are preserved.
+ *
+ * v2: polish-v2 column ratios
+ * v3: Figure panel moved from right column to center (beside Editor)
  */
-export const LAYOUT_SCHEMA_VERSION = 2
+export const LAYOUT_SCHEMA_VERSION = 3
 
 /**
  * US-028: a user-saved layout preset. Mirrors the renderer-side

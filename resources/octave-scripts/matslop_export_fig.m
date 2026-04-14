@@ -50,17 +50,32 @@ function json = matslop_export_fig(h)
   catch
     ax_handles = [];
   end_try_catch
+  ## Detect colorbar axes so we can skip them and flag the plot axes.
+  has_colorbar = false;
+  for ii = 1:numel(ax_handles)
+    try
+      tag = get(ax_handles(ii), "tag");
+      if strcmp(tag, "colorbar")
+        has_colorbar = true;
+      endif
+    catch
+    end_try_catch
+  endfor
   for ii = 1:numel(ax_handles)
     ax = ax_handles(ii);
-    ## Skip legend axes
+    ## Skip legend and colorbar axes — they are handled specially.
     try
       tag = get(ax, "tag");
-      if strcmp(tag, "legend")
+      if strcmp(tag, "legend") || strcmp(tag, "colorbar")
         continue;
       endif
     catch
     end_try_catch
-    fig.axes{end+1} = __matslop_axes_to_struct__(ax);
+    s = __matslop_axes_to_struct__(ax);
+    if has_colorbar
+      s.colorbar = true;
+    endif
+    fig.axes{end+1} = s;
   endfor
 
   json = __matslop_to_json__(fig);
