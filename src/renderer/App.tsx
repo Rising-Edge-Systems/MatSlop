@@ -1022,15 +1022,15 @@ function App(): React.JSX.Element {
       "__mslp_r__=pwd();disp(['__MATSLOP_PWD__:' __mslp_r__]);",
       "__mslp_fh__=get(0,'children');",
       "for __mslp_k__=1:length(__mslp_fh__);",
-      // Try JSON export first (enables interactive Plotly rendering)
+      // Always try JSON export (for interactive Plotly rendering)
       "try;__mslp_j__=matslop_export_fig(__mslp_fh__(__mslp_k__));",
       "disp(['__MATSLOP_FIG_JSON__:' num2str(__mslp_fh__(__mslp_k__)) ':' __mslp_j__]);",
-      "catch;",
-      // Fall back to PNG if JSON export fails
+      "catch;end;",
+      // Always also produce PNG (fallback for unsupported plot types)
       "__mslp_fp__=[tempdir() 'matslop_fig_' num2str(__mslp_fh__(__mslp_k__)) '.png'];",
       `try;print(__mslp_fh__(__mslp_k__),__mslp_fp__,'${pngDevice}','-r150');`,
       "disp(['__MATSLOP_FIG__:' num2str(__mslp_fh__(__mslp_k__)) ':' __mslp_fp__]);",
-      "catch;end;end;end;",
+      "catch;end;end;",
       "clear __mslp_r__ __mslp_fh__ __mslp_k__ __mslp_fp__ __mslp_j__;"
     ].join('')
 
@@ -1056,7 +1056,15 @@ function App(): React.JSX.Element {
         const handle = parseInt(m[1])
         try {
           const plotJson = JSON.parse(m[2])
-          newFigures.push({ handle, imageDataUrl: '', tempPath: '', plotJson })
+          // Only use JSON if it has supported series (not all "unknown")
+          const axes = (plotJson as { axes?: Array<{ series?: Array<{ type?: string }> }> }).axes ?? []
+          const hasUsableSeries = axes.some((a) =>
+            a.series?.some((s) => s.type && s.type !== 'unknown')
+          )
+          if (hasUsableSeries) {
+            newFigures.push({ handle, imageDataUrl: '', tempPath: '', plotJson })
+          }
+          // If all series are unknown, skip JSON — fall through to PNG
         } catch { /* invalid JSON, skip */ }
       }
 
