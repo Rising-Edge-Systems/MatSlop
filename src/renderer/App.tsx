@@ -282,12 +282,7 @@ function App(): React.JSX.Element {
       setCallStackSelected(-1)
     })
 
-    // Run capture script (pwd + figures) after any command window execution.
-    // This event bypasses the AppContext callback chain which may be stale.
-    window.addEventListener('matslop:commandExecuted', () => {
-      // Handled by a separate useEffect below (after runCaptureAndRefreshRef is declared)
-      window.dispatchEvent(new CustomEvent('matslop:runCapture'))
-    })
+    // matslop:runCapture is dispatched directly by CommandWindow and EditorPanel
 
     return () => {
       unsubStatus()

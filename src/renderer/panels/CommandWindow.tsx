@@ -101,14 +101,14 @@ function CommandWindow({ onCollapse, engineStatus: engineStatusProp, pendingComm
         setOutputEntries((prev) => [...prev, ...newEntries])
       }
       onCommandExecuted?.()
-    window.dispatchEvent(new CustomEvent('matslop:commandExecuted'))
+    window.dispatchEvent(new CustomEvent('matslop:runCapture'))
     }).catch((err) => {
       setOutputEntries((prev) => [
         ...prev,
         { type: 'error', text: `Error: ${err instanceof Error ? err.message : String(err)}` },
       ])
       onCommandExecuted?.()
-    window.dispatchEvent(new CustomEvent('matslop:commandExecuted'))
+    window.dispatchEvent(new CustomEvent('matslop:runCapture'))
     })
   }, [pendingCommand, onCommandExecuted])
 
@@ -186,7 +186,7 @@ function CommandWindow({ onCollapse, engineStatus: engineStatusProp, pendingComm
         { type: 'output', text: `Opened help for ${docTopic} in the Help panel.` },
       ])
       onCommandExecuted?.()
-    window.dispatchEvent(new CustomEvent('matslop:commandExecuted'))
+    window.dispatchEvent(new CustomEvent('matslop:runCapture'))
       return
     }
 
@@ -210,7 +210,7 @@ function CommandWindow({ onCollapse, engineStatus: engineStatusProp, pendingComm
       ])
     }
     onCommandExecuted?.()
-    window.dispatchEvent(new CustomEvent('matslop:commandExecuted'))
+    window.dispatchEvent(new CustomEvent('matslop:runCapture'))
   }, [onCommandExecuted])
 
   const handleSubmit = useCallback(async () => {

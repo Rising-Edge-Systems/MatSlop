@@ -536,7 +536,7 @@ function EditorPanel({
           window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
             detail: { display: `source('${tmpName}')`, output: r.output, error: r.error },
           }))
-          window.dispatchEvent(new CustomEvent('matslop:commandExecuted'))
+          window.dispatchEvent(new CustomEvent('matslop:runCapture'))
         }).catch(() => {})
       } catch {
         // Fall back to Save As
@@ -556,7 +556,7 @@ function EditorPanel({
           window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
             detail: { display: `source('${result.filename}')`, output: r.output, error: r.error },
           }))
-          window.dispatchEvent(new CustomEvent('matslop:commandExecuted'))
+          window.dispatchEvent(new CustomEvent('matslop:runCapture'))
         }).catch(() => {})
       }
       return
@@ -571,7 +571,7 @@ function EditorPanel({
       window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
         detail: { display: `source('${tab.filename}')`, output: result.output, error: result.error },
       }))
-      window.dispatchEvent(new CustomEvent('matslop:commandExecuted'))
+      window.dispatchEvent(new CustomEvent('matslop:runCapture'))
     }).catch(() => {})
   }, [getActiveTab]) // reads onRunRef.current at call time
 
