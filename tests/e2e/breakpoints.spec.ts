@@ -33,9 +33,9 @@ test('glyph margin is enabled on the active .m editor', async () => {
 })
 
 test('toggling a breakpoint adds it to the tab-level store', async () => {
-  // Read the first non-welcome editor tab id from the DOM. (Using `.active`
-  // can be flaky when the no-Octave modal obscures focus state in dev
-  // environments; the tab element itself is still rendered.)
+  // Read the editor tab id from the DOM. (Using `.active` can be flaky when
+  // the no-Octave modal obscures focus state in dev environments; the tab
+  // element itself is still rendered.)
   const tabLocator = window
     .locator('[data-testid="editor-tab"][data-tab-filename="hello.m"]')
     .first()

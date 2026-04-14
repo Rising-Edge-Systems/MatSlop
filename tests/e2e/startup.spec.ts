@@ -56,8 +56,9 @@ test('REGRESSION: command input is enabled (not disconnected placeholder)', asyn
   await expect(input).toBeEnabled()
 })
 
-test('REGRESSION: exactly one Welcome tab on fresh launch', async () => {
-  const welcomeTabs = window.locator('[data-testid="editor-tab"][data-tab-filename="Welcome"]')
-  const count = await welcomeTabs.count()
-  expect(count).toBe(1)
+test('fresh launch shows empty editor state (no tabs)', async () => {
+  const editorTabs = window.locator('[data-testid="editor-tab"]')
+  const count = await editorTabs.count()
+  expect(count).toBe(0)
+  await expect(window.locator('text=No files open')).toBeVisible()
 })
