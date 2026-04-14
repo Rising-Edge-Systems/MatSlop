@@ -36,7 +36,7 @@ export interface SessionTabSnapshot {
   filename: string
   /** Absolute path on disk, or null for untitled / unsaved buffers. */
   filePath: string | null
-  /** 'script' | 'livescript' | 'welcome' — kept loose to avoid cross-imports. */
+  /** 'script' | 'livescript' — kept loose to avoid cross-imports. */
   mode: string
   /** Live buffer content (may include unsaved changes). */
   content: string

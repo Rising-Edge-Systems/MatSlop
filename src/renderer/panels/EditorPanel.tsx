@@ -6,6 +6,7 @@ import { useAppContext } from '../AppContext'
 import type { DebugAction } from '../editor/debugCommands'
 import {
   createTab,
+  syncNextTabId,
   createEmptyLiveScript,
   findSectionRange,
   findNextSectionAdvanceLine,
@@ -117,16 +118,10 @@ function EditorPanel({
   }
   const onRunSectionRef = useRef(onRunSection)
   onRunSectionRef.current = onRunSection
-  // Start with an empty tab list. The session-restore / welcome-tab
-  // useEffect below populates it after mount. Creating an untitled.m
-  // dummy here caused the Run button to operate on the wrong tab when
-  // the Welcome tab was also present (the Welcome tab became active but
-  // the dummy tab lingered behind it with stale content).
+  // Start with an empty tab list. The session-restore useEffect below
+  // populates it after mount.
   const [tabs, setTabs] = useState<EditorTab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
-  const [welcomeTabId, setWelcomeTabId] = useState<string | null>(null)
-  const welcomeTabIdRef = useRef<string | null>(null)
-  const welcomeInitRef = useRef(false)
   // US-S05: banner text shown above the editor when a Run action is
   // blocked because the active buffer only defines function(s) and has
   // no top-level code to execute. Cleared automatically the next time
@@ -142,27 +137,24 @@ function EditorPanel({
   useEffect(() => {
     activeTabIdRef.current = activeTabId
   }, [activeTabId])
-  useEffect(() => {
-    welcomeTabIdRef.current = welcomeTabId
-  }, [welcomeTabId])
   // US-034: per-tab cursor snapshots (line/column), mirrored into session.json
   const tabCursorsRef = useRef<Record<string, CursorSnapshot>>({})
   // Guard so session persistence effect doesn't fire with uninitialized state
-  // during the initial welcome/session restore.
+  // during the initial session restore.
   const sessionReadyRef = useRef(false)
   // Snapshot of whether session restore preference is on — checked once at
   // mount. Falsy means we skip restore on this launch but still save state so
   // toggling the pref on later recovers the subsequent session.
   const sessionRestoreEnabledRef = useRef(true)
 
-  // US-034: On first mount, try to restore the last session. Falls back to
-  // showing the welcome tab (legacy behavior) when there's no saved session
-  // or the restore pref is disabled.
+  // US-034: On first mount, try to restore the last session. When there's
+  // no saved session or the restore pref is disabled, the editor starts
+  // empty — the "No files open" empty state provides New/Open buttons.
+  const sessionInitRef = useRef(false)
   useEffect(() => {
-    if (welcomeInitRef.current) return
-    welcomeInitRef.current = true
+    if (sessionInitRef.current) return
+    sessionInitRef.current = true
     ;(async () => {
-      let restored = false
       try {
         const enabled = await window.matslop.sessionGetRestoreEnabled()
         sessionRestoreEnabledRef.current = enabled
@@ -170,53 +162,34 @@ function EditorPanel({
           const session = await window.matslop.sessionGet()
           const loaded = sessionToTabs(session)
           if (loaded) {
+            syncNextTabId(loaded.tabs)
             setTabs(loaded.tabs)
             setActiveTabId(loaded.activeTabId)
             tabCursorsRef.current = { ...loaded.cursors }
-            restored = true
+
+            // After React commits the restored tabs, move the Monaco cursor
+            // to the saved line/col of the active tab (if any). Schedule a
+            // couple of retries because TabbedEditor mounts lazily.
+            const tryRestoreCursor = (attempt: number): void => {
+              const ed = editorInstanceRef.current
+              const activeId = activeTabIdRef.current
+              const pos = activeId ? tabCursorsRef.current[activeId] : null
+              if (ed && pos) {
+                try {
+                  ed.setPosition({ lineNumber: pos.line, column: pos.column })
+                  ed.revealLineInCenter(pos.line)
+                } catch {
+                  // ignore
+                }
+                return
+              }
+              if (attempt < 10) setTimeout(() => tryRestoreCursor(attempt + 1), 50)
+            }
+            setTimeout(() => tryRestoreCursor(0), 50)
           }
         }
       } catch {
-        // ignore — fall through to welcome path
-      }
-      if (restored) {
-        // After React commits the restored tabs, move the Monaco cursor
-        // to the saved line/col of the active tab (if any). Schedule a
-        // couple of retries because TabbedEditor mounts lazily.
-        const tryRestoreCursor = (attempt: number): void => {
-          const ed = editorInstanceRef.current
-          const activeId = activeTabIdRef.current
-          const pos = activeId ? tabCursorsRef.current[activeId] : null
-          if (ed && pos) {
-            try {
-              ed.setPosition({ lineNumber: pos.line, column: pos.column })
-              ed.revealLineInCenter(pos.line)
-            } catch {
-              // ignore
-            }
-            return
-          }
-          if (attempt < 10) setTimeout(() => tryRestoreCursor(attempt + 1), 50)
-        }
-        setTimeout(() => tryRestoreCursor(0), 50)
-      }
-      if (!restored) {
-        // Create a runnable demo script so the Run button works on first
-        // launch. Also show the Welcome tab if configured.
-        const demoTab = createTab(
-          'untitled.m',
-          '% Welcome to MatSlop!\n% Press F5 or click Run to execute this script.\n\nx = 1:10;\ny = x .^ 2;\ndisp("Hello from MatSlop!");\nfprintf("Sum of first 10 squares: %d\\n", sum(y));\n\n% Try plotting:\nplot(x, y);\ntitle("x^2 curve");\nxlabel("x"); ylabel("y");\n'
-        )
-        const show = await window.matslop.configGetShowWelcome()
-        if (show) {
-          const welcomeTab = createTab('Welcome', '', null, 'welcome')
-          setTabs([welcomeTab, demoTab])
-          setActiveTabId(demoTab.id)
-          setWelcomeTabId(welcomeTab.id)
-        } else {
-          setTabs([demoTab])
-          setActiveTabId(demoTab.id)
-        }
+        // ignore — start with empty editor
       }
       sessionReadyRef.current = true
     })()
@@ -321,21 +294,6 @@ function EditorPanel({
     return tabsRef.current.find((t) => t.id === activeTabIdRef.current) ?? null
   }, [])
 
-  const handleCloseWelcome = useCallback(() => {
-    const wId = welcomeTabIdRef.current
-    if (!wId) return
-    setTabs((prev) => {
-      const next = prev.filter((t) => t.id !== wId)
-      if (wId === activeTabIdRef.current && next.length > 0) {
-        setActiveTabId(next[0].id)
-      } else if (next.length === 0) {
-        setActiveTabId(null)
-      }
-      return next
-    })
-    setWelcomeTabId(null)
-  }, [])
-
   const handleNewFile = useCallback(() => {
     const tab = createTab()
     setTabs((prev) => [...prev, tab])
@@ -415,7 +373,7 @@ function EditorPanel({
    */
   const handlePublishHtml = useCallback(async () => {
     const tab = getActiveTab()
-    if (!tab || tab.mode === 'welcome') return
+    if (!tab) return
 
     // US-T04: For saved .m scripts, capture disp/fprintf output by sourcing
     // the file inside `evalc(...)` so the published HTML carries real
@@ -1012,6 +970,7 @@ function EditorPanel({
         hasActiveFile={activeTabId !== null}
         isLiveScript={getActiveTab()?.mode === 'livescript'}
         onNewFile={handleNewFile}
+        onNewLiveScript={handleNewLiveScript}
         onOpenFile={handleOpenFile}
         onSave={handleSave}
         onRun={handleRun}
@@ -1068,7 +1027,6 @@ function EditorPanel({
           onErrorCountChange={onErrorCountChange}
           onNewFile={handleNewFile}
           onOpenFile={handleOpenFile}
-          onCloseWelcome={handleCloseWelcome}
           editorTheme={editorTheme}
           engineStatus={engineStatus}
           editorSettings={editorSettings}

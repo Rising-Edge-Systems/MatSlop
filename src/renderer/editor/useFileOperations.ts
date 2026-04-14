@@ -96,7 +96,7 @@ export function useFileOperations({ dispatch, getTabs }: UseFileOperationsOption
 
   const handlePublishHtml = useCallback(
     async (tab: EditorTab) => {
-      if (tab.mode === 'welcome') return
+      if (!tab) return
 
       // For saved .m scripts, capture disp/fprintf output by sourcing
       // the file inside evalc(...) so the published HTML carries real

@@ -283,7 +283,7 @@ describe('US-L06: editor session JSON round-trip', () => {
     expect(restored!.cursors['tab-B']).toEqual({ line: 1, column: 1 })
   })
 
-  it('session with no tabs restores as null (falls back to welcome)', () => {
+  it('session with no tabs restores as null (falls back to empty state)', () => {
     const wire: SessionStateWire = {
       version: 1,
       savedAt: Date.now(),
@@ -294,7 +294,7 @@ describe('US-L06: editor session JSON round-trip', () => {
     const parsed = JSON.parse(json)
     const normalized = normalizeSession(parsed)
     // normalizeSession allows empty tabs array (it's valid)
-    // but sessionToTabs returns null for empty tabs → app shows welcome
+    // but sessionToTabs returns null for empty tabs → app shows empty state
     const restored = sessionToTabs(normalized as unknown as SessionStateWire)
     expect(restored).toBeNull()
   })

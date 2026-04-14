@@ -31,7 +31,7 @@ export interface CursorSnapshot {
   column: number
 }
 
-const ALLOWED_MODES: EditorTabMode[] = ['script', 'livescript', 'welcome']
+const ALLOWED_MODES: EditorTabMode[] = ['script', 'livescript']
 
 function normalizeMode(mode: string): EditorTabMode {
   return (ALLOWED_MODES as string[]).includes(mode) ? (mode as EditorTabMode) : 'script'
@@ -39,8 +39,7 @@ function normalizeMode(mode: string): EditorTabMode {
 
 /**
  * Convert an in-memory list of `EditorTab`s + activeTabId + per-tab cursors
- * into a wire-ready session snapshot. Welcome tabs are dropped (they're
- * re-created from the welcome preference on next launch).
+ * into a wire-ready session snapshot.
  */
 export function tabsToSession(
   tabs: EditorTab[],
@@ -48,7 +47,6 @@ export function tabsToSession(
   cursors: Record<string, CursorSnapshot>,
 ): SessionStateWire {
   const snaps: SessionTabSnapshot[] = tabs
-    .filter((t) => t.mode !== 'welcome')
     .map((t) => {
       const cursor = cursors[t.id]
       return {
@@ -62,7 +60,7 @@ export function tabsToSession(
         cursorColumn: cursor?.column,
       }
     })
-  // If the active tab was a welcome tab (dropped), fall back to first non-welcome.
+  // If the active tab was dropped, fall back to first tab.
   const activeSurvives =
     activeTabId !== null && snaps.some((s) => s.id === activeTabId)
   return {
@@ -76,8 +74,7 @@ export function tabsToSession(
 /**
  * Convert a session wire snapshot back into `EditorTab`s suitable for
  * seeding EditorPanel's tabs state. Returns `null` when the snapshot has
- * no usable tabs, so the caller can fall back to the default welcome/new
- * tab path.
+ * no usable tabs, so the caller can fall back to the empty editor state.
  */
 export function sessionToTabs(
   session: SessionStateWire | null,

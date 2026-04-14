@@ -18,7 +18,7 @@ if ((window as any).matslop?.registerBusyCallbacks) {
 
 // Note: StrictMode intentionally disabled — this is an Electron app (no SSR/hydration)
 // and StrictMode's double-invocation causes spurious side effects with IPC handlers
-// that create real resources (Octave processes, welcome tabs, etc.)
+// that create real resources (Octave processes, session restore, etc.)
 
 // Detached auxiliary windows reuse this same renderer bundle but mount a
 // lightweight component instead of the full `App` when an identifying

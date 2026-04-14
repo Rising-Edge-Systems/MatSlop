@@ -44,14 +44,13 @@ describe('tabsToSession', () => {
     expect(state.tabs[1].filePath).toBe('/tmp/b.m')
   })
 
-  it('drops welcome tabs and falls back to first non-welcome for activeTabId', () => {
+  it('falls back to first tab when activeTabId is not in tabs', () => {
     const tabs: EditorTab[] = [
-      tab({ id: 'welcome', filename: 'Welcome', mode: 'welcome' }),
       tab({ id: 'tab-1', filename: 'a.m' }),
+      tab({ id: 'tab-2', filename: 'b.m' }),
     ]
-    const state = tabsToSession(tabs, 'welcome', {})
-    expect(state.tabs).toHaveLength(1)
-    expect(state.tabs[0].id).toBe('tab-1')
+    const state = tabsToSession(tabs, 'nonexistent', {})
+    expect(state.tabs).toHaveLength(2)
     expect(state.activeTabId).toBe('tab-1')
   })
 

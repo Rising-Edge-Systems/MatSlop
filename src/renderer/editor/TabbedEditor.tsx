@@ -17,7 +17,6 @@ import {
   findSectionHeaderLines,
 } from './editorTypes'
 import LiveScriptEditor from './LiveScriptEditor'
-import WelcomeTab from './WelcomeTab'
 import type { OctaveEngineStatus } from '../App'
 
 interface TabbedEditorProps {
@@ -31,7 +30,6 @@ interface TabbedEditorProps {
   onErrorCountChange?: (count: number) => void
   onNewFile?: () => void
   onOpenFile?: () => void
-  onCloseWelcome?: () => void
   editorTheme?: string
   engineStatus?: OctaveEngineStatus
   editorSettings?: {
@@ -55,7 +53,6 @@ function TabbedEditor({
   onErrorCountChange,
   onNewFile,
   onOpenFile,
-  onCloseWelcome,
   editorTheme,
   engineStatus,
   editorSettings,
@@ -380,8 +377,8 @@ function TabbedEditor({
     const headerLines = isScriptTab && activeTab
       ? findSectionHeaderLines(activeTab.content)
       : []
-    // Always expose the test hook, even when Monaco isn't mounted yet
-    // (e.g. on the welcome tab). Tests rely on the array being present.
+    // Always expose the test hook, even when Monaco isn't mounted yet.
+    // Tests rely on the array being present.
     if (typeof window !== 'undefined') {
       const w = window as unknown as { __matslopSectionLines?: number[] }
       w.__matslopSectionLines = headerLines
@@ -568,9 +565,7 @@ function TabbedEditor({
         </div>
       </div>
       <div className="editor-content">
-        {activeTab && activeTab.mode === 'welcome' ? (
-          <WelcomeTab onDismiss={() => onCloseWelcome?.()} />
-        ) : activeTab && activeTab.mode === 'livescript' ? (
+        {activeTab && activeTab.mode === 'livescript' ? (
           <LiveScriptEditor
             key={activeTab.id}
             content={activeTab.content}
