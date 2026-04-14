@@ -253,13 +253,18 @@ function seriesToTraces(
     case 'surface':
     case 'mesh': {
       const wire = series.type === 'mesh'
+      // Octave may store x as a row vector (1×N 2D array) and y as a
+      // column vector (N×1 2D array). Plotly needs them as flat 1D arrays.
+      const flatX = Array.isArray(series.x?.[0]) ? (series.x as number[][]).flat() : series.x
+      const flatY = Array.isArray(series.y?.[0]) ? (series.y as number[][]).flat() : series.y
       return [
-        {
+        clean({
           type: 'surface',
-          x: series.x,
-          y: series.y,
+          x: flatX,
+          y: flatY,
           z: series.z,
           surfacecolor: series.c,
+          colorscale: 'Viridis',
           name,
           showlegend,
           scene: sceneKey,
@@ -271,7 +276,7 @@ function seriesToTraces(
                 y: { show: true, highlight: false },
               }
             : undefined,
-        },
+        }),
       ]
     }
     case 'quiver': {
