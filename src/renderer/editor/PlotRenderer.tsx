@@ -143,9 +143,12 @@ function PlotRenderer({
         }
         void Plotly.react(el, data, layout, config).then(() => {
           if (cancelled) return
-          // Wire US-010 click-to-pin handlers. Plotly extends the div with
-          // an `on()` jquery-like method after the first newPlot/react call.
+          // Wire click-to-pin handlers for 2D plots only.
+          // 3D (WebGL) plots freeze when relayout is called with annotations.
           if (typeof el.on !== 'function') return
+          const has3D = data.some((t: Record<string, unknown>) =>
+            t.type === 'surface' || t.type === 'scatter3d' || t.type === 'mesh3d')
+          if (has3D) return
 
           el.on('plotly_click', (ev: unknown) => {
             const evt = ev as {
