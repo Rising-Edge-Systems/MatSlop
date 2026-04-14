@@ -257,7 +257,7 @@
         "All tests pass"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "Create mock DragEvent objects with dataTransfer.files containing File objects. Use renderHook to test the hook and call the returned handlers."
     },
     {
@@ -274,7 +274,7 @@
         "All existing tests pass"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "The menuAction prop has shape { action: string, id: number } | null. The id field prevents duplicate processing — track the last processed id in a ref and skip if the same id is seen again."
     },
     {
@@ -291,7 +291,7 @@
         "All tests pass"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "Use renderHook and rerender with updated menuAction props to simulate menu action arrival."
     },
     {
@@ -310,7 +310,7 @@
         "All existing tests pass"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": "The existing EditorPanel has complex pausedLocation effect logic (~50 lines). The hook should replicate this behavior. The editor instance is needed for cursor positioning — accept a getEditorInstance() getter."
     },
     {
@@ -329,7 +329,7 @@
         "All tests pass"
       ],
       "priority": 17,
-      "passes": false,
+      "passes": true,
       "notes": "Mock window.matslop.readFile to return file content. Mock dispatch as vi.fn(). Use renderHook and rerender with updated pausedLocation props."
     },
     {
@@ -352,7 +352,7 @@
         "All existing unit tests pass"
       ],
       "priority": 18,
-      "passes": false,
+      "passes": true,
       "notes": "The session state serializer already filters out welcome tabs (sessionState.ts line 51). The welcome mode in EditorTabMode is 'script' | 'livescript' | 'welcome' — change to 'script' | 'livescript'. Check if any other code references the welcome mode and update accordingly. The startup code in EditorPanel should just leave tabs empty (the TabbedEditor empty state shows 'No files open')."
     },
     {
@@ -368,7 +368,7 @@
         "Typecheck passes"
       ],
       "priority": 19,
-      "passes": false,
+      "passes": true,
       "notes": "Some E2E tests may create a session to bypass the Welcome tab. With it removed, those workarounds can be simplified. The startup.spec.ts probably asserts 'exactly one Welcome tab' — change to assert the empty state or no tabs."
     },
     {
@@ -391,7 +391,7 @@
         "Typecheck passes"
       ],
       "priority": 20,
-      "passes": false,
+      "passes": true,
       "notes": "This is the big integration story. All hooks have been written and tested individually by this point. The AppContext prop-vs-context fallback pattern (lines 94-106 of current EditorPanel) should remain in EditorPanel — it's the composition layer's job to resolve prop sources. Wire the hooks together: useTabReducer provides state+dispatch, useSessionPersistence takes state and dispatches RESTORE_SESSION, useFileOperations takes dispatch, useScriptExecution takes getActiveTab from state, etc."
     },
     {
@@ -407,7 +407,7 @@
         "All existing E2E tests pass"
       ],
       "priority": 21,
-      "passes": false,
+      "passes": true,
       "notes": "This is a simple cleanup of TabbedEditor.tsx. The conditional rendering at line ~571 has three branches: welcome, livescript, script. Remove the welcome branch. The onCloseWelcome prop and its usage should already be gone from EditorPanel after US-R18/R20, but verify TabbedEditor itself is clean."
     },
     {
@@ -427,7 +427,7 @@
         "All existing tests pass"
       ],
       "priority": 22,
-      "passes": false,
+      "passes": true,
       "notes": "This is a pure CSS extraction — cut rules from styles.css and paste into new files, then add import statements. Do NOT modify any CSS property values. Use exact copy-paste. The editor-toolbar CSS (.editor-toolbar class) should go into editor.css. The .toolbar-split-btn and .toolbar-dropdown rules (added earlier in this session) should also go into editor.css."
     },
     {

@@ -1,0 +1,653 @@
+/* ===== Live Script Editor ===== */
+.ls-editor {
+  height: 100%;
+  overflow-y: auto;
+  padding: 8px 16px;
+  background: var(--bg-main);
+}
+
+.ls-toolbar {
+  max-width: 900px;
+  margin: 0 auto 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ls-run-all-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  background: var(--color-success);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.ls-run-all-btn:hover {
+  filter: brightness(1.15);
+}
+
+.ls-run-all-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  filter: none;
+}
+
+.ls-cells {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Live-script global 2-track grid: code on the left, outputs on the right.
+   All cells' code and output pairs align via grid-auto-flow: row, so each
+   code block sits in column 1 and its output sits at column 2 on the same
+   row. Drop zones and add-cell rows span both columns via `grid-column: 1 / -1`. */
+.ls-cells-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 0;
+  align-items: stretch;
+}
+
+.ls-cells-grid > .ls-add-cell-row,
+.ls-cells-grid > .ls-drop-zone,
+.ls-cells-grid > .ls-cell-md-full {
+  grid-column: 1 / -1;
+}
+
+.ls-add-cell-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  position: relative;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.ls-cells:hover .ls-add-cell-row,
+.ls-add-cell-row:focus-within {
+  opacity: 1;
+}
+
+.ls-add-cell-btn {
+  background: var(--bg-hover);
+  border: 1px dashed var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.ls-add-cell-btn:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.ls-add-cell-menu {
+  position: absolute;
+  top: 100%;
+  z-index: 100;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+}
+
+.ls-add-cell-menu button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.ls-add-cell-menu button:hover {
+  background: var(--bg-hover);
+}
+
+.ls-cell {
+  display: flex;
+  border: 1px solid var(--border-color);
+  border-radius: 6px 0 0 6px;
+  margin: 2px 0;
+  background: var(--bg-panel);
+  overflow: hidden;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+/* Code cells in grid mode: the code side (left) and output side (right)
+   are siblings. Round only the appropriate corners and drop the shared
+   border so the two halves look visually attached. */
+.ls-cell-code-side {
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+}
+
+.ls-cell-output-side {
+  border: 1px solid var(--border-color);
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  margin: 2px 0;
+  background: var(--bg-main);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 60px;
+  /* US-006: contain any horizontally-overflowing output so it cannot
+     widen this grid track and knock neighboring rows out of alignment.
+     Vertical content is free to grow the row. */
+  overflow-x: hidden;
+  overflow-y: visible;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.ls-cell-md-full {
+  border-radius: 6px;
+}
+
+.ls-cell-focused {
+  border-color: var(--color-accent);
+}
+
+.ls-cell-code {
+  border-left: 3px solid var(--color-accent);
+}
+
+.ls-cell-markdown {
+  border-left: 3px solid var(--color-success);
+}
+
+/* Hover highlight spans both the code and output halves of the same cell */
+.ls-cell-hover {
+  background: var(--bg-hover);
+  border-color: color-mix(in srgb, var(--color-accent) 60%, var(--border-color));
+}
+
+.ls-cell-gutter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 4px;
+  gap: 4px;
+  color: var(--text-secondary);
+  min-width: 28px;
+}
+
+.ls-cell-drag-handle {
+  cursor: grab;
+  opacity: 0.4;
+}
+
+.ls-cell-drag-handle:hover {
+  opacity: 1;
+}
+
+.ls-cell-drag-handle:active {
+  cursor: grabbing;
+}
+
+.ls-cell-dragging {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.ls-drop-zone {
+  height: 4px;
+  margin: 0 8px;
+  border-radius: 2px;
+  transition: height 0.15s, background-color 0.15s;
+}
+
+/* While dragging, enlarge drop-zones so they are easy hit targets. */
+.ls-cells-dragging .ls-drop-zone {
+  height: 16px;
+  background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--color-accent) 50%, transparent);
+}
+
+.ls-cells-dragging .ls-drop-zone.ls-drop-zone-active,
+.ls-drop-zone-active {
+  height: 16px;
+  background-color: var(--color-accent);
+  outline: none;
+}
+
+.ls-drop-zone-last {
+  height: 24px;
+}
+
+.ls-cells-dragging .ls-drop-zone-last {
+  height: 32px;
+}
+
+.ls-cell-type-badge {
+  display: flex;
+  align-items: center;
+  opacity: 0.5;
+}
+
+.ls-cell-run-btn {
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--color-success);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.ls-cell:hover .ls-cell-run-btn {
+  opacity: 1;
+}
+
+.ls-cell-run-btn:hover {
+  background: var(--bg-hover);
+  opacity: 1;
+}
+
+.ls-cell-run-btn:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.ls-cell-running-icon {
+  color: var(--color-warning);
+  animation: ls-spin 1s linear infinite;
+}
+
+@keyframes ls-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.ls-cell-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* The code column lives inside the left grid item and fills it. */
+.ls-cell-code-col {
+  flex: 1;
+  min-width: 0;
+}
+
+/* `.ls-cell-output-col` is also used as the grid's right-side sibling
+   (see .ls-cell-output-side). Legacy selector kept so tests and plot
+   styling targeting the class continue to work. */
+.ls-cell-output-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-main);
+}
+
+.ls-cell-output-col:empty::before {
+  content: '';
+  flex: 1;
+}
+
+.ls-statement-results {
+  width: 100%;
+  padding: 4px 0;
+}
+
+.ls-statement-result {
+  padding-left: 12px;
+}
+
+.ls-statement-result .ls-cell-output {
+  padding: 2px 8px;
+  max-height: none;
+  overflow: visible;
+}
+
+.ls-statement-result .ls-inline-plots {
+  padding: 4px 8px;
+}
+
+.ls-statement-result .ls-inline-plot-image {
+  max-width: 100%;
+  max-height: 300px;
+}
+
+.ls-cell-actions {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.ls-cell:hover .ls-cell-actions {
+  opacity: 1;
+}
+
+.ls-cell-delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+}
+
+.ls-cell-delete-btn:hover {
+  color: var(--color-error);
+  background: var(--bg-hover);
+}
+
+.ls-cell-delete-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.ls-cell-delete-btn:disabled:hover {
+  color: var(--text-secondary);
+  background: none;
+}
+
+/* Code cell editor */
+.ls-code-cell-editor {
+  min-height: 28px;
+  padding: 4px 0;
+}
+
+.ls-code-cell-editor .monaco-editor {
+  min-height: 28px;
+}
+
+/* Cell output.
+   US-006: no per-cell vertical scroll — tall outputs expand the grid row
+   and scrolling happens at the `.ls-editor` container level. Horizontal
+   overflow (wide tables, long rows) scrolls inside the cell to keep the
+   grid track width stable so neighbor rows stay aligned. */
+.ls-cell-output {
+  padding: 8px 12px;
+  background: var(--bg-main);
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 13px;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.ls-cell-output pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-primary);
+}
+
+.ls-cell-output-error pre {
+  color: var(--color-error);
+}
+
+/* Inline plots */
+.ls-inline-plots {
+  padding: 8px 12px;
+  background: var(--bg-main);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ls-inline-plot-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Plot export warning banner (US-013) */
+.ls-plot-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(240, 173, 78, 0.5);
+  background: rgba(240, 173, 78, 0.12);
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
+.ls-plot-warning-fatal {
+  border-color: rgba(217, 83, 79, 0.55);
+  background: rgba(217, 83, 79, 0.12);
+}
+
+.ls-plot-warning-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #f0ad4e;
+}
+
+.ls-plot-warning-fatal .ls-plot-warning-icon {
+  color: #d9534f;
+}
+
+.ls-plot-warning-body {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.ls-plot-warning-body a {
+  color: var(--color-link, #4aa3ff);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ls-plot-warning-body a:hover {
+  text-decoration: none;
+}
+
+/* Interactive plot viewer with pan/zoom toolbar */
+.ls-interactive-plot {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-secondary, #1e1e1e);
+  overflow: hidden;
+}
+
+.ls-plot-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-main);
+}
+
+.ls-plot-tool-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ls-plot-tool-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.ls-plot-zoom-indicator {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: 'Consolas', monospace;
+  padding: 0 4px;
+}
+
+.ls-plot-viewport {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 240px;
+  max-height: 480px;
+  cursor: grab;
+  background: #fff;
+}
+
+.ls-plot-viewport-dragging {
+  cursor: grabbing;
+}
+
+.ls-interactive-plot-image {
+  max-width: 100%;
+  max-height: 100%;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  transition: none;
+}
+
+.ls-inline-plot-image {
+  max-width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+}
+
+.ls-plot-context-menu {
+  position: fixed;
+  z-index: 3000;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  min-width: 180px;
+}
+
+.ls-plot-context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.ls-plot-context-menu button:hover {
+  background: var(--bg-hover);
+}
+
+/* Markdown cell */
+.ls-markdown-preview {
+  padding: 8px 12px;
+  min-height: 32px;
+  cursor: text;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.ls-markdown-preview.ls-markdown-empty {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.ls-markdown-preview h1,
+.ls-markdown-preview h2,
+.ls-markdown-preview h3 {
+  margin: 0.4em 0 0.2em;
+  color: var(--text-primary);
+}
+
+.ls-markdown-preview h1 { font-size: 1.5em; }
+.ls-markdown-preview h2 { font-size: 1.3em; }
+.ls-markdown-preview h3 { font-size: 1.1em; }
+
+.ls-markdown-preview p {
+  margin: 0.3em 0;
+}
+
+.ls-markdown-preview code {
+  background: var(--bg-hover);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.ls-markdown-preview pre {
+  background: var(--bg-hover);
+  padding: 8px 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.ls-markdown-preview pre code {
+  background: none;
+  padding: 0;
+}
+
+.ls-markdown-preview ul,
+.ls-markdown-preview ol {
+  margin: 0.3em 0;
+  padding-left: 1.5em;
+}
+
+.ls-markdown-preview blockquote {
+  border-left: 3px solid var(--border-color);
+  margin: 0.3em 0;
+  padding: 0 12px;
+  color: var(--text-secondary);
+}
+
+.ls-markdown-editor {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  box-sizing: border-box;
+}

@@ -1,4 +1,5 @@
 import { Fragment, useState, useCallback, useRef, useEffect } from 'react'
+import './livescript.css'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import type { editor as monacoEditor } from 'monaco-editor'
 import type Monaco from 'monaco-editor'
@@ -848,21 +849,17 @@ function CodeCell({ cell, onChange, onMount, editorTheme, editorSettings }: Code
     editorRef.current = editor
     onMount(editor, monaco)
 
-    // Auto-resize editor to fit content
+    // Auto-resize editor to fit content using Monaco's own content height
     const updateHeight = (): void => {
-      const model = editor.getModel()
-      if (!model) return
-      const lineCount = Math.max(model.getLineCount(), 3)
-      const lineHeight = editor.getOption(editor.getOption(67) /* lineHeight */ ? 67 : 66)
-      const newHeight = lineCount * (typeof lineHeight === 'number' ? lineHeight : 19) + 10
+      const contentHeight = editor.getContentHeight()
       const container = editor.getDomNode()
       if (container) {
-        container.style.height = `${newHeight}px`
+        container.style.height = `${contentHeight}px`
       }
       editor.layout()
     }
 
-    editor.onDidChangeModelContent(updateHeight)
+    editor.onDidContentSizeChange(updateHeight)
     // Initial layout
     setTimeout(updateHeight, 50)
   }, [onMount])
