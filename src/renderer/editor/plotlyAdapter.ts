@@ -693,6 +693,12 @@ export function figureToPlotly(figure: PlotFigure): PlotlyFigure {
     }
   })
 
+  // Show legend if any trace has a name (auto-detect since matslop_export_fig
+  // doesn't export legend visibility yet)
+  if (data.some((t) => t.showlegend)) {
+    layout.showlegend = true
+  }
+
   const config: PlotlyConfig = {
     responsive: true,
     displaylogo: false,
