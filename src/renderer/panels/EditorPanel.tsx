@@ -205,7 +205,7 @@ function EditorPanel({
         // launch. Also show the Welcome tab if configured.
         const demoTab = createTab(
           'untitled.m',
-          '% Welcome to MatSlop\n% Start writing MATLAB/Octave code here\n\nx = 1:10;\ny = x .^ 2;\ndisp("Hello from MatSlop!");\nfprintf("Sum of first 10 squares: %d\\n", sum(y));\n'
+          '% Welcome to MatSlop!\n% Press F5 or click Run to execute this script.\n\nx = 1:10;\ny = x .^ 2;\ndisp("Hello from MatSlop!");\nfprintf("Sum of first 10 squares: %d\\n", sum(y));\n\n% Try plotting:\nplot(x, y);\ntitle("x^2 curve");\nxlabel("x"); ylabel("y");\n'
         )
         const show = await window.matslop.configGetShowWelcome()
         if (show) {
