@@ -169,7 +169,7 @@ function seriesToTraces(
           xaxis: xaxisKey,
           yaxis: yaxisKey,
           line: lineColor || dash || series.lineWidth
-            ? clean({ color: lineColor, dash, width: series.lineWidth })
+            ? clean({ color: lineColor, dash, width: Math.max(series.lineWidth ?? 1.5, 1.5) })
             : undefined,
           marker: hasMarker
             ? clean({
