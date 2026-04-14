@@ -9,41 +9,6 @@ export interface EditorTab {
   mode: EditorTabMode
 }
 
-let nextId = 1
-
-/**
- * Advance the tab ID counter past any IDs already in use (e.g. from a
- * restored session). Call this after loading persisted tabs so that
- * newly created tabs never collide with existing ones.
- */
-export function syncNextTabId(existingTabs: { id: string }[]): void {
-  for (const tab of existingTabs) {
-    const match = tab.id.match(/^tab-(\d+)$/)
-    if (match) {
-      const n = parseInt(match[1], 10)
-      if (n >= nextId) {
-        nextId = n + 1
-      }
-    }
-  }
-}
-
-export function createTab(
-  filename: string = 'untitled.m',
-  content: string = '',
-  filePath: string | null = null,
-  mode: EditorTabMode = 'script'
-): EditorTab {
-  return {
-    id: `tab-${nextId++}`,
-    filename,
-    content,
-    savedContent: content,
-    filePath,
-    mode,
-  }
-}
-
 export interface LiveScriptCellFigure {
   imageDataUrl: string
   tempPath: string
