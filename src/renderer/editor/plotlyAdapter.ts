@@ -493,6 +493,8 @@ function axesToLayoutKeys(axes: PlotAxes, axesIndex: number, layout: PlotlyLayou
         type: axes.zScale,
       },
       bgcolor: rgbToCss(axes.backgroundColor),
+      // MATLAB-like 3D controls: free orbit rotation (not constrained turntable)
+      dragmode: 'orbit',
     }
     if (axes.view) {
       scene.camera = cameraFromView(axes.view)

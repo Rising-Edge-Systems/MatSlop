@@ -148,7 +148,26 @@ function PlotRenderer({
           if (typeof el.on !== 'function') return
           const has3D = data.some((t: Record<string, unknown>) =>
             t.type === 'surface' || t.type === 'scatter3d' || t.type === 'mesh3d')
-          if (has3D) return
+          if (has3D) {
+            // Override scroll zoom for 3D: move camera closer/farther
+            // instead of scaling axis ranges (MATLAB-like behavior).
+            el.addEventListener('wheel', (e: WheelEvent) => {
+              e.preventDefault()
+              e.stopPropagation()
+              const sceneLayout = (el as unknown as { layout?: Record<string, unknown> }).layout
+              const scene = sceneLayout?.scene as { camera?: { eye?: { x: number; y: number; z: number } } } | undefined
+              const eye = scene?.camera?.eye ?? { x: 1.25, y: 1.25, z: 1.25 }
+              const factor = e.deltaY > 0 ? 1.1 : 0.9
+              void Plotly.relayout(el, {
+                'scene.camera.eye': {
+                  x: eye.x * factor,
+                  y: eye.y * factor,
+                  z: eye.z * factor,
+                },
+              })
+            }, { passive: false })
+            return
+          }
 
           el.on('plotly_click', (ev: unknown) => {
             const evt = ev as {
