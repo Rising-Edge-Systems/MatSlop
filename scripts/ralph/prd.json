@@ -446,7 +446,7 @@
         "Lint passes (npm run lint) with zero errors in modified files"
       ],
       "priority": 23,
-      "passes": false,
+      "passes": true,
       "notes": "Check if createTab() is used outside of EditorPanel (e.g., in tests or other components). If so, keep it but update it to use the shared ID generator from useTabReducer.ts. If it's only used in EditorPanel, remove it and have the reducer's CREATE_TAB action create tabs internally."
     },
     {
@@ -465,7 +465,7 @@
         "All tests pass"
       ],
       "priority": 24,
-      "passes": false,
+      "passes": true,
       "notes": "Mocking Monaco: vi.mock('@monaco-editor/react', () => ({ default: (props) => <div data-testid='mock-editor'>{props.value}</div>, __esModule: true })). Mock window.matslop with all required methods as vi.fn(). The EditorPanel needs AppContext — either wrap with the provider or mock useAppContext. Also needs OctaveContext for the toolbar — mock useOctaveStatus."
     },
     {
