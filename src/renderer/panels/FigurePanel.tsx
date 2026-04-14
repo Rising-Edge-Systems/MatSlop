@@ -79,8 +79,9 @@ function FigurePanel({ figures: figuresProp, onCollapse, onSaveFigure }: FigureP
                   const plotFig = parsePlotFigure(activeFigure.plotJson)
                   return (
                     <PlotRenderer
+                      key={JSON.stringify(activeFigure.plotJson).substring(0, 100)}
                       figure={plotFig}
-                      height={400}
+                      height={600}
                       canDetach={false}
                     />
                   )

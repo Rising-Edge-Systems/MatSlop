@@ -253,10 +253,20 @@ function seriesToTraces(
     case 'surface':
     case 'mesh': {
       const wire = series.type === 'mesh'
-      // Octave may store x as a row vector (1×N 2D array) and y as a
-      // column vector (N×1 2D array). Plotly needs them as flat 1D arrays.
-      const flatX = Array.isArray(series.x?.[0]) ? (series.x as number[][]).flat() : series.x
-      const flatY = Array.isArray(series.y?.[0]) ? (series.y as number[][]).flat() : series.y
+      // Octave may store x/y as:
+      //   - Row vector: [[1,2,...,N]] (1×N 2D) → flatten to 1D
+      //   - Column vector: [[1],[2],...,[N]] (N×1 2D) → flatten to 1D
+      //   - Full 2D grid: [[...],[...],...] (NxM) → keep as 2D (Plotly accepts it)
+      const flatten2D = (arr: unknown): unknown => {
+        if (!Array.isArray(arr) || !Array.isArray(arr[0])) return arr
+        const rows = arr.length
+        const cols = (arr[0] as unknown[]).length
+        if (rows === 1) return arr[0]          // row vector → 1D
+        if (cols === 1) return arr.map((r: unknown[]) => r[0])  // col vector → 1D
+        return arr                              // full grid → keep 2D
+      }
+      const flatX = flatten2D(series.x)
+      const flatY = flatten2D(series.y)
       return [
         clean({
           type: 'surface',

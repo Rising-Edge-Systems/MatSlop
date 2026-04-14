@@ -1757,9 +1757,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: auto;
+  overflow: hidden;
   background: var(--figure-content-bg);
-  padding: 8px;
+  padding: 0;
 }
 
 .figure-image {
