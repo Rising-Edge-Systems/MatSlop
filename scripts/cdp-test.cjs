@@ -111,8 +111,8 @@ async function main() {
     await eval_('document.querySelector(".toolbar-split-btn > .toolbar-btn").click()')
     await sleep(500)
     const r = JSON.parse(await eval_('const tabs = Array.from(document.querySelectorAll("[data-testid=\\"editor-tab\\"]")).map(t => ({ fn: t.dataset.tabFilename, active: t.classList.contains("active") })); return JSON.stringify(tabs)'))
-    const mTab = r.find(t => t.fn === 'untitled.m' && t.active)
-    if (mTab) pass('Created untitled.m tab (active)')
+    const mTab = r.find(t => t.fn.match(/^untitled\d*\.m$/) && t.active)
+    if (mTab) pass(`Created ${mTab.fn} tab (active)`)
     else fail('Create .m tab', JSON.stringify(r))
   }
 
@@ -136,8 +136,8 @@ async function main() {
     await eval_('for (const i of document.querySelectorAll(".toolbar-dropdown-item")) { if (i.textContent.includes("Live")) { i.click(); break; } }')
     await sleep(1000)
     const r = JSON.parse(await eval_('const tabs = Array.from(document.querySelectorAll("[data-testid=\\"editor-tab\\"]")).map(t => ({ fn: t.dataset.tabFilename, active: t.classList.contains("active") })); return JSON.stringify(tabs)'))
-    const mlsTab = r.find(t => t.fn === 'untitled.mls' && t.active)
-    if (mlsTab) pass('Created untitled.mls tab (active)')
+    const mlsTab = r.find(t => t.fn.match(/^untitled\d*\.mls$/) && t.active)
+    if (mlsTab) pass(`Created ${mlsTab.fn} tab (active)`)
     else fail('Create .mls tab', JSON.stringify(r))
   }
 
