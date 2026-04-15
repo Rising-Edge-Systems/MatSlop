@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react'
 import {
   FilePlus,
   FolderOpen,
@@ -10,6 +11,7 @@ import {
   Redo2,
   ArrowDownToLine,
   SkipForward,
+  ChevronDown,
 } from 'lucide-react'
 import { useOctaveStatus } from '../OctaveContext'
 import type { DebugAction } from './debugCommands'
@@ -19,6 +21,7 @@ interface EditorToolbarProps {
   /** True when the active file is a live script (.mls) — enables section-run buttons. */
   isLiveScript?: boolean
   onNewFile: () => void
+  onNewLiveScript: () => void
   onOpenFile: () => void
   onSave: () => void
   onRun: () => void
@@ -38,6 +41,7 @@ function EditorToolbar({
   hasActiveFile,
   isLiveScript = false,
   onNewFile,
+  onNewLiveScript,
   onOpenFile,
   onSave,
   onRun,
@@ -56,15 +60,54 @@ function EditorToolbar({
   const stepDisabled = !debugPaused
   const sectionDisabled = runDisabled || !isLiveScript
 
+  const [newFileOpen, setNewFileOpen] = useState(false)
+  const newFileRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!newFileOpen) return
+    const handleClick = (e: MouseEvent) => {
+      if (newFileRef.current && !newFileRef.current.contains(e.target as Node)) {
+        setNewFileOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [newFileOpen])
+
   return (
     <div className="editor-toolbar">
-      <button
-        className="toolbar-btn"
-        onClick={onNewFile}
-        title="New File (Ctrl+N)"
-      >
-        <FilePlus size={16} />
-      </button>
+      <div className="toolbar-split-btn" ref={newFileRef}>
+        <button
+          className="toolbar-btn"
+          onClick={onNewFile}
+          title="New Script (Ctrl+N)"
+        >
+          <FilePlus size={16} />
+        </button>
+        <button
+          className="toolbar-btn toolbar-split-chevron"
+          onClick={() => setNewFileOpen((v) => !v)}
+          title="New file options"
+        >
+          <ChevronDown size={10} />
+        </button>
+        {newFileOpen && (
+          <div className="toolbar-dropdown">
+            <button
+              className="toolbar-dropdown-item"
+              onClick={() => { onNewFile(); setNewFileOpen(false) }}
+            >
+              Script (.m)
+            </button>
+            <button
+              className="toolbar-dropdown-item"
+              onClick={() => { onNewLiveScript(); setNewFileOpen(false) }}
+            >
+              Live Script (.mls)
+            </button>
+          </div>
+        )}
+      </div>
       <button
         className="toolbar-btn"
         onClick={onOpenFile}
