@@ -154,9 +154,9 @@ describe('EditorPanel component', () => {
     })
 
     expect(screen.getByText('No files open')).toBeTruthy()
-    // The empty state should have New File and Open File buttons
-    expect(screen.getByText('New File')).toBeTruthy()
-    expect(screen.getByText('Open File')).toBeTruthy()
+    // The empty state should have New Script and Open File buttons with shortcut hints
+    expect(screen.getByText(/New Script/)).toBeTruthy()
+    expect(screen.getByText(/Open File/)).toBeTruthy()
   })
 
   it('on mount with a saved session, restores tabs and shows the active tab name', async () => {
@@ -212,9 +212,9 @@ describe('EditorPanel component', () => {
     // Verify empty state is shown
     expect(screen.getByText('No files open')).toBeTruthy()
 
-    // Click "New File" button in the empty state
+    // Click "New Script" button in the empty state
     await act(async () => {
-      fireEvent.click(screen.getByText('New File'))
+      fireEvent.click(screen.getByText(/New Script/))
       await vi.runAllTimersAsync()
     })
 
