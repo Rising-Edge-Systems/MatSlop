@@ -166,11 +166,11 @@
 }
 
 .ls-cell-focused {
-  border-color: var(--color-accent);
+  border-color: var(--accent-color);
 }
 
 .ls-cell-code {
-  border-left: 3px solid var(--color-accent);
+  border-left: 3px solid var(--accent-color);
 }
 
 .ls-cell-markdown {
@@ -180,7 +180,7 @@
 /* Hover highlight spans both the code and output halves of the same cell */
 .ls-cell-hover {
   background: var(--bg-hover);
-  border-color: color-mix(in srgb, var(--color-accent) 60%, var(--border-color));
+  border-color: color-mix(in srgb, var(--accent-color) 60%, var(--border-color));
 }
 
 .ls-cell-gutter {
@@ -221,14 +221,14 @@
 /* While dragging, enlarge drop-zones so they are easy hit targets. */
 .ls-cells-dragging .ls-drop-zone {
   height: 16px;
-  background-color: color-mix(in srgb, var(--color-accent) 12%, transparent);
-  outline: 1px dashed color-mix(in srgb, var(--color-accent) 50%, transparent);
+  background-color: color-mix(in srgb, var(--accent-color) 12%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--accent-color) 50%, transparent);
 }
 
 .ls-cells-dragging .ls-drop-zone.ls-drop-zone-active,
 .ls-drop-zone-active {
   height: 16px;
-  background-color: var(--color-accent);
+  background-color: var(--accent-color);
   outline: none;
 }
 
