@@ -1,4 +1,4 @@
-import { Menu, shell, type BrowserWindow, type MenuItemConstructorOptions } from 'electron'
+import { Menu, shell, type BrowserWindow, type MenuItem, type MenuItemConstructorOptions } from 'electron'
 import path from 'path'
 
 export type MenuAction =
@@ -44,10 +44,16 @@ const BUILTIN_PRESETS: Array<{ id: string; label: string }> = [
   { id: 'codeOnly', label: 'Code-Only' },
 ]
 
+export interface AppMenuOptions {
+  /** Callback triggered when the user clicks "Check for Updates..." in the Help menu. */
+  onCheckForUpdates?: () => void
+}
+
 export function buildAppMenu(
   mainWindow: BrowserWindow,
   recentFiles: string[] = [],
   customPresetNames: string[] = [],
+  options: AppMenuOptions = {},
 ): Menu {
   const send = (action: MenuAction | string): void => {
     mainWindow.webContents.send('menu:action', action)
@@ -297,6 +303,11 @@ export function buildAppMenu(
         {
           label: 'About MatSlop',
           click: () => send('about'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Check for Updates...',
+          click: () => options.onCheckForUpdates?.(),
         },
         { type: 'separator' },
         {

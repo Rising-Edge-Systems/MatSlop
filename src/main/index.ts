@@ -243,7 +243,9 @@ function createWindow(): void {
   // Build and set the application menu
   const recentFiles = getRecentFiles()
   const presetNames = listLayoutPresetNames()
-  const appMenu = buildAppMenu(mainWindow, recentFiles, presetNames)
+  const appMenu = buildAppMenu(mainWindow, recentFiles, presetNames, {
+    onCheckForUpdates: handleCheckForUpdates,
+  })
   Menu.setApplicationMenu(appMenu)
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -1266,11 +1268,41 @@ ipcMain.handle('test:menuAction', (_event, action: string) => {
   mainWindow?.webContents.send('menu:action', action)
 })
 
+/**
+ * US-C07: Handle the "Check for Updates..." menu action. Triggers an
+ * immediate update check and shows a native dialog for "up to date" or
+ * error results. If an update is available the banner in the renderer
+ * will appear automatically (the bridge's sendStatus pushes
+ * 'update:status' events to the renderer).
+ */
+async function handleCheckForUpdates(): Promise<void> {
+  const bridge = getUpdateBridge()
+  const status = await bridge.checkNow()
+  if (status.kind === 'not-available') {
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'No Updates Available',
+      message: `You are up to date (v${status.version})`,
+      buttons: ['OK'],
+    })
+  } else if (status.kind === 'error') {
+    dialog.showMessageBox({
+      type: 'error',
+      title: 'Update Check Failed',
+      message: status.message,
+      buttons: ['OK'],
+    })
+  }
+  // 'available' / 'downloading' / 'downloaded' → the renderer banner handles these
+}
+
 function rebuildMenu(): void {
   if (!mainWindow) return
   const recentFiles = getRecentFiles()
   const presetNames = listLayoutPresetNames()
-  const appMenu = buildAppMenu(mainWindow, recentFiles, presetNames)
+  const appMenu = buildAppMenu(mainWindow, recentFiles, presetNames, {
+    onCheckForUpdates: handleCheckForUpdates,
+  })
   Menu.setApplicationMenu(appMenu)
 }
 
