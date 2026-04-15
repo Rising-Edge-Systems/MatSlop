@@ -7,11 +7,12 @@ import {
 } from '../../src/renderer/editor/editorTypes'
 
 describe('LiveScript parser', () => {
-  it('createEmptyLiveScript returns valid JSON with one cell', () => {
+  it('createEmptyLiveScript returns valid JSON with markdown title and code cell', () => {
     const empty = createEmptyLiveScript()
     const doc = parseLiveScript(empty)
-    expect(doc.cells.length).toBe(1)
-    expect(doc.cells[0].type).toBe('code')
+    expect(doc.cells.length).toBe(2)
+    expect(doc.cells[0].type).toBe('markdown')
+    expect(doc.cells[1].type).toBe('code')
   })
 
   it('parses a multi-cell document', () => {

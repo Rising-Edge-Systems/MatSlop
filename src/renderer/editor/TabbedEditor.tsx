@@ -88,7 +88,9 @@ function TabbedEditor({
     // Auto-scroll the tab bar so the active tab is visible
     if (activeTabId) {
       const el = document.querySelector(`[data-tab-id="${activeTabId}"]`)
-      el?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ inline: 'nearest', block: 'nearest' })
+      }
     }
   }, [activeTabId])
 
