@@ -166,6 +166,7 @@ export interface LiveScriptDocument {
 export function createEmptyLiveScript(): string {
   const doc: LiveScriptDocument = {
     cells: [
+      { type: 'markdown', content: '# Untitled\n\nDescribe your analysis here.', output: '' },
       { type: 'code', content: '', output: '' },
     ],
   }
