@@ -247,6 +247,68 @@ async function main() {
     else fail('F5 routing', JSON.stringify(r))
   }
 
+  // ==========================================
+  log('\nTEST GROUP 13: Switch to .m Tab and Run Plot')
+  // ==========================================
+  {
+    // Click on the .m tab
+    await eval_('for (const t of document.querySelectorAll("[data-testid=\\"editor-tab\\"]")) { if (t.dataset.tabFilename === "untitled.m") { t.click(); break; } }')
+    await sleep(500)
+    // Set plot code
+    await eval_('const eds = window.monaco?.editor?.getEditors?.() || []; if (eds.length) eds[eds.length-1].setValue("t = 0:0.01:2*pi;\\ny = sin(t);\\nplot(t, y);\\ntitle(\\"Test Plot\\");\\nxlabel(\\"t\\");\\nylabel(\\"sin(t)\\")")')
+    await sleep(300)
+    // Run via F5
+    await eval_('window.dispatchEvent(new CustomEvent("matslop:runActiveScript"))')
+    await sleep(8000) // plots take longer
+    const r = await eval_('return document.querySelector(".cw-output")?.textContent?.substring(0, 200) || ""')
+    if (r.includes('untitled.m')) pass('Command window shows filename (no source())')
+    else fail('.m run display', r.substring(0, 80))
+    // Check if figure panel appeared
+    const figR = JSON.parse(await eval_('return JSON.stringify({ hasFig: !!document.querySelector("[data-testid=\\"dock-tab-matslop-figure\\"]"), figContent: document.querySelector("[data-testid=\\"dock-tab-matslop-figure\\"]")?.closest(".dock-tabpane")?.textContent?.substring(0, 100) || "" })'))
+    if (figR.hasFig) pass('Figure panel visible after .m plot')
+    else fail('Figure panel', 'not found')
+  }
+
+  // ==========================================
+  log('\nTEST GROUP 14: Live Script Plot Rendering')
+  // ==========================================
+  {
+    // Switch to .mls tab
+    await eval_('for (const t of document.querySelectorAll("[data-testid=\\"editor-tab\\"]")) { if (t.dataset.tabFilename === "untitled.mls") { t.click(); break; } }')
+    await sleep(500)
+    // Set plot code in the first code cell
+    await eval_('const eds = window.monaco?.editor?.getEditors?.() || []; if (eds.length) eds[0].setValue("x = linspace(0, 4*pi, 200);\\ny = cos(x);\\nplot(x, y);\\ntitle(\\"Cosine\\");")')
+    await sleep(500)
+    // Click Run All
+    await eval_('document.querySelector(".ls-run-all-btn")?.click()')
+    await sleep(8000)
+    const r = JSON.parse(await eval_('const outputs = document.querySelectorAll("[data-testid=\\"ls-cell-output\\"]"); return JSON.stringify(Array.from(outputs).map(o => ({ hasFigure: !!o.querySelector("[data-testid=\\"ls-inline-plot\\"]"), text: o.textContent?.substring(0, 100) })))'))
+    if (r.some(o => o.hasFigure)) pass('Live script inline plot rendered')
+    else fail('LS inline plot', JSON.stringify(r))
+  }
+
+  // ==========================================
+  log('\nTEST GROUP 15: Cell Height Grows with Content')
+  // ==========================================
+  {
+    // Add more lines and check height grows
+    await eval_('const eds = window.monaco?.editor?.getEditors?.() || []; if (eds.length) eds[0].setValue("% Line 1\\n% Line 2\\n% Line 3\\n% Line 4\\n% Line 5\\n% Line 6\\n% Line 7\\n% Line 8\\n% Line 9\\n% Line 10")')
+    await sleep(500)
+    const r = JSON.parse(await eval_('const cells = document.querySelectorAll("[data-testid=\\"ls-cell\\"]"); return JSON.stringify({ cellH: cells[0]?.offsetHeight })'))
+    if (r.cellH > 100) pass(`Cell grew to ${r.cellH}px for 10 lines`)
+    else fail('Cell height growth', `only ${r.cellH}px for 10 lines`)
+  }
+
+  // ==========================================
+  log('\nTEST GROUP 16: Command Window Input')
+  // ==========================================
+  {
+    // Check that command window has an input field
+    const r = JSON.parse(await eval_('return JSON.stringify({ hasInput: !!document.querySelector(".cw-input"), placeholder: document.querySelector(".cw-input")?.placeholder })'))
+    if (r.hasInput) pass('Command window has input field')
+    else fail('CW input', 'not found')
+  }
+
   screenshot('test-final')
 
   // Summary
