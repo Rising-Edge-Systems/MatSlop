@@ -118,6 +118,8 @@ export function useScriptExecution({
             detail: { display: tab.filename, output: r.output, error: r.error },
           }))
           window.dispatchEvent(new CustomEvent('matslop:runCapture'))
+          // Clean up temp file after execution
+          window.matslop.fsDelete(tmpPath).catch(() => {})
         }).catch(() => {})
       } catch {
         // Fall back to Save As
