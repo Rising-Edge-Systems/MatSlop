@@ -3,6 +3,15 @@ import path from 'path'
 import fs from 'fs'
 import os from 'os'
 
+// Suppress Windows Error Reporting crash dialogs for child processes
+// (Octave's bundled Java/JVM can trigger these on shutdown)
+if (process.platform === 'win32') {
+  app.commandLine.appendSwitch('disable-features', 'WinRetrieveSuggestionsOnlyOnDemand')
+}
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err)
+})
+
 // Allow tests to override user data dir for isolation
 if (process.env.MATSLOP_USER_DATA_DIR) {
   app.setPath('userData', process.env.MATSLOP_USER_DATA_DIR)

@@ -393,16 +393,30 @@ export class OctaveProcessManager extends EventEmitter {
       this.pendingResolve = null
       this.stdoutBuffer = ''
       this.stderrBuffer = ''
+
+      // Detach stderr to suppress Java/JVM crash messages on shutdown
+      this.process.stderr?.removeAllListeners('data')
+      this.process.stderr?.destroy()
+
       try {
         this.process.stdin?.write('exit\n')
       } catch {
         // ignore write errors during shutdown
       }
-      // Force kill after timeout
+      // Force kill after timeout — use taskkill on Windows to avoid
+      // crash dialogs from Java/JVM shutdown
       const proc = this.process
+      const pid = proc.pid
       setTimeout(() => {
         try {
-          proc.kill('SIGKILL')
+          if (process.platform === 'win32' && pid) {
+            require('child_process').execSync(
+              `taskkill /F /T /PID ${pid}`,
+              { stdio: 'ignore', timeout: 3000 }
+            )
+          } else {
+            proc.kill('SIGKILL')
+          }
         } catch {
           // already dead
         }
