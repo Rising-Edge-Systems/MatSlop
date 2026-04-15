@@ -1,513 +1,154 @@
 {
   "project": "MatSlop",
-  "branchName": "ralph/editor-refactor",
-  "description": "Decompose the monolithic EditorPanel.tsx (1,098 lines) into focused React hooks with a useReducer for atomic tab state, extract editor CSS into scoped files, remove the Welcome tab, and add component-level tests using React Testing Library.",
+  "branchName": "ralph/cicd-autoupdate",
+  "description": "GitHub Actions CI/CD pipeline that builds Windows/macOS/Linux installers on tag push, publishes GitHub Releases, and wires up the in-app auto-update banner so users get notified of new versions.",
   "userStories": [
     {
-      "id": "US-R01",
-      "title": "Configure vitest for React component tests with jsdom",
-      "description": "As a developer, I need vitest configured to run React component tests with jsdom so @testing-library/react works alongside existing node-environment tests.",
+      "id": "US-C01",
+      "title": "GitHub Actions release workflow",
+      "description": "As a developer, I want a GitHub Actions workflow that builds and publishes release artifacts when I push a version tag.",
       "acceptanceCriteria": [
-        "vitest.config.ts updated to support both node environment (existing unit tests) and jsdom environment (new component tests)",
-        "This is done via environmentMatchGlobs option that applies jsdom to tests/unit/**/*.test.tsx files",
-        "A simple smoke test file tests/unit/rtl-smoke.test.tsx exists that renders a <div>hello</div> with @testing-library/react render() and asserts screen.getByText('hello') exists",
-        "Running npm test runs both existing node-environment tests and the new jsdom smoke test",
-        "No existing tests are broken by the config change",
-        "Typecheck passes",
-        "All tests pass"
+        "New file .github/workflows/release.yml",
+        "Triggers on push of tags matching v*.*.* (e.g., v1.0.0, v0.2.0-beta.1)",
+        "Runs on a matrix of windows-latest, ubuntu-latest, macos-latest",
+        "Steps: checkout, setup Node 22, npm ci, npx tsc --noEmit, npx vitest run, then platform-specific build",
+        "On Windows runner: runs npm run build:win, collects release/*.exe artifacts",
+        "On Linux runner: runs npm run build:linux, collects release/*.AppImage and release/*.deb artifacts",
+        "On macOS runner: runs npm run build:mac, collects release/*.dmg artifacts",
+        "After all matrix jobs succeed, a final job creates a GitHub Release with tag name as title and attaches all artifacts",
+        "Uses softprops/action-gh-release or similar action to create the release with auto-generated release notes",
+        "Code signing env vars (CSC_LINK, CSC_KEY_PASSWORD) are read from GitHub Secrets but builds succeed without them",
+        "The workflow uses actions/upload-artifact and actions/download-artifact to pass build outputs between jobs",
+        "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "@testing-library/react (v16.3.2), @testing-library/dom (v10.4.1), and jsdom (v29.0.2) are already installed as devDependencies but unused. The existing vitest.config.ts uses environment: 'node'. Use environmentMatchGlobs to apply jsdom only to .test.tsx files."
+      "passes": false,
+      "notes": "The build scripts in package.json already include download:octave before electron-builder. The download:octave step downloads ~200MB of Octave binaries per platform. Use timeout-minutes: 30 for build jobs. The release job should download all artifacts from the build matrix and attach them to the GitHub Release. Use actions/upload-artifact@v4 and actions/download-artifact@v4. For the release creation, use softprops/action-gh-release@v2 with generate_release_notes: true."
     },
     {
-      "id": "US-R02",
-      "title": "Create useTabReducer hook with atomic tab operations",
-      "description": "As a developer, I want all tab state mutations to go through a single reducer so state transitions are atomic and testable without React rendering.",
+      "id": "US-C02",
+      "title": "GitHub Actions CI workflow for PRs",
+      "description": "As a developer, I want automated tests running on every push and PR so regressions are caught before merge.",
       "acceptanceCriteria": [
-        "New file src/renderer/editor/useTabReducer.ts exports a useTabReducer() hook",
-        "Hook returns [state, dispatch] where state is { tabs: EditorTab[], activeTabId: string | null }",
-        "Reducer handles actions: CREATE_TAB, CLOSE_TAB, SELECT_TAB, UPDATE_CONTENT, RESTORE_SESSION, UPDATE_SAVED_CONTENT, RENAME_TAB",
-        "CREATE_TAB generates unique IDs using an internal counter that cannot collide with existing tab IDs",
-        "CLOSE_TAB automatically selects the adjacent tab (prefer same index position, fall back to last tab)",
-        "RESTORE_SESSION sets tabs and activeTabId atomically, and advances the ID counter past the maximum restored ID",
-        "All reducer actions are pure functions (no side effects, no IPC calls)",
-        "The reducer function is exported separately (not just the hook) so it can be unit tested without React",
-        "Typecheck passes",
-        "All existing tests pass"
+        "New file .github/workflows/ci.yml",
+        "Triggers on push to any branch and pull_request to main",
+        "Runs on windows-latest (matches the development environment)",
+        "Steps: checkout, setup Node 22, npm ci, npx tsc --noEmit, npx vitest run",
+        "Fails the PR check if typecheck or tests fail",
+        "Does NOT build installers or run download:octave (too slow for PRs)",
+        "Skips the 1 pre-existing failing test (publish-html-integration Windows path issue)",
+        "Total CI time should be under 5 minutes",
+        "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "The tab ID counter is module-level in the new file, not in editorTypes.ts. The reducer function should be a plain exported function: export function tabReducer(state, action). The hook is a thin wrapper: export function useTabReducer() { return useReducer(tabReducer, initialState) }. CREATE_TAB accepts { filename, content, filePath, mode } and generates the ID internally."
+      "passes": false,
+      "notes": "The test suite has 800+ passing tests and 1 pre-existing failure (publish-html-integration.test.ts Windows path issue). The CI should not fail on this known issue. Either exclude the test file or accept 1 failure. Use continue-on-error or test filtering."
     },
     {
-      "id": "US-R03",
-      "title": "Unit test useTabReducer",
-      "description": "As a developer, I want comprehensive tests for every tab reducer action so regressions like ID collisions and stale active-tab references are caught automatically.",
+      "id": "US-C03",
+      "title": "Verify and fix publish config for GitHub repo",
+      "description": "As a developer, I need the electron-builder publish config to match the actual GitHub repository so auto-update can find releases.",
       "acceptanceCriteria": [
-        "New file tests/unit/tab-reducer.test.tsx with tests for every action type",
-        "Test: CREATE_TAB generates incrementing unique IDs",
-        "Test: CREATE_TAB after RESTORE_SESSION with tabs [tab-5, tab-3] produces tab-6 (not tab-1)",
-        "Test: CLOSE_TAB on the active tab selects the next tab (or previous if closing the last one)",
-        "Test: CLOSE_TAB on a non-active tab does not change activeTabId",
-        "Test: CLOSE_TAB on the only remaining tab sets activeTabId to null",
-        "Test: SELECT_TAB with a valid ID updates activeTabId",
-        "Test: SELECT_TAB with an ID not in tabs is a no-op",
-        "Test: UPDATE_CONTENT updates the correct tab's content without affecting other tabs",
-        "Test: RESTORE_SESSION replaces all tabs and activeTabId atomically",
-        "Test: RENAME_TAB updates filename and filePath for the target tab",
-        "Tests use renderHook from @testing-library/react to test the hook",
+        "Check the actual GitHub remote URL via git remote -v in the project",
+        "Update package.json build.publish to have the correct owner and repo matching the GitHub repository",
+        "The current config is owner: matslop, repo: matslop — verify this matches the actual repo, update if it should be owner: Rising-Edge-Systems or similar",
+        "Add or update the repository field in package.json to point to the correct GitHub URL",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "The git remote shows https://github.com/Rising-Edge-Systems/MatSlop.git — so owner should be Rising-Edge-Systems and repo should be MatSlop. Update build.publish accordingly."
+    },
+    {
+      "id": "US-C04",
+      "title": "Wire updateBridge into app startup",
+      "description": "As a developer, I want the auto-update bridge initialized on app startup so it checks for updates automatically.",
+      "acceptanceCriteria": [
+        "In src/main/index.ts, after createWindow() resolves, initialize the auto-update bridge",
+        "Use createUpdateBridge() from updateBridge.ts with proper deps: getAppVersion from app.getVersion(), sendStatus forwarding to mainWindow.webContents.send('update:status', status)",
+        "Store last-check timestamp in electron-store or a simple JSON file in userData",
+        "Call checkIfDue() after a 10-second delay on startup (don't block app launch)",
+        "Set up a setInterval to call checkIfDue() every hour (the bridge internally decides if 24h has elapsed)",
+        "The bridge is already implemented in updateBridge.ts — just wire it up",
         "Typecheck passes",
         "All tests pass"
       ],
-      "priority": 3,
-      "passes": true,
-      "notes": "Since the reducer is exported as a pure function, most tests can call tabReducer(state, action) directly without renderHook. Use renderHook only for 1-2 tests that verify the hook integration. Reset the module-level ID counter between tests if needed (export a _resetIdCounter() test helper)."
-    },
-    {
-      "id": "US-R04",
-      "title": "Extract useSessionPersistence hook",
-      "description": "As a developer, I want session save/restore logic in its own hook so it can be tested independently and doesn't clutter the tab management code.",
-      "acceptanceCriteria": [
-        "New file src/renderer/editor/useSessionPersistence.ts exports useSessionPersistence() hook",
-        "Hook accepts { tabs, activeTabId } as reactive inputs for save triggering",
-        "Hook returns { sessionReady: boolean, tabCursors: Record<string, CursorSnapshot>, updateCursor: (tabId, line, column) => void, onRestore: callback }",
-        "On mount, the hook calls window.matslop.sessionGetRestoreEnabled() and conditionally window.matslop.sessionGet()",
-        "Restored session data is passed through the onRestore callback so the parent can dispatch RESTORE_SESSION",
-        "When tabs or activeTabId change (after sessionReady), calls window.matslop.sessionSet() after a 400ms debounce",
-        "Registers a beforeunload listener that flushes session immediately",
-        "Cleans up debounce timer and beforeunload listener on unmount",
-        "Uses existing tabsToSession and sessionToTabs pure functions from sessionState.ts",
-        "Typecheck passes",
-        "All existing session-state unit tests pass"
-      ],
       "priority": 4,
-      "passes": true,
-      "notes": "The hook should accept an onRestore callback parameter (or use a ref to avoid re-triggering effects). The cursor tracking (tabCursors ref, updateCursor function) moves into this hook. The debounce timer ref and sessionReady ref are internal to the hook."
+      "passes": false,
+      "notes": "updateBridge.ts exports createUpdateBridge(deps) which accepts getAppVersion, sendStatus, setLastCheckMs, getLastCheckMs, getIntervalHours. Use app.getVersion() for version. For persistence, use a simple JSON file in app.getPath('userData')/update-state.json or electron-store. The bridge lazily imports electron-updater so it won't crash in dev mode."
     },
     {
-      "id": "US-R05",
-      "title": "Unit test useSessionPersistence hook",
-      "description": "As a developer, I want tests verifying session restore, debounced save, and flush-on-unload behavior.",
+      "id": "US-C05",
+      "title": "Add update IPC bridge methods in preload",
+      "description": "As a developer, I need IPC methods for the renderer to trigger update actions.",
       "acceptanceCriteria": [
-        "New file tests/unit/session-persistence-hook.test.tsx",
-        "Test: on mount with restore enabled, calls sessionGet() and invokes the restore callback with parsed tabs",
-        "Test: on mount with restore disabled, does not call sessionGet()",
-        "Test: on mount with corrupt session data, does not crash and invokes callback with null",
-        "Test: when tabs change, calls sessionSet() after 400ms debounce (use vi.advanceTimersByTime)",
-        "Test: rapid tab changes only trigger one sessionSet() call (debounce coalescing)",
-        "Test: beforeunload event triggers immediate sessionSet() call",
-        "IPC calls (window.matslop.*) are mocked via vi.fn() on a global window.matslop mock object",
+        "Preload script (src/preload/index.ts) exposes window.matslop.updateCheck() that invokes 'update:check' IPC",
+        "Preload script exposes window.matslop.updateDownload() that invokes 'update:download' IPC",
+        "Preload script exposes window.matslop.updateInstall() that invokes 'update:install' IPC",
+        "Preload script exposes window.matslop.onUpdateStatus(callback) that listens for 'update:status' IPC events from main process",
+        "Main process (src/main/index.ts) handles 'update:check' by calling updateBridge.checkNow()",
+        "Main process handles 'update:download' by triggering the download (electron-updater's autoUpdater.downloadUpdate())",
+        "Main process handles 'update:install' by calling updateBridge.quitAndInstall()",
         "Typecheck passes",
         "All tests pass"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Use vi.useFakeTimers() for debounce testing. Mock window.matslop as a plain object with vi.fn() methods. Use renderHook to test the hook lifecycle."
+      "passes": false,
+      "notes": "The preload already exposes many IPC methods — follow the same pattern. For onUpdateStatus, use ipcRenderer.on('update:status', callback) and return a cleanup function. The download trigger needs access to the electron-updater autoUpdater instance — the updateBridge may need to expose a downloadUpdate() method."
     },
     {
-      "id": "US-R06",
-      "title": "Extract useFileOperations hook",
-      "description": "As a developer, I want file open/save/save-as logic in its own hook so EditorPanel doesn't mix file I/O with tab state management.",
+      "id": "US-C06",
+      "title": "Update banner UI in renderer",
+      "description": "As a user, I want to see a non-intrusive banner when a new version is available so I can choose to update.",
       "acceptanceCriteria": [
-        "New file src/renderer/editor/useFileOperations.ts exports useFileOperations() hook",
-        "Hook accepts a dispatch function (from useTabReducer) and a tabs ref or getter for checking existing tabs",
-        "Hook exposes: openFile(), saveFile(tab), saveFileAs(tab), publishHtml(tab)",
-        "openFile() shows the file dialog via window.matslop.openFile(), checks if file is already open (dispatches SELECT_TAB if so), dispatches CREATE_TAB for new files, and calls window.matslop.recentFilesAdd()",
-        "saveFile(tab) saves to tab.filePath if it exists via window.matslop.saveFile(), otherwise calls saveFileAs",
-        "saveFile dispatches UPDATE_SAVED_CONTENT after a successful save",
-        "saveFileAs(tab) shows save dialog via window.matslop.saveFileAs(), dispatches RENAME_TAB + UPDATE_SAVED_CONTENT on success",
-        ".mls files are opened/created with mode 'livescript', .m files with mode 'script'",
-        "publishHtml(tab) generates HTML via the existing publishHtml() function and writes via window.matslop.publishWriteFile()",
-        "Typecheck passes",
-        "All existing tests pass"
+        "Check if src/renderer/editor/UpdateBanner.tsx already exists and update it, or create it if not",
+        "Banner component uses window.matslop.onUpdateStatus() to listen for update status changes",
+        "When status is 'available': shows 'MatSlop v{version} is available' with 'Download' button",
+        "When status is 'downloading': shows progress bar with percentage",
+        "When status is 'downloaded': shows 'Update ready — Install & Restart' button",
+        "When status is 'idle', 'checking', or 'not-available': banner is hidden",
+        "When status is 'error': banner shows error message briefly then hides",
+        "Banner has a dismiss/close button (X) that hides it until next status change",
+        "Banner appears at the top of the editor panel, above the toolbar",
+        "Banner uses app CSS variables (--bg-header, --accent-color, --text-primary, etc.) for theming",
+        "Clicking 'Download' calls window.matslop.updateDownload()",
+        "Clicking 'Install & Restart' calls window.matslop.updateInstall()",
+        "Typecheck passes"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "The hook should accept a way to read current tabs (either a ref or a getTabs() callback) to check for already-open files. All IPC calls go through window.matslop.* — no new abstractions."
+      "passes": false,
+      "notes": "There is already an UpdateBanner.tsx component — check its current implementation and update it to use the new IPC methods. The banner should be rendered in App.tsx or EditorPanel.tsx above the editor toolbar. Style it similar to the editor-run-warning banner. Use the UpdateStatus type from updateBridge.ts for type safety."
     },
     {
-      "id": "US-R07",
-      "title": "Unit test useFileOperations hook",
-      "description": "As a developer, I want tests for file open/save/save-as flows so regressions in file I/O are caught.",
+      "id": "US-C07",
+      "title": "Add Check for Updates menu item",
+      "description": "As a user, I want a 'Check for Updates' menu item in the Help menu.",
       "acceptanceCriteria": [
-        "New file tests/unit/file-operations-hook.test.tsx",
-        "Test: openFile() with a new file dispatches CREATE_TAB with correct filename, content, filePath, and mode",
-        "Test: openFile() with an already-open file dispatches SELECT_TAB (no duplicate tab)",
-        "Test: openFile() when user cancels the dialog does nothing (no dispatch)",
-        "Test: saveFile() on a tab with filePath calls window.matslop.saveFile and dispatches UPDATE_SAVED_CONTENT",
-        "Test: saveFile() on an untitled tab (no filePath) delegates to saveFileAs",
-        "Test: saveFileAs() when user cancels does nothing",
-        "Test: saveFileAs() on success dispatches RENAME_TAB and UPDATE_SAVED_CONTENT",
-        "Test: .mls files are opened with mode 'livescript', .m files with mode 'script'",
-        "IPC calls mocked via vi.fn()",
-        "Typecheck passes",
-        "All tests pass"
+        "Help menu in src/main/appMenu.ts has a 'Check for Updates...' item",
+        "Clicking it sends a menu action that triggers updateBridge.checkNow()",
+        "If an update is found, the update banner appears in the renderer",
+        "If no update is available, a native dialog shows 'You are up to date (v{version})'",
+        "If the check fails (network error), a native dialog shows the error message",
+        "Typecheck passes"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "Mock window.matslop.openFile to return { filename, content, filePath } or null. Mock dispatch as vi.fn() and verify it was called with the correct action objects."
+      "passes": false,
+      "notes": "The appMenu.ts already has a Help menu. Add the item there. Use dialog.showMessageBox for the 'up to date' confirmation. The checkNow() method returns an UpdateStatus — check status.kind to decide which dialog to show."
     },
     {
-      "id": "US-R08",
-      "title": "Extract useScriptExecution hook",
-      "description": "As a developer, I want script run/stop/section-run logic in its own hook so execution concerns are separated from tab management.",
+      "id": "US-C08",
+      "title": "Version bump npm scripts",
+      "description": "As a developer, I want simple npm scripts to bump the version and trigger a release.",
       "acceptanceCriteria": [
-        "New file src/renderer/editor/useScriptExecution.ts exports useScriptExecution() hook",
-        "Hook accepts { getActiveTab, saveFile, engineStatus, onRun, onStop, onRunSection, getEditorInstance }",
-        "Hook exposes: run(), stop(), runSection(), runAndAdvance(), runWarning (string | null), clearRunWarning()",
-        "run() auto-saves the active tab before executing (calls saveFile), builds the command via buildRunScriptCommand(), and calls the onRun callback",
-        "run() for untitled tabs writes content to a temp file in the user's home directory via window.matslop.getHomeDir(), then runs from there",
-        "run() detects function-only files via isFunctionOnlyFile() and sets runWarning instead of running",
-        "runSection() uses findSectionRange() to extract the code at the cursor, then calls onRunSection",
-        "runAndAdvance() calls runSection() then moves the cursor via findNextSectionAdvanceLine()",
-        "stop() calls the onStop callback",
-        "Typecheck passes",
-        "All existing tests pass"
+        "package.json has script version:patch that runs: npm version patch && git push && git push --tags",
+        "package.json has script version:minor that runs: npm version minor && git push && git push --tags",
+        "package.json has script version:major that runs: npm version major && git push && git push --tags",
+        "Create a brief RELEASING.md documenting the release process: npm run version:patch → wait for CI → release appears on GitHub",
+        "Typecheck passes"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "The hook needs access to the Monaco editor instance for cursor position (runSection) and cursor movement (runAndAdvance). Accept a getEditorInstance() getter. The runWarning state is managed inside the hook. clearRunWarning() is exposed so the parent can clear it on tab switch or typing."
-    },
-    {
-      "id": "US-R09",
-      "title": "Unit test useScriptExecution hook",
-      "description": "As a developer, I want tests for script execution flows including auto-save-before-run, function-only detection, and section execution.",
-      "acceptanceCriteria": [
-        "New file tests/unit/script-execution-hook.test.tsx",
-        "Test: run() calls saveFile() before executing",
-        "Test: run() on a saved file builds command with buildRunScriptCommand() and calls onRun",
-        "Test: run() on an untitled file calls getHomeDir and builds a temp file run command",
-        "Test: run() on a function-only file sets runWarning and does NOT call onRun",
-        "Test: runSection() extracts code at cursor line using findSectionRange()",
-        "Test: stop() calls onStop",
-        "IPC and callbacks mocked",
-        "Typecheck passes",
-        "All tests pass"
-      ],
-      "priority": 9,
-      "passes": true,
-      "notes": "Mock getActiveTab to return a tab object. Mock saveFile as vi.fn(). Mock the editor instance with getPosition() returning { lineNumber, column }. findSectionRange and buildRunScriptCommand are already tested in their own test files — just verify they are called with correct args."
-    },
-    {
-      "id": "US-R10",
-      "title": "Extract useEditorShortcuts hook",
-      "description": "As a developer, I want keyboard shortcut registration in its own hook so the shortcut-to-action mapping is testable and EditorPanel doesn't handle key dispatch.",
-      "acceptanceCriteria": [
-        "New file src/renderer/editor/useEditorShortcuts.ts exports useEditorShortcuts() hook",
-        "Hook accepts an action map Record<ShortcutAction, () => void> and registers/unregisters the ShortcutManager listener on mount/unmount",
-        "Hook loads custom shortcut overrides from window.matslop.configGetShortcuts() on mount",
-        "Hook applies overrides via applyShortcutOverrides() and updates the manager's active definitions",
-        "The ShortcutManager class itself is unchanged",
-        "Typecheck passes",
-        "All existing custom-shortcuts tests pass"
-      ],
-      "priority": 10,
-      "passes": true,
-      "notes": "The ShortcutManager is a singleton class with setHandler(), setActiveDefinitions(), and destroy() methods. The hook should call setHandler(dispatch) on mount and setHandler(null) or similar on unmount. Load overrides once on mount, not on every render."
-    },
-    {
-      "id": "US-R11",
-      "title": "Unit test useEditorShortcuts hook",
-      "description": "As a developer, I want tests ensuring shortcuts register on mount, unregister on unmount, and dispatch the correct actions.",
-      "acceptanceCriteria": [
-        "New file tests/unit/editor-shortcuts-hook.test.tsx",
-        "Test: mounting the hook registers a handler with ShortcutManager",
-        "Test: unmounting the hook clears the handler",
-        "Test: the handler dispatches the correct action from the action map when called",
-        "Test: custom shortcut overrides are loaded and applied on mount",
-        "Typecheck passes",
-        "All tests pass"
-      ],
-      "priority": 11,
-      "passes": true,
-      "notes": "Mock the shortcutManager singleton. Verify setHandler and setActiveDefinitions are called. The ShortcutManager is imported from ../shortcuts/shortcutManager — mock that module."
-    },
-    {
-      "id": "US-R12",
-      "title": "Extract useDragDrop hook",
-      "description": "As a developer, I want drag-and-drop file handling in its own hook so it doesn't add noise to the main editor component.",
-      "acceptanceCriteria": [
-        "New file src/renderer/editor/useDragDrop.ts exports useDragDrop() hook",
-        "Hook accepts { onFilesDropped: (files: { path: string, name: string }[]) => void }",
-        "Hook returns { isDragOver: boolean, dragHandlers: { onDragEnter, onDragLeave, onDragOver, onDrop } }",
-        "onDragEnter/onDragLeave use a counter ref to handle nested drag events",
-        "onDrop filters for .m and .mls files and calls onFilesDropped with the list",
-        "onDragOver prevents default to allow drop",
-        "isDragOver is true only when a valid file drag is over the drop zone",
-        "Typecheck passes",
-        "All existing tests pass"
-      ],
-      "priority": 12,
-      "passes": true,
-      "notes": "The existing EditorPanel uses dragCounterRef for the nested enter/leave counter pattern. Replicate that. The onDrop handler reads files from e.dataTransfer.files."
-    },
-    {
-      "id": "US-R13",
-      "title": "Unit test useDragDrop hook",
-      "description": "As a developer, I want tests for drag-drop file handling so edge cases are covered.",
-      "acceptanceCriteria": [
-        "New file tests/unit/drag-drop-hook.test.tsx",
-        "Test: isDragOver becomes true on dragEnter and false on dragLeave",
-        "Test: nested dragEnter/dragLeave events don't flicker isDragOver (counter pattern)",
-        "Test: onDrop with .m files calls onFilesDropped with correct paths",
-        "Test: onDrop with non-.m/.mls files does not call onFilesDropped",
-        "Test: isDragOver resets to false after drop",
-        "Typecheck passes",
-        "All tests pass"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": "Create mock DragEvent objects with dataTransfer.files containing File objects. Use renderHook to test the hook and call the returned handlers."
-    },
-    {
-      "id": "US-R14",
-      "title": "Extract useMenuActions hook",
-      "description": "As a developer, I want menu action dispatch in its own hook so menu-to-action wiring is isolated.",
-      "acceptanceCriteria": [
-        "New file src/renderer/editor/useMenuActions.ts exports useMenuActions() hook",
-        "Hook accepts { menuAction, onMenuActionConsumed, actions } where actions maps menu action strings to handler functions",
-        "Hook processes menuAction in a useEffect, dispatches to the correct handler, and calls onMenuActionConsumed",
-        "Hook tracks the last processed menu action ID via ref to prevent duplicate processing",
-        "Menu actions handled: save, saveAs, newFile, newLiveScript, openFile, closeTab, run, runSection, runAndAdvance, publishHtml, and recentFile:* prefix",
-        "Typecheck passes",
-        "All existing tests pass"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": "The menuAction prop has shape { action: string, id: number } | null. The id field prevents duplicate processing — track the last processed id in a ref and skip if the same id is seen again."
-    },
-    {
-      "id": "US-R15",
-      "title": "Unit test useMenuActions hook",
-      "description": "As a developer, I want tests for menu action dispatch.",
-      "acceptanceCriteria": [
-        "New file tests/unit/menu-actions-hook.test.tsx",
-        "Test: receiving a 'save' menu action calls the save handler",
-        "Test: receiving the same menu action ID twice only calls the handler once",
-        "Test: 'recentFile:/path/to/file.m' menu action calls the file-open handler with the path",
-        "Test: unknown menu action does not crash and calls onMenuActionConsumed",
-        "Typecheck passes",
-        "All tests pass"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": "Use renderHook and rerender with updated menuAction props to simulate menu action arrival."
-    },
-    {
-      "id": "US-R16",
-      "title": "Extract useDebugIntegration hook",
-      "description": "As a developer, I want debugger-related editor behavior in its own hook.",
-      "acceptanceCriteria": [
-        "New file src/renderer/editor/useDebugIntegration.ts exports useDebugIntegration() hook",
-        "Hook accepts { pausedLocation, tabs, activeTabId, dispatch, getEditorInstance, onFileSavedWhilePaused }",
-        "When pausedLocation changes to a file not currently open, the hook reads the file via window.matslop.readFile() and dispatches CREATE_TAB + SELECT_TAB",
-        "When pausedLocation changes to a file already open, the hook dispatches SELECT_TAB",
-        "After activating the paused tab, the hook moves the cursor to the paused line via editor.setPosition() and editor.revealLineInCenter()",
-        "The hook exposes isPaused: boolean derived from pausedLocation !== null",
-        "The hook exposes a notifyFileSaved(filePath) function that, when isPaused is true, calls onFileSavedWhilePaused and window.matslop.debugReapplyBreakpointsForFile(filePath)",
-        "Typecheck passes",
-        "All existing tests pass"
-      ],
-      "priority": 16,
-      "passes": true,
-      "notes": "The existing EditorPanel has complex pausedLocation effect logic (~50 lines). The hook should replicate this behavior. The editor instance is needed for cursor positioning — accept a getEditorInstance() getter."
-    },
-    {
-      "id": "US-R17",
-      "title": "Unit test useDebugIntegration hook",
-      "description": "As a developer, I want tests for debugger integration.",
-      "acceptanceCriteria": [
-        "New file tests/unit/debug-integration-hook.test.tsx",
-        "Test: when pausedLocation points to an open file, dispatches SELECT_TAB",
-        "Test: when pausedLocation points to a file not in tabs, reads the file and dispatches CREATE_TAB + SELECT_TAB",
-        "Test: when pausedLocation is null, isPaused is false",
-        "Test: notifyFileSaved() while paused calls onFileSavedWhilePaused with the file path",
-        "Test: notifyFileSaved() while paused calls debugReapplyBreakpointsForFile",
-        "IPC calls mocked",
-        "Typecheck passes",
-        "All tests pass"
-      ],
-      "priority": 17,
-      "passes": true,
-      "notes": "Mock window.matslop.readFile to return file content. Mock dispatch as vi.fn(). Use renderHook and rerender with updated pausedLocation props."
-    },
-    {
-      "id": "US-R18",
-      "title": "Remove Welcome tab feature entirely",
-      "description": "As a user, I don't want to see a Welcome tab — the 'No files open' empty state with New File / Open File buttons is sufficient.",
-      "acceptanceCriteria": [
-        "WelcomeTab.tsx is deleted",
-        "All welcome-related CSS (.welcome-*) is removed from styles.css",
-        "The onCloseWelcome prop is removed from TabbedEditor",
-        "The 'welcome' mode is removed from EditorTabMode type in editorTypes.ts",
-        "The welcomeTabId state, welcomeTabIdRef, and welcomeInitRef are removed from EditorPanel",
-        "The configGetShowWelcome() and configSetShowWelcome() calls are removed",
-        "The WelcomeTab import is removed from TabbedEditor.tsx",
-        "The conditional rendering for welcome mode is removed from TabbedEditor.tsx",
-        "grep -r 'welcomeTab' src/ returns zero matches (case insensitive)",
-        "grep -r 'WelcomeTab' src/ returns zero matches",
-        "grep -r 'welcome' src/renderer/ returns zero matches except for any unrelated usage",
-        "Typecheck passes",
-        "All existing unit tests pass"
-      ],
-      "priority": 18,
-      "passes": true,
-      "notes": "The session state serializer already filters out welcome tabs (sessionState.ts line 51). The welcome mode in EditorTabMode is 'script' | 'livescript' | 'welcome' — change to 'script' | 'livescript'. Check if any other code references the welcome mode and update accordingly. The startup code in EditorPanel should just leave tabs empty (the TabbedEditor empty state shows 'No files open')."
-    },
-    {
-      "id": "US-R19",
-      "title": "Update E2E tests for Welcome tab removal",
-      "description": "As a developer, I want all E2E tests updated to not depend on the Welcome tab.",
-      "acceptanceCriteria": [
-        "tests/e2e/startup.spec.ts is updated — no longer asserts Welcome tab exists",
-        "Any E2E test that clicks 'Get Started' or interacts with the Welcome tab is updated or removed",
-        "Any E2E test that filters out the Welcome tab when counting editor tabs is simplified",
-        "Search all E2E test files for 'welcome' or 'Welcome' references and update each one",
-        "All 40 E2E tests pass (run with npm run test:e2e or npx playwright test)",
-        "Typecheck passes"
-      ],
-      "priority": 19,
-      "passes": true,
-      "notes": "Some E2E tests may create a session to bypass the Welcome tab. With it removed, those workarounds can be simplified. The startup.spec.ts probably asserts 'exactly one Welcome tab' — change to assert the empty state or no tabs."
-    },
-    {
-      "id": "US-R20",
-      "title": "Rewrite EditorPanel to compose extracted hooks",
-      "description": "As a developer, I want EditorPanel to be a thin composition layer that wires the extracted hooks together, with no business logic of its own.",
-      "acceptanceCriteria": [
-        "EditorPanel.tsx uses useTabReducer() for all tab state",
-        "EditorPanel.tsx uses useSessionPersistence() for session save/restore",
-        "EditorPanel.tsx uses useFileOperations() for open/save/save-as",
-        "EditorPanel.tsx uses useScriptExecution() for run/stop/section",
-        "EditorPanel.tsx uses useEditorShortcuts() for keyboard shortcuts",
-        "EditorPanel.tsx uses useDragDrop() for drag-and-drop",
-        "EditorPanel.tsx uses useMenuActions() for menu dispatch",
-        "EditorPanel.tsx uses useDebugIntegration() for debugger features",
-        "EditorPanel is under 250 lines (composition + JSX only, the AppContext fallback props code can push it slightly over 200)",
-        "No useState calls remain in EditorPanel except for the editor instance ref",
-        "The JSX return structure is unchanged — EditorToolbar, panel-content div, TabbedEditor",
-        "All existing E2E tests pass",
-        "Typecheck passes"
-      ],
-      "priority": 20,
-      "passes": true,
-      "notes": "This is the big integration story. All hooks have been written and tested individually by this point. The AppContext prop-vs-context fallback pattern (lines 94-106 of current EditorPanel) should remain in EditorPanel — it's the composition layer's job to resolve prop sources. Wire the hooks together: useTabReducer provides state+dispatch, useSessionPersistence takes state and dispatches RESTORE_SESSION, useFileOperations takes dispatch, useScriptExecution takes getActiveTab from state, etc."
-    },
-    {
-      "id": "US-R21",
-      "title": "Remove TabbedEditor welcome mode rendering",
-      "description": "As a developer, I want TabbedEditor to not have any welcome-mode conditional rendering since the Welcome tab is deleted.",
-      "acceptanceCriteria": [
-        "TabbedEditor no longer imports WelcomeTab",
-        "The conditional rendering branch for activeTab.mode === 'welcome' is removed",
-        "The onCloseWelcome prop is removed from TabbedEditorProps interface",
-        "TabbedEditor renders only two content modes: livescript (LiveScriptEditor) and script (Monaco Editor)",
-        "Typecheck passes",
-        "All existing E2E tests pass"
-      ],
-      "priority": 21,
-      "passes": true,
-      "notes": "This is a simple cleanup of TabbedEditor.tsx. The conditional rendering at line ~571 has three branches: welcome, livescript, script. Remove the welcome branch. The onCloseWelcome prop and its usage should already be gone from EditorPanel after US-R18/R20, but verify TabbedEditor itself is clean."
-    },
-    {
-      "id": "US-R22",
-      "title": "Extract editor CSS into scoped files",
-      "description": "As a developer, I want editor CSS in its own files so changes to editor styling don't risk regressions in unrelated panels.",
-      "acceptanceCriteria": [
-        "New file src/renderer/editor/editor.css contains all .editor-*, .tabbed-*, .toolbar-btn, .toolbar-separator, .toolbar-split-btn, .toolbar-dropdown, .toolbar-dropdown-item, .matslop-breakpoint-*, .matslop-paused-*, .matslop-section-*, .editor-run-warning* rules extracted from styles.css",
-        "New file src/renderer/editor/livescript.css contains all .ls-* rules extracted from styles.css",
-        "styles.css no longer contains any of the above rules",
-        "editor.css is imported by TabbedEditor.tsx (or EditorPanel.tsx)",
-        "livescript.css is imported by LiveScriptEditor.tsx",
-        "The .drop-overlay CSS stays in styles.css (it's used beyond the editor)",
-        "The .editor-panel and .editor-panel-content rules stay in styles.css (they're panel-level layout)",
-        "Visual appearance is unchanged in both dark and light themes",
-        "Typecheck passes",
-        "All existing tests pass"
-      ],
-      "priority": 22,
-      "passes": true,
-      "notes": "This is a pure CSS extraction — cut rules from styles.css and paste into new files, then add import statements. Do NOT modify any CSS property values. Use exact copy-paste. The editor-toolbar CSS (.editor-toolbar class) should go into editor.css. The .toolbar-split-btn and .toolbar-dropdown rules (added earlier in this session) should also go into editor.css."
-    },
-    {
-      "id": "US-R23",
-      "title": "Remove stale code and dead references",
-      "description": "As a developer, I want all code made dead by this refactor to be cleaned up.",
-      "acceptanceCriteria": [
-        "syncNextTabId() in editorTypes.ts is removed (the reducer handles ID sync internally)",
-        "The global nextId counter in editorTypes.ts is removed (moved into useTabReducer.ts)",
-        "createTab() in editorTypes.ts is removed or updated — if the reducer generates IDs internally, createTab is no longer needed as a standalone export. If other code still calls createTab(), keep it but have it delegate to a shared ID generator.",
-        "No unused imports remain in any modified file (run lint to verify)",
-        "grep -r 'syncNextTabId' src/ returns zero matches",
-        "grep -r 'welcomeInitRef' src/ returns zero matches",
-        "grep -r 'welcomeTabIdRef' src/ returns zero matches",
-        "Typecheck passes",
-        "Lint passes (npm run lint) with zero errors in modified files"
-      ],
-      "priority": 23,
-      "passes": true,
-      "notes": "Check if createTab() is used outside of EditorPanel (e.g., in tests or other components). If so, keep it but update it to use the shared ID generator from useTabReducer.ts. If it's only used in EditorPanel, remove it and have the reducer's CREATE_TAB action create tabs internally."
-    },
-    {
-      "id": "US-R24",
-      "title": "Component test for EditorPanel composition",
-      "description": "As a developer, I want a component test that verifies EditorPanel correctly wires all hooks together.",
-      "acceptanceCriteria": [
-        "New file tests/unit/editor-panel.test.tsx",
-        "Uses @testing-library/react with render()",
-        "Mocks all window.matslop.* IPC calls",
-        "Mocks Monaco editor component (@monaco-editor/react) as a simple div stub",
-        "Test: on mount with no session, renders 'No files open' empty state",
-        "Test: on mount with a saved session, restores tabs and shows the active tab name in the tab bar",
-        "Test: clicking 'New File' in the empty state creates a new tab",
-        "Typecheck passes",
-        "All tests pass"
-      ],
-      "priority": 24,
-      "passes": true,
-      "notes": "Mocking Monaco: vi.mock('@monaco-editor/react', () => ({ default: (props) => <div data-testid='mock-editor'>{props.value}</div>, __esModule: true })). Mock window.matslop with all required methods as vi.fn(). The EditorPanel needs AppContext — either wrap with the provider or mock useAppContext. Also needs OctaveContext for the toolbar — mock useOctaveStatus."
-    },
-    {
-      "id": "US-R25",
-      "title": "Component test for TabbedEditor rendering",
-      "description": "As a developer, I want a component test that verifies TabbedEditor renders tabs correctly.",
-      "acceptanceCriteria": [
-        "New file tests/unit/tabbed-editor.test.tsx",
-        "Uses @testing-library/react with render()",
-        "Mocks Monaco editor component",
-        "Test: renders tab names in the tab bar",
-        "Test: active tab has the 'active' CSS class",
-        "Test: clicking a tab calls onTabSelect with the tab ID",
-        "Test: clicking the x button calls onTabClose with the tab ID",
-        "Test: modified tab (content !== savedContent) shows the unsaved-changes dot",
-        "Test: with zero tabs, renders the 'No files open' empty state",
-        "Typecheck passes",
-        "All tests pass"
-      ],
-      "priority": 25,
-      "passes": true,
-      "notes": "Create EditorTab test fixtures with known IDs. Pass them as props to TabbedEditor. For the x button test, use fireEvent.click and verify the onTabClose mock was called."
-    },
-    {
-      "id": "US-R26",
-      "title": "Component test for EditorToolbar",
-      "description": "As a developer, I want a component test for the toolbar so button states and dropdown behavior are verified.",
-      "acceptanceCriteria": [
-        "New file tests/unit/editor-toolbar.test.tsx",
-        "Uses @testing-library/react with render()",
-        "Test: 'New File' icon button calls onNewFile on click",
-        "Test: dropdown chevron toggles the new-file dropdown menu visibility",
-        "Test: clicking 'Live Script (.mls)' in dropdown calls onNewLiveScript",
-        "Test: dropdown closes when clicking outside (mousedown event)",
-        "Test: Run button is disabled when hasActiveFile is false",
-        "Test: Save button is disabled when hasActiveFile is false",
-        "Typecheck passes",
-        "All tests pass"
-      ],
-      "priority": 26,
-      "passes": true,
-      "notes": "Mock useOctaveStatus from OctaveContext to return 'ready'. The toolbar uses lucide-react icons — they render as SVG elements. Find buttons by title attribute."
+      "passes": false,
+      "notes": "npm version automatically updates package.json, creates a git commit, and creates a git tag. The scripts just add git push && git push --tags to push everything. The tag push triggers the release workflow from US-C01."
     }
   ]
 }
