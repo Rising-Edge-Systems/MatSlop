@@ -1273,11 +1273,11 @@ app.whenReady().then(() => {
     }
   })
 
-  // US-041: kick off an auto-update check shortly after launch if enabled
-  // AND the scheduled interval has elapsed. We delay briefly so the
-  // renderer has a chance to mount and subscribe to 'update:status'
-  // events. Skipped in test/dev e2e envs (MATSLOP_USER_DATA_DIR is set
-  // there) so we don't reach out to GitHub during CI.
+  // US-C04: kick off an auto-update check after a 10-second delay on startup
+  // so the renderer has time to mount and subscribe to 'update:status' events.
+  // Then re-check every hour (the bridge internally decides if 24h has elapsed).
+  // Skipped in test/dev e2e envs (MATSLOP_USER_DATA_DIR is set there) so we
+  // don't reach out to GitHub during CI.
   if (
     !process.env.MATSLOP_USER_DATA_DIR &&
     !process.env.MATSLOP_SKIP_AUTO_UPDATE &&
@@ -1290,7 +1290,19 @@ app.whenReady().then(() => {
         .catch(() => {
           /* errors are surfaced via the update:status event */
         })
-    }, 3000)
+    }, 10_000)
+
+    // Re-check every hour; checkIfDue() is a no-op if the configured
+    // interval (default 24h) hasn't elapsed yet.
+    setInterval(() => {
+      if (getUpdateCheckEnabled()) {
+        getUpdateBridge()
+          .checkIfDue()
+          .catch(() => {
+            /* errors are surfaced via the update:status event */
+          })
+      }
+    }, 60 * 60 * 1000)
   }
 })
 
