@@ -101,9 +101,20 @@ function EditorPanel(props: EditorPanelProps): React.JSX.Element {
     pausedLocation: pausedLocation ?? null, tabs, activeTabId, dispatch, getEditorInstance: getEditor, onFileSavedWhilePaused: props.onFileSavedWhilePaused,
   })
 
+  // Generate unique "untitledN.ext" names (MATLAB-style numbering)
+  const nextUntitledName = useCallback((ext: string) => {
+    const existing = new Set(tabsRef.current.map((t) => t.filename))
+    const base = `untitled.${ext}`
+    if (!existing.has(base)) return base
+    for (let i = 2; ; i++) {
+      const name = `untitled${i}.${ext}`
+      if (!existing.has(name)) return name
+    }
+  }, [])
+
   // Simple action dispatchers
-  const handleNewFile = useCallback(() => dispatch({ type: 'CREATE_TAB', payload: { filename: 'untitled.m', content: '', filePath: null, mode: 'script' } }), [dispatch])
-  const handleNewLiveScript = useCallback(() => dispatch({ type: 'CREATE_TAB', payload: { filename: 'untitled.mls', content: createEmptyLiveScript(), filePath: null, mode: 'livescript' } }), [dispatch])
+  const handleNewFile = useCallback(() => dispatch({ type: 'CREATE_TAB', payload: { filename: nextUntitledName('m'), content: '', filePath: null, mode: 'script' } }), [dispatch, nextUntitledName])
+  const handleNewLiveScript = useCallback(() => dispatch({ type: 'CREATE_TAB', payload: { filename: nextUntitledName('mls'), content: createEmptyLiveScript(), filePath: null, mode: 'livescript' } }), [dispatch, nextUntitledName])
   const handleTabSelect = useCallback((tabId: string) => dispatch({ type: 'SELECT_TAB', payload: { tabId } }), [dispatch])
   const handleContentChange = useCallback((tabId: string, content: string) => { dispatch({ type: 'UPDATE_CONTENT', payload: { tabId, content } }); clearRunWarning() }, [dispatch, clearRunWarning])
   const handleSave = useCallback(async () => { const t = getActiveTab(); if (!t) return; await saveFile(t); if (isPaused && t.filePath?.endsWith('.m')) notifyFileSaved(t.filePath) }, [getActiveTab, saveFile, isPaused, notifyFileSaved])
