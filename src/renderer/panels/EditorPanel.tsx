@@ -185,6 +185,17 @@ function EditorPanel(props: EditorPanelProps): React.JSX.Element {
     return () => window.clearTimeout(id)
   }, [openFileLine, activeTabId])
 
+  // Update window title to show active file name
+  useEffect(() => {
+    const tab = tabs.find((t) => t.id === activeTabId)
+    if (tab) {
+      const modified = tab.content !== tab.savedContent ? ' •' : ''
+      document.title = `${tab.filename}${modified} — MatSlop`
+    } else {
+      document.title = 'MatSlop'
+    }
+  }, [activeTabId, tabs])
+
   // Global Run event listener (rc-dock stale-closure workaround)
   useEffect(() => {
     const h = (): void => { handleRun() }
