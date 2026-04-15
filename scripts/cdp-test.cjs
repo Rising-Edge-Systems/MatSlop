@@ -294,8 +294,8 @@ async function main() {
     // Add more lines and check height grows
     await eval_('const eds = window.monaco?.editor?.getEditors?.() || []; if (eds.length) eds[0].setValue("% Line 1\\n% Line 2\\n% Line 3\\n% Line 4\\n% Line 5\\n% Line 6\\n% Line 7\\n% Line 8\\n% Line 9\\n% Line 10")')
     await sleep(500)
-    const r = JSON.parse(await eval_('const cells = document.querySelectorAll("[data-testid=\\"ls-cell\\"]"); return JSON.stringify({ cellH: cells[0]?.offsetHeight })'))
-    if (r.cellH > 100) pass(`Cell grew to ${r.cellH}px for 10 lines`)
+    const r = JSON.parse(await eval_('const cells = document.querySelectorAll("[data-testid=\\"ls-cell\\"][data-cell-type=\\"code\\"]"); return JSON.stringify({ cellH: cells[0]?.offsetHeight })'))
+    if (r.cellH > 100) pass(`Code cell grew to ${r.cellH}px for 10 lines`)
     else fail('Cell height growth', `only ${r.cellH}px for 10 lines`)
   }
 
