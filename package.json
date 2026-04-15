@@ -21,7 +21,10 @@
     "test:all": "vitest run && playwright test",
     "build:linux": "npm run download:octave && electron-vite build && electron-builder --linux",
     "build:mac": "npm run download:octave && electron-vite build && electron-builder --mac",
-    "build:win": "npm run download:octave && electron-vite build && electron-builder --win"
+    "build:win": "npm run download:octave && electron-vite build && electron-builder --win",
+    "version:patch": "npm version patch && git push && git push --tags",
+    "version:minor": "npm version minor && git push && git push --tags",
+    "version:major": "npm version major && git push && git push --tags"
   },
   "build": {
     "appId": "com.matslop.ide",
