@@ -1,70 +1,43 @@
 # Ralph Progress Log
-Started: Mon Apr 13 01:49:40 PM EDT 2026
----
+Started: 2026-04-14
 
 ## Codebase Patterns
-- `download-octave.js` is a plain JS ESM script (not TypeScript) — it uses `import` syntax and runs via `node scripts/download-octave.js`
-- Linux wrapper script is at `resources/octave/bin/octave-cli`, real binary at `resources/octave/usr/bin/octave-cli` — octaveConfig.ts auto-discovers the wrapper
-- The script uses a `download()` helper with redirect following for HTTP/HTTPS downloads
-- Platform detection: `--platform=<name>` CLI arg or `process.platform`
-- Typecheck is `tsc --noEmit`, tests are `vitest run`
-- Tests read the source file as a string and match patterns — be aware template literals won't resolve in source text matching
-- Renderer accesses platform via `window.matslop.platform`; main process uses `process.platform`
-- Figure capture script is in App.tsx `runCaptureAndRefresh` (~line 1015) — print device and resolution are set there
-- Ubuntu .deb URLs must be verified against the actual archive listing — versions change (e.g. 1build4→1build5)
-- hasBundledOctaveBinary() tests execution, not just file existence — needed because .deb extraction requires system shared libs
-
-## 2026-04-13 13:50 - US-B01
-- Implemented Linux .deb package downloading and extraction in `scripts/download-octave.js`
-- Added `LINUX_DEBS` array with 4 packages: octave, octave-common, liboctave-dev, fonts-freefont-otf
-- Added `extractDeb()` helper with dpkg-deb primary and ar+tar fallback extraction
-- Added `downloadLinuxDebs()` function with idempotency check (checks for usr/bin/octave-cli)
-- Updated `tests/unit/download-octave-linux.test.ts` to validate new bundling behavior
-- Files changed: `scripts/download-octave.js`, `tests/unit/download-octave-linux.test.ts`
-- **Learnings for future iterations:**
-  - The LINUX_DEBS URLs use template literals with `LINUX_OCTAVE_VERSION` — tests reading source text must use flexible regex
-  - Extraction goes to `resources/octave/` root, creating `usr/bin/octave-cli` and `usr/share/fonts/opentype/freefont/FreeSans.otf`
-  - The wrapper script (US-B02) should go at `resources/octave/bin/octave-cli` (separate from the real binary at `usr/bin/`)
-  - `octaveConfig.ts` already has a candidate path for `resources/octave/bin/octave-cli`
+- vitest v4 removed `environmentMatchGlobs` — use `// @vitest-environment jsdom` docblock in .test.tsx files
+- Typecheck: `npx tsc --noEmit`; Tests: `npx vitest run`; Lint: `npm run lint`
+- @testing-library/react, @testing-library/dom, jsdom already installed as devDependencies
+- The integration test publish-html-integration has a pre-existing Windows path failure — ignore it
+- Use `npx electron --remote-debugging-port=9222 dist/main/index.js` for hands-on testing via CDP
+- Use `node scripts/cdp-eval.cjs "expression"` to evaluate JS in the running app
+- Use `node scripts/cdp-test.cjs` for the 27-test automated test suite
+- CSS variables: use `--accent-color` not `--color-accent` (the latter is undefined)
+- LiveScriptEditor uses `useOctaveStatus()` context hook, not the `engineStatus` prop (rc-dock stale prop issue)
+- For live scripts, F5 dispatches `matslop:runAllCells` custom event; LiveScriptEditor listens for it
+- Cell editor height is set on the `.ls-code-cell-editor` wrapper via JS, not on Monaco DOM node directly
+- `.editor-content > section > .monaco-editor` scoping prevents CSS from affecting live script cell editors
 ---
 
-## 2026-04-13 13:54 - US-B02
-- Implemented font_redirect.so LD_PRELOAD shim: C source as string constant, compiled with gcc, intercepts openat() to redirect /usr/share/fonts/opentype/freefont/ to MATSLOP_OCTAVE_ROOT
-- Created fonts.conf XML for fontconfig pointing to bundled + system fonts
-- Created wrapper script at resources/octave/bin/octave-cli that sets LD_LIBRARY_PATH, LD_PRELOAD, MATSLOP_OCTAVE_ROOT, OCTAVE_HOME, GNUTERM=pngcairo, FONTCONFIG_FILE and execs the real binary
-- Added compileFontRedirect(), createFontsConf(), createWrapperScript() functions called from main() linux path
-- Added 8 tests in download-octave-linux.test.ts for US-B02
-- Files changed: `scripts/download-octave.js`, `tests/unit/download-octave-linux.test.ts`
-- **Learnings for future iterations:**
-  - Wrapper script uses bash array join pattern to avoid escaping conflicts between JS template literals and bash $variables
-  - The wrapper script's LINUX_OCTAVE_VERSION is interpolated at build time by JS, not at runtime by bash
-  - gcc compilation failure is non-fatal — app still runs but font redirection won't work
-  - octaveConfig.ts already looks for `bin/octave-cli` on Linux, so the wrapper is auto-discovered
----
+## Session Summary (2026-04-14 to 2026-04-15)
 
-## 2026-04-13 13:57 - US-B03
-- Added `setenv('GNUTERM', 'pngcairo')` to Octave init script in octaveProcess.ts when `process.platform === 'linux'`
-- Updated capture script in App.tsx to use `-dpngcairo` instead of `-dpng` on Linux via `window.matslop.platform` check
-- Both changes ensure the bundled gnuplot's cairo-based terminals produce valid PNG output
-- Files changed: `src/main/octaveProcess.ts`, `src/renderer/App.tsx`
-- **Learnings for future iterations:**
-  - `window.matslop.platform` is the renderer-side equivalent of `process.platform` (exposed via preload bridge)
-  - The init script in octaveProcess.ts uses a spread array pattern `...(condition ? [item] : [])` for conditional entries
-  - The capture script at line ~1015 of App.tsx is the main place figure PNGs are generated — any print device changes need to go there
-  - The export dialog (line ~1377) uses format-specific flags (-dsvg, -dpdf) but PNG export copies the already-captured file, so no change needed there
----
+### Ralph Refactor (US-R01 through US-R26) — All 26 stories completed
+- EditorPanel.tsx decomposed from 1,098 lines to 237 lines
+- 8 focused hooks extracted: useTabReducer, useSessionPersistence, useFileOperations, useScriptExecution, useEditorShortcuts, useDragDrop, useMenuActions, useDebugIntegration
+- Welcome tab removed entirely
+- CSS extracted into editor.css and livescript.css
+- 12 new test files, 80+ test cases, 800+ total tests passing
 
-## 2026-04-13 14:04 - US-B04
-- Fixed .deb package URLs in download-octave.js: 1build4→1build5, liboctave-dev→octave-dev, fonts pool main→universe
-- Added comprehensive e2e-plotting-verification.test.ts with 20 tests (15 unit, 5 integration requiring Octave)
-- Hardened tests/helpers/octaveBinary.ts to verify binary can execute (not just exist on disk)
-- Updated octave-plot.test.ts to use -dpngcairo on Linux (matches app behavior)
-- Updated download-octave-linux.test.ts to match corrected package names
-- Files changed: `scripts/download-octave.js`, `tests/helpers/octaveBinary.ts`, `tests/integration/e2e-plotting-verification.test.ts`, `tests/integration/octave-plot.test.ts`, `tests/unit/download-octave-linux.test.ts`
-- **Learnings for future iterations:**
-  - Ubuntu Noble packages use `-1build5` suffix, not `-1build4` — always verify URLs before committing
-  - The `fonts-freefont-otf` package is in the `universe` pool, not `main`
-  - The package is `octave-dev` (not `liboctave-dev`) for 8.4.0
-  - hasBundledOctaveBinary() must try executing the binary, not just check file existence — .deb-extracted binaries need system shared libs (libhdf5, libcholmod, etc.)
-  - Integration tests that need Octave should always use describe.skipIf(!HAS_OCTAVE) pattern
+### Hands-On Bug Fixes
+- Fixed live script cell sizing (wrapper-based approach, CSS scoping)
+- Fixed F5 on live scripts routing to Run All Cells
+- Fixed engine status stale-prop via useOctaveStatus() context hook
+- Fixed --color-accent → --accent-color CSS variable bug (pre-existing)
+- Fixed source() wrapper in command window display
+- Fixed temp filename display in command window
+- Improved add-cell button visibility (30% opacity → full on hover)
+- Fixed keyboard shortcut capture phase (Ctrl+W works with Monaco focus)
+- Externalized electron-updater in vite config
+- Added new file type dropdown (Script .m / Live Script .mls)
+- Restored accidentally deleted command window CSS
+
+### CDP Test Suite
+- 27 automated tests covering: panels, tab creation, live script rendering, cell height, engine status, code execution, plots, markdown cells, F5 routing, workspace variables
 ---
