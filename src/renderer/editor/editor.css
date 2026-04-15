@@ -220,12 +220,17 @@
   height: 16px;
   border: none;
   background: transparent;
-  color: var(--text-dimmed);
+  color: transparent;
   font-size: 14px;
   cursor: pointer;
   border-radius: 3px;
   line-height: 1;
   flex-shrink: 0;
+}
+
+.editor-tab:hover .editor-tab-close,
+.editor-tab.active .editor-tab-close {
+  color: var(--text-dimmed);
 }
 
 .editor-tab-close:hover {
