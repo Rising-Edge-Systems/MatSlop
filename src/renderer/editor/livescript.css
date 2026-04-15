@@ -67,11 +67,11 @@
   justify-content: center;
   height: 20px;
   position: relative;
-  opacity: 0;
+  opacity: 0.3;
   transition: opacity 0.15s;
 }
 
-.ls-cells:hover .ls-add-cell-row,
+.ls-add-cell-row:hover,
 .ls-add-cell-row:focus-within {
   opacity: 1;
 }

@@ -88,13 +88,13 @@ export class ShortcutManager {
     this.stop()
     this.handler = handler
     this.boundListener = this.onKeyDown.bind(this)
-    window.addEventListener('keydown', this.boundListener)
+    window.addEventListener('keydown', this.boundListener, true /* capture */)
   }
 
   /** Stop listening and clean up. */
   stop(): void {
     if (this.boundListener) {
-      window.removeEventListener('keydown', this.boundListener)
+      window.removeEventListener('keydown', this.boundListener, true)
       this.boundListener = null
     }
     this.handler = null
