@@ -82,10 +82,19 @@ function EditorPanel(props: EditorPanelProps): React.JSX.Element {
   const { openFile, saveFile, saveFileAs, publishHtml } = useFileOperations({ dispatch, getTabs })
 
   // Script execution
-  const { run: handleRun, stop: handleStop, runSection: handleRunSection, runAndAdvance: handleRunAndAdvance, runWarning, clearRunWarning } = useScriptExecution({
+  const { run: runScript, stop: handleStop, runSection: handleRunSection, runAndAdvance: handleRunAndAdvance, runWarning, clearRunWarning } = useScriptExecution({
     getActiveTab, saveFile, dispatch, engineStatus: props.engineStatus, onRun: appCtx._provided ? appCtx.onRunScript : props.onRun,
     onStop: props.onStop, onRunSection, getEditorInstance: getEditor, isPaused: pausedLocation !== null,
   })
+  // For live scripts, F5 should trigger "Run All Cells" inside LiveScriptEditor
+  const handleRun = useCallback(() => {
+    const tab = getActiveTab()
+    if (tab?.mode === 'livescript') {
+      window.dispatchEvent(new CustomEvent('matslop:runAllCells'))
+    } else {
+      runScript()
+    }
+  }, [getActiveTab, runScript])
 
   // Debug integration
   const { isPaused, notifyFileSaved } = useDebugIntegration({

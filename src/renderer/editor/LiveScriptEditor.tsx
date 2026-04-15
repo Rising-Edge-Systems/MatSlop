@@ -21,6 +21,7 @@ import {
   type LiveScriptDocument,
 } from './editorTypes'
 import type { OctaveEngineStatus } from '../App'
+import { useOctaveStatus } from '../OctaveContext'
 
 interface LiveScriptEditorProps {
   content: string
@@ -68,9 +69,13 @@ function LiveScriptEditor({
   content,
   onContentChange,
   editorTheme,
-  engineStatus,
+  engineStatus: engineStatusProp,
   editorSettings,
 }: LiveScriptEditorProps): React.JSX.Element {
+  // Prefer OctaveContext over prop — rc-dock caches panel content, so the
+  // prop can be stale ("disconnected") while the real status is "ready".
+  const contextStatus = useOctaveStatus()
+  const engineStatus = contextStatus ?? engineStatusProp
   const [cells, setCells] = useState<CellWithId[]>(() => {
     const doc = parseLiveScript(content)
     return addIds(doc.cells)
@@ -493,6 +498,13 @@ function LiveScriptEditor({
     }
   }, [])
 
+  // Listen for F5 "Run All" from EditorPanel
+  useEffect(() => {
+    const handler = (): void => { handleRunAll() }
+    window.addEventListener('matslop:runAllCells', handler)
+    return () => window.removeEventListener('matslop:runAllCells', handler)
+  }, [handleRunAll])
+
   // Close add menu when clicking outside
   useEffect(() => {
     if (addMenuIndex === null) return
@@ -849,19 +861,20 @@ function CodeCell({ cell, onChange, onMount, editorTheme, editorSettings }: Code
     editorRef.current = editor
     onMount(editor, monaco)
 
-    // Auto-resize editor to fit content using Monaco's own content height
+    // Auto-resize: set the editor's parent wrapper height to match
+    // Monaco's content height so the cell grows with its content.
+    const wrapper = editor.getDomNode()?.parentElement // .ls-code-cell-editor
     const updateHeight = (): void => {
-      const contentHeight = editor.getContentHeight()
-      const container = editor.getDomNode()
-      if (container) {
-        container.style.height = `${contentHeight}px`
-      }
+      if (!wrapper) return
+      const h = Math.max(editor.getContentHeight(), 38)
+      wrapper.style.height = `${h}px`
       editor.layout()
     }
 
     editor.onDidContentSizeChange(updateHeight)
-    // Initial layout
-    setTimeout(updateHeight, 50)
+    updateHeight()
+    setTimeout(updateHeight, 100)
+    setTimeout(updateHeight, 500)
   }, [onMount])
 
   const handleChange = useCallback(

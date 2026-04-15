@@ -374,13 +374,12 @@
 
 /* Code cell editor */
 .ls-code-cell-editor {
-  min-height: 28px;
+  min-height: 38px;
   padding: 4px 0;
 }
 
-.ls-code-cell-editor .monaco-editor {
-  min-height: 28px;
-}
+/* Cell editor Monaco sizing is handled by the override in editor.css
+   and the JS height logic in CodeCell. */
 
 /* Cell output.
    US-006: no per-cell vertical scroll — tall outputs expand the grid row

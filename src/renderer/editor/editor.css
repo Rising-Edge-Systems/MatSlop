@@ -227,9 +227,12 @@
   position: relative;
 }
 
+/* Force the main single-file Monaco editor to fill the editor-content area.
+   Use child combinator (>) to avoid matching Monaco editors nested inside
+   LiveScriptEditor cells — those size via JS in CodeCell. */
 .editor-content > section,
-.editor-content .monaco-editor,
-.editor-content .monaco-editor .overflow-guard {
+.editor-content > section > .monaco-editor,
+.editor-content > section > .monaco-editor .overflow-guard {
   width: 100% !important;
   height: 100% !important;
 }

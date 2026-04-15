@@ -821,6 +821,19 @@ body {
   color: var(--color-error);
 }
 
+.cw-command {
+  color: var(--text-primary);
+}
+
+.cw-output-line,
+.cw-line.cw-output {
+  color: var(--text-button);
+}
+
+.cw-error {
+  color: var(--color-error);
+}
+
 .cw-input-line {
   display: flex;
   align-items: center;
