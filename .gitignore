@@ -10,3 +10,6 @@ Thumbs.db
 scratch/
 test-results/
 playwright-report/
+test-screenshots/
+screenshot*.png
+test-livescript.mls
