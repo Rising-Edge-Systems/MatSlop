@@ -149,7 +149,7 @@ describe('buildRunScriptCommand', () => {
       "cd('/home/user/projects/demo'); addpath('/home/user/projects/demo'); source('/home/user/projects/demo/script.m')"
     )
     // Display echoes the short filename only, not the full path.
-    expect(display).toBe("source('script.m')")
+    expect(display).toBe("script.m")
   })
 
   it('preserves Windows backslash paths verbatim inside single quotes', () => {
@@ -160,7 +160,7 @@ describe('buildRunScriptCommand', () => {
     expect(command).toBe(
       "cd('C:\\Users\\Ada\\demo'); addpath('C:\\Users\\Ada\\demo'); source('C:\\Users\\Ada\\demo\\run me.m')"
     )
-    expect(display).toBe("source('run me.m')")
+    expect(display).toBe("run me.m")
   })
 
   it("doubles embedded single quotes for Octave's string escaping", () => {
@@ -171,7 +171,7 @@ describe('buildRunScriptCommand', () => {
     expect(command).toBe(
       "cd('/tmp/ad''s project'); addpath('/tmp/ad''s project'); source('/tmp/ad''s project/script.m')"
     )
-    expect(display).toBe("source('script.m')")
+    expect(display).toBe("script.m")
   })
 
   it('uses source() rather than run() — surfaces output in Command Window', () => {

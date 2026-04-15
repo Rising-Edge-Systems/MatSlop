@@ -115,7 +115,7 @@ export function useScriptExecution({
         const { command: tmpCmd } = buildRunScriptCommand(tmpPath, home)
         window.matslop.octaveExecute(tmpCmd).then((r) => {
           window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
-            detail: { display: `source('${tmpName}')`, output: r.output, error: r.error },
+            detail: { display: tmpName, output: r.output, error: r.error },
           }))
           window.dispatchEvent(new CustomEvent('matslop:runCapture'))
         }).catch(() => {})
@@ -130,7 +130,7 @@ export function useScriptExecution({
         const { command: saCmd } = buildRunScriptCommand(result.filePath, dirPath2)
         window.matslop.octaveExecute(saCmd).then((r) => {
           window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
-            detail: { display: `source('${result.filename}')`, output: r.output, error: r.error },
+            detail: { display: result.filename, output: r.output, error: r.error },
           }))
           window.dispatchEvent(new CustomEvent('matslop:runCapture'))
         }).catch(() => {})
@@ -143,7 +143,7 @@ export function useScriptExecution({
     const { command } = buildRunScriptCommand(tab.filePath, dirPath)
     window.matslop.octaveExecute(command).then((result) => {
       window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
-        detail: { display: `source('${tab.filename}')`, output: result.output, error: result.error },
+        detail: { display: tab.filename, output: result.output, error: result.error },
       }))
       window.dispatchEvent(new CustomEvent('matslop:runCapture'))
     }).catch(() => {})

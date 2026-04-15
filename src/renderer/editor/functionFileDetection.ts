@@ -76,6 +76,6 @@ export function buildRunScriptCommand(
   const escapedFile = fileName.replace(/'/g, "''")
   return {
     command: `cd('${escapedDir}'); addpath('${escapedDir}'); source('${escapedAbsPath}')`,
-    display: `source('${escapedFile}')`,
+    display: escapedFile,
   }
 }
