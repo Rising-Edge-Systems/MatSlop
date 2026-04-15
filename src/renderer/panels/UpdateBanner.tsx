@@ -1,14 +1,13 @@
 /**
- * US-041: Auto-update notification banner.
+ * US-041 / US-C06: Auto-update notification banner.
  *
  * Subscribes to `update:status` events from the main process (wired via
  * `window.matslop.onUpdateStatus`) and shows a dismissable banner offering
- * "Install now" / "Later" once an update has been fully downloaded (or a
- * progress indicator while downloading). The banner is a pure function of
+ * "Download" / "Install & Restart" actions. The banner is a pure function of
  * the latest UpdateStatus — main process does all the heavy lifting.
  */
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 
 type Props = {
   /** Test seam: inject a fake status instead of waiting for real events. */
@@ -18,6 +17,7 @@ type Props = {
 export function UpdateBanner({ initialStatus }: Props): React.JSX.Element | null {
   const [status, setStatus] = useState<UpdateStatus>(initialStatus ?? { kind: 'idle' })
   const [dismissed, setDismissed] = useState<boolean>(false)
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -57,7 +57,37 @@ export function UpdateBanner({ initialStatus }: Props): React.JSX.Element | null
     }
   }, [])
 
+  // Auto-hide error banner after 8 seconds
+  useEffect(() => {
+    if (status.kind === 'error') {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+      errorTimerRef.current = setTimeout(() => {
+        setDismissed(true)
+      }, 8000)
+    } else {
+      if (errorTimerRef.current) {
+        clearTimeout(errorTimerRef.current)
+        errorTimerRef.current = null
+      }
+    }
+    return () => {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    }
+  }, [status])
+
   if (dismissed) return null
+
+  const closeButton = (
+    <button
+      type="button"
+      className="update-banner-close"
+      data-testid="update-banner-close"
+      onClick={() => setDismissed(true)}
+      aria-label="Dismiss"
+    >
+      &#x2715;
+    </button>
+  )
 
   // Only surface the banner for states the user needs to act on.
   switch (status.kind) {
@@ -65,46 +95,44 @@ export function UpdateBanner({ initialStatus }: Props): React.JSX.Element | null
       return (
         <div className="update-banner" data-testid="update-banner" role="status">
           <span className="update-banner-message">
-            MatSlop {status.version} is available
-            {status.releaseName ? ` — ${status.releaseName}` : ''}.
+            MatSlop v{status.version} is available
+            {status.releaseName ? ` — ${status.releaseName}` : ''}
           </span>
           <div className="update-banner-actions">
             <button
               type="button"
               className="update-banner-btn update-banner-btn-primary"
-              data-testid="update-banner-install"
+              data-testid="update-banner-download"
               onClick={() => {
-                // Trigger a real download; once it completes we'll flip to
-                // the 'downloaded' state and the user can confirm install.
                 void window.matslop.updateDownload()
               }}
             >
               Download
             </button>
-            <button
-              type="button"
-              className="update-banner-btn"
-              data-testid="update-banner-later"
-              onClick={() => setDismissed(true)}
-            >
-              Later
-            </button>
           </div>
+          {closeButton}
         </div>
       )
     case 'downloading':
       return (
         <div className="update-banner" data-testid="update-banner" role="status">
           <span className="update-banner-message">
-            Downloading update… {Math.round(status.percent)}%
+            Downloading update&hellip; {Math.round(status.percent)}%
           </span>
+          <div className="update-banner-progress">
+            <div
+              className="update-banner-progress-bar"
+              style={{ width: `${Math.round(status.percent)}%` }}
+            />
+          </div>
+          {closeButton}
         </div>
       )
     case 'downloaded':
       return (
         <div className="update-banner" data-testid="update-banner" role="status">
           <span className="update-banner-message">
-            MatSlop {status.version} is ready to install.
+            Update ready — Install &amp; Restart
           </span>
           <div className="update-banner-actions">
             <button
@@ -115,31 +143,17 @@ export function UpdateBanner({ initialStatus }: Props): React.JSX.Element | null
                 void window.matslop.updateInstall()
               }}
             >
-              Install now
-            </button>
-            <button
-              type="button"
-              className="update-banner-btn"
-              data-testid="update-banner-later"
-              onClick={() => setDismissed(true)}
-            >
-              Later
+              Install &amp; Restart
             </button>
           </div>
+          {closeButton}
         </div>
       )
     case 'error':
       return (
         <div className="update-banner update-banner-error" data-testid="update-banner" role="alert">
           <span className="update-banner-message">Update check failed: {status.message}</span>
-          <button
-            type="button"
-            className="update-banner-btn"
-            data-testid="update-banner-dismiss"
-            onClick={() => setDismissed(true)}
-          >
-            Dismiss
-          </button>
+          {closeButton}
         </div>
       )
     default:

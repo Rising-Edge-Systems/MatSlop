@@ -1923,12 +1923,13 @@ function App(): React.JSX.Element {
           onClose={() => setInspectedVariable(null)}
         />
       )}
-      {/* US-041: Auto-update notification banner. Renders null when idle,
-          so it consumes no layout space until an update is available. */}
-      <UpdateBanner />
       <OctaveContext.Provider value={octaveCtx}>
       <AppContext.Provider value={appCtx}>
       <div className="app-main">
+      {/* US-C06: Auto-update notification banner. Renders null when idle,
+          so it consumes no layout space until an update is available.
+          Placed at top of app-main, above the dock layout / toolbar. */}
+      <UpdateBanner />
       {/* US-025: Every panel is now a dock pane inside MatslopDockLayout,
           which wraps rc-dock. The layout tree is computed from the
           visibility flags below — panels whose flag is `false` are
