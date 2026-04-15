@@ -152,6 +152,20 @@
   overflow-x: auto;
   min-height: 32px;
   flex-shrink: 0;
+  scrollbar-width: thin;
+}
+
+.editor-tabs::-webkit-scrollbar {
+  height: 3px;
+}
+
+.editor-tabs::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 2px;
+}
+
+.editor-tabs::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .editor-tab {
@@ -165,7 +179,7 @@
   border-right: 1px solid var(--border-color);
   white-space: nowrap;
   user-select: none;
-  min-width: 0;
+  flex-shrink: 0;
 }
 
 .editor-tab:hover {

@@ -85,6 +85,11 @@ function TabbedEditor({
   const activeTabIdRef = useRef<string | null>(activeTabId)
   useEffect(() => {
     activeTabIdRef.current = activeTabId
+    // Auto-scroll the tab bar so the active tab is visible
+    if (activeTabId) {
+      const el = document.querySelector(`[data-tab-id="${activeTabId}"]`)
+      el?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
+    }
   }, [activeTabId])
 
   // When a tab is closed, drop its breakpoint entry so the store doesn't leak.
