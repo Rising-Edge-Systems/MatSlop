@@ -509,12 +509,12 @@ function TabbedEditor({
           <div className="editor-empty-actions">
             {onNewFile && (
               <button className="editor-action-btn" onClick={onNewFile}>
-                New File
+                New Script <span className="editor-empty-shortcut">Ctrl+N</span>
               </button>
             )}
             {onOpenFile && (
               <button className="editor-action-btn" onClick={onOpenFile}>
-                Open File
+                Open File <span className="editor-empty-shortcut">Ctrl+O</span>
               </button>
             )}
           </div>
