@@ -115,7 +115,7 @@ export function useScriptExecution({
         const { command: tmpCmd } = buildRunScriptCommand(tmpPath, home)
         window.matslop.octaveExecute(tmpCmd).then((r) => {
           window.dispatchEvent(new CustomEvent('matslop:commandOutput', {
-            detail: { display: tmpName, output: r.output, error: r.error },
+            detail: { display: tab.filename, output: r.output, error: r.error },
           }))
           window.dispatchEvent(new CustomEvent('matslop:runCapture'))
         }).catch(() => {})
