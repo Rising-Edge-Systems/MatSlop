@@ -486,7 +486,7 @@
         "All tests pass"
       ],
       "priority": 25,
-      "passes": false,
+      "passes": true,
       "notes": "Create EditorTab test fixtures with known IDs. Pass them as props to TabbedEditor. For the x button test, use fireEvent.click and verify the onTabClose mock was called."
     },
     {
@@ -506,7 +506,7 @@
         "All tests pass"
       ],
       "priority": 26,
-      "passes": false,
+      "passes": true,
       "notes": "Mock useOctaveStatus from OctaveContext to return 'ready'. The toolbar uses lucide-react icons — they render as SVG elements. Find buttons by title attribute."
     }
   ]
