@@ -534,6 +534,7 @@ function TabbedEditor({
             data-tab-filename={tab.filename}
             className={`editor-tab ${tab.id === activeTabId ? 'active' : ''}`}
             onClick={() => onTabSelect(tab.id)}
+            title={tab.filePath || tab.filename}
           >
             <span className="editor-tab-name">
               {tab.filename}
