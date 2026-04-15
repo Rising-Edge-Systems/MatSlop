@@ -1221,6 +1221,16 @@ ipcMain.handle('update:checkNow', async (): Promise<UpdateStatus> => {
   return getUpdateBridge().checkNow()
 })
 
+// US-C05: Alias for the renderer's updateCheck() method.
+ipcMain.handle('update:check', async (): Promise<UpdateStatus> => {
+  return getUpdateBridge().checkNow()
+})
+
+// US-C05: Trigger download of an available update.
+ipcMain.handle('update:download', async (): Promise<void> => {
+  return getUpdateBridge().downloadUpdate()
+})
+
 ipcMain.handle('update:checkIfDue', async (): Promise<UpdateStatus> => {
   return getUpdateBridge().checkIfDue()
 })

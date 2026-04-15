@@ -76,7 +76,7 @@ export function UpdateBanner({ initialStatus }: Props): React.JSX.Element | null
               onClick={() => {
                 // Trigger a real download; once it completes we'll flip to
                 // the 'downloaded' state and the user can confirm install.
-                void window.matslop.updateCheckNow()
+                void window.matslop.updateDownload()
               }}
             >
               Download

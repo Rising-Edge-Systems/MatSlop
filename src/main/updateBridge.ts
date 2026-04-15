@@ -166,6 +166,8 @@ export interface UpdateBridge {
    * one. Returns the resolved status (or 'idle' if skipped).
    */
   checkIfDue(nowMs?: number): Promise<UpdateStatus>
+  /** Trigger the download of an available update. */
+  downloadUpdate(): Promise<void>
   /** Quit the app and install the downloaded update. */
   quitAndInstall(): void
   /** Latest known status. */
@@ -194,6 +196,7 @@ export function createUpdateBridge(deps: UpdateBridgeDeps): UpdateBridge {
     currentVersion?: unknown
     on: (event: string, handler: (...args: unknown[]) => void) => void
     checkForUpdates: () => Promise<unknown>
+    downloadUpdate: () => Promise<unknown>
     quitAndInstall: (isSilent?: boolean, isForceRunAfter?: boolean) => void
   }
 
@@ -280,6 +283,17 @@ export function createUpdateBridge(deps: UpdateBridgeDeps): UpdateBridge {
     return checkNow()
   }
 
+  async function downloadUpdate(): Promise<void> {
+    if (!updater) return
+    try {
+      await updater.downloadUpdate()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Download failed'
+      _latestState = { kind: 'error', message }
+      deps.sendStatus(_latestState)
+    }
+  }
+
   function quitAndInstall(): void {
     if (!updater) return
     try {
@@ -295,7 +309,7 @@ export function createUpdateBridge(deps: UpdateBridgeDeps): UpdateBridge {
     return _latestState
   }
 
-  return { checkNow, checkIfDue, quitAndInstall, getState }
+  return { checkNow, checkIfDue, downloadUpdate, quitAndInstall, getState }
 }
 
 /**

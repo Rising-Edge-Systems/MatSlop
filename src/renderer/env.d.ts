@@ -271,6 +271,9 @@ interface Window {
     // US-041: Auto-update channel
     updateCheckNow: () => Promise<UpdateStatus>
     updateCheckIfDue: () => Promise<UpdateStatus>
+    // US-C05: IPC bridge methods for update actions
+    updateCheck: () => Promise<UpdateStatus>
+    updateDownload: () => Promise<void>
     updateInstall: () => Promise<void>
     updateGetState: () => Promise<UpdateStatus>
     updateGetIntervalHours: () => Promise<number>

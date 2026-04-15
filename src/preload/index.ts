@@ -304,6 +304,9 @@ contextBridge.exposeInMainWorld('matslop', {
   // US-041: Auto-update channel
   updateCheckNow: (): Promise<unknown> => ipcRenderer.invoke('update:checkNow'),
   updateCheckIfDue: (): Promise<unknown> => ipcRenderer.invoke('update:checkIfDue'),
+  // US-C05: IPC bridge methods for update actions
+  updateCheck: (): Promise<unknown> => ipcRenderer.invoke('update:check'),
+  updateDownload: (): Promise<void> => ipcRenderer.invoke('update:download'),
   updateInstall: (): Promise<void> => ipcRenderer.invoke('update:install'),
   updateGetState: (): Promise<unknown> => ipcRenderer.invoke('update:getState'),
   updateGetIntervalHours: (): Promise<number> =>
