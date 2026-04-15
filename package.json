@@ -2,6 +2,10 @@
   "name": "matslop",
   "version": "0.1.0",
   "description": "MatSlop - Open-source MATLAB alternative IDE",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rising-Edge-Systems/MatSlop.git"
+  },
   "type": "module",
   "main": "dist/main/index.js",
   "scripts": {
@@ -80,8 +84,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "matslop",
-        "repo": "matslop"
+        "owner": "Rising-Edge-Systems",
+        "repo": "MatSlop"
       }
     ]
   },
