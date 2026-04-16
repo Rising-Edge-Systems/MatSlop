@@ -2,6 +2,11 @@
   "name": "matslop",
   "version": "0.1.1",
   "description": "MatSlop - Open-source MATLAB alternative IDE",
+  "author": {
+    "name": "Rising Edge Systems",
+    "email": "support@risingedgesystems.com"
+  },
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Rising-Edge-Systems/MatSlop.git"
