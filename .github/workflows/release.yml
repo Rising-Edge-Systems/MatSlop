@@ -58,13 +58,14 @@ jobs:
       - name: Flatten artifacts
         run: |
           mkdir -p release-files
-          find artifacts -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.yml" -o -name "*.yaml" -o -name "*.blockmap" \) -exec cp {} release-files/ \;
+          find artifacts -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.blockmap" -o -name "latest*.yml" \) -exec cp {} release-files/ \;
+          echo "Files to release:"
           ls -la release-files/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.ref_name }}
+          name: MatSlop ${{ github.ref_name }}
           generate_release_notes: true
           files: release-files/*
           fail_on_unmatched_files: false
