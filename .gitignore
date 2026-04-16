@@ -2,14 +2,26 @@ node_modules/
 dist/
 release/
 resources/octave/
+
 *.log
 .DS_Store
 Thumbs.db
 
-# Personal scratch area for local test scripts — not committed
-scratch/
+# Test artifacts
 test-results/
 playwright-report/
 test-screenshots/
 screenshot*.png
 test-livescript.mls
+scratch/
+
+# Octave workspace files
+octave-workspace
+
+# IDE / editor
+.idea/
+*.swp
+*.swo
+
+# Claude Code
+.claude/scheduled_tasks.lock
