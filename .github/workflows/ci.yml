@@ -48,6 +48,11 @@ jobs:
           cache: npm
       - run: npm ci
 
+      - name: Download Octave
+        run: npm run download:octave
+        continue-on-error: true
+        timeout-minutes: 15
+
       - name: Build
         run: ${{ matrix.build_cmd }}
         env:

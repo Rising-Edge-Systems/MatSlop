@@ -40,13 +40,11 @@ describe('download-octave macOS support', () => {
     expect(script).toMatch(/hdiutil detach/)
   })
 
-  it('build:mac script runs download:octave before electron-builder', () => {
+  it('build:mac script runs electron-vite build and electron-builder', () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf-8'))
     const buildMac = pkg.scripts['build:mac'] as string
-    expect(buildMac).toContain('download:octave')
-    expect(buildMac.indexOf('download:octave')).toBeLessThan(
-      buildMac.indexOf('electron-builder')
-    )
+    expect(buildMac).toContain('electron-vite build')
+    expect(buildMac).toContain('electron-builder --mac')
   })
 
   it('octaveConfig getBundledOctavePath handles macOS Octave.app layout', () => {

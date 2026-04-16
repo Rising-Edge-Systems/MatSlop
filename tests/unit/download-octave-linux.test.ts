@@ -49,13 +49,11 @@ describe('download-octave Linux support (.deb bundling)', () => {
     expect(script).toMatch(/downloadLinuxDebs/)
   })
 
-  it('build:linux script still invokes download:octave before electron-builder', () => {
+  it('build:linux script runs electron-vite build and electron-builder', () => {
     const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf-8'))
     const buildLinux = pkg.scripts['build:linux'] as string
-    expect(buildLinux).toContain('download:octave')
-    expect(buildLinux.indexOf('download:octave')).toBeLessThan(
-      buildLinux.indexOf('electron-builder')
-    )
+    expect(buildLinux).toContain('electron-vite build')
+    expect(buildLinux).toContain('electron-builder --linux')
   })
 
   it('octaveConfig still supports the squashfs-root layout as a legacy fallback', () => {
