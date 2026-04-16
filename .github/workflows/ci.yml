@@ -64,10 +64,18 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y dpkg-dev rpm fakeroot
 
-      - name: Download Octave
+      - name: Download Octave (attempt 1)
+        id: octave1
         run: node scripts/download-octave.js
-        timeout-minutes: 15
-        continue-on-error: ${{ matrix.os == 'macos-latest' }}
+        timeout-minutes: 20
+        continue-on-error: true
+
+      - name: Download Octave (retry)
+        if: steps.octave1.outcome == 'failure' && matrix.os != 'macos-latest'
+        run: |
+          rm -rf resources/octave
+          node scripts/download-octave.js
+        timeout-minutes: 20
 
       - name: Verify Octave bundled
         if: matrix.os != 'macos-latest'
