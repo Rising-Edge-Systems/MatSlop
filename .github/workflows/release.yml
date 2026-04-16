@@ -1,102 +1,65 @@
 name: Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to release (e.g., 0.2.0)'
-        required: true
-        type: string
+  push:
+    tags: ['v*.*.*']
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
-  test:
-    runs-on: windows-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx tsc --noEmit
-      - run: npx vitest run --exclude tests/integration/publish-html-integration.test.ts
-
-  build:
-    needs: test
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: windows-latest
-            build_cmd: npm run build:win
-            artifact_name: windows-artifacts
-          - os: ubuntu-latest
-            build_cmd: npm run build:linux
-            artifact_name: linux-artifacts
-          - os: macos-latest
-            build_cmd: npm run build:mac
-            artifact_name: macos-artifacts
-
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-
-      - name: Set version
-        run: npm version ${{ inputs.version }} --no-git-tag-version
-
-      - name: Build
-        run: ${{ matrix.build_cmd }}
-        env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: release/*
-          if-no-files-found: error
-
   release:
-    needs: build
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: Create tag and release
+      - name: Find CI run for this commit
+        id: find-run
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ inputs.version }}" -m "Release v${{ inputs.version }}"
-          git push origin "v${{ inputs.version }}"
+          COMMIT_SHA=$(git rev-list -1 ${{ github.ref_name }})
+          echo "Looking for CI artifacts from commit $COMMIT_SHA"
+
+          # Wait up to 10 minutes for CI to complete
+          for i in $(seq 1 20); do
+            RUN=$(gh api "/repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$COMMIT_SHA&status=completed&per_page=1" \
+              --jq '.workflow_runs[0] | {id, conclusion}')
+            RUN_ID=$(echo "$RUN" | jq -r '.id // empty')
+            CONCLUSION=$(echo "$RUN" | jq -r '.conclusion // empty')
+
+            if [ -n "$RUN_ID" ]; then
+              if [ "$CONCLUSION" = "success" ]; then
+                echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+                echo "Found successful CI run: $RUN_ID"
+                exit 0
+              else
+                echo "CI run $RUN_ID finished with: $CONCLUSION"
+                exit 1
+              fi
+            fi
+            echo "Waiting for CI to complete... (attempt $i/20)"
+            sleep 30
+          done
+          echo "Timed out waiting for CI run"
+          exit 1
+
+      - name: Download artifacts from CI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p artifacts
+          gh run download ${{ steps.find-run.outputs.run_id }} --dir artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f | head -20
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ inputs.version }}
-          name: v${{ inputs.version }}
+          name: ${{ github.ref_name }}
           generate_release_notes: true
-          files: artifacts/*
+          files: artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
