@@ -51,13 +51,8 @@ jobs:
       - name: Run tests
         run: npx vitest run --exclude tests/integration/publish-html-integration.test.ts
 
-      - name: Download Octave
-        run: node scripts/download-octave.js
-        continue-on-error: true
-        timeout-minutes: 15
-
       - name: Build
-        run: electron-vite build && npx electron-builder ${{ matrix.os == 'windows-latest' && '--win' || matrix.os == 'ubuntu-latest' && '--linux' || '--mac' }}
+        run: ${{ matrix.build_cmd }}
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
