@@ -316,6 +316,19 @@ export function buildAppMenu(
             shell.openExternal('https://docs.octave.org/latest/')
           },
         },
+        { type: 'separator' },
+        {
+          label: 'Report a Bug...',
+          click: () => {
+            shell.openExternal('https://github.com/Rising-Edge-Systems/MatSlop/issues/new?template=bug_report.md')
+          },
+        },
+        {
+          label: 'Request a Feature...',
+          click: () => {
+            shell.openExternal('https://github.com/Rising-Edge-Systems/MatSlop/issues/new?template=feature_request.md')
+          },
+        },
       ],
     },
   ]
