@@ -497,6 +497,72 @@ ipcMain.handle('octave:autoDetect', () => {
   return autoDetectOctavePath()
 })
 
+ipcMain.handle('octave:download', async () => {
+  // Download Octave to a writable directory, then return the binary path.
+  // In packaged mode, resources/ is read-only, so download to userData.
+  const targetDir = app.isPackaged
+    ? path.join(app.getPath('userData'), 'octave')
+    : path.join(app.getAppPath(), 'resources', 'octave')
+
+  const https = await import('https')
+  const http = await import('http')
+
+  function downloadFile(url: string, dest: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      fs.mkdirSync(path.dirname(dest), { recursive: true })
+      const file = fs.createWriteStream(dest)
+      const doGet = url.startsWith('https') ? https.get : http.get
+      function follow(u: string, depth = 0): void {
+        if (depth > 10) { reject(new Error('Too many redirects')); return }
+        const getter = u.startsWith('https') ? https.get : http.get
+        getter(u, (res) => {
+          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            res.resume(); follow(res.headers.location, depth + 1); return
+          }
+          if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return }
+          res.pipe(file)
+          file.on('finish', () => { file.close(); resolve() })
+        }).on('error', reject)
+      }
+      follow(url)
+    })
+  }
+
+  try {
+    fs.mkdirSync(targetDir, { recursive: true })
+    if (process.platform === 'win32') {
+      const zipUrl = 'https://ftpmirror.gnu.org/octave/windows/octave-9.4.0-w64.zip'
+      const zipPath = path.join(targetDir, 'octave.zip')
+      const binaryPath = path.join(targetDir, 'mingw64', 'bin', 'octave-cli.exe')
+      if (!fs.existsSync(binaryPath)) {
+        console.log('Downloading Octave for Windows...')
+        await downloadFile(zipUrl, zipPath)
+        console.log('Extracting...')
+        const { execSync } = await import('child_process')
+        execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${targetDir}' -Force"`, { timeout: 600000 })
+        // Move from subdirectory to root
+        const subdir = path.join(targetDir, 'octave-9.4.0-w64')
+        if (fs.existsSync(subdir)) {
+          for (const entry of fs.readdirSync(subdir)) {
+            const src = path.join(subdir, entry)
+            const dst = path.join(targetDir, entry)
+            if (!fs.existsSync(dst)) fs.renameSync(src, dst)
+          }
+          fs.rmSync(subdir, { recursive: true, force: true })
+        }
+        try { fs.unlinkSync(zipPath) } catch {}
+        console.log('Octave ready at:', binaryPath)
+      }
+      if (fs.existsSync(binaryPath)) return binaryPath
+    }
+    // For other platforms, fall back to auto-detect (system Octave)
+    return autoDetectOctavePath()
+  } catch (err) {
+    console.error('Octave download failed:', err)
+    return null
+  }
+})
+
 ipcMain.handle('octave:validate', async (_event, binaryPath: string) => {
   return validateOctavePath(binaryPath)
 })

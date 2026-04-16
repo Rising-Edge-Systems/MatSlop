@@ -632,9 +632,26 @@ function App(): React.JSX.Element {
           return
         }
       }
-      // US-P04: Not configured and auto-detect failed — show a dismissible
-      // banner above the status bar instead of a modal blocking the UI.
+      // No bundled or system Octave found — download it automatically
       setOctaveBannerVisible(true)
+      setOctaveBannerError('Downloading GNU Octave... This may take a few minutes on first launch.')
+      try {
+        const downloadedPath = await window.matslop.octaveDownload()
+        if (downloadedPath) {
+          const result = await window.matslop.octaveValidate(downloadedPath)
+          if (result.valid) {
+            await window.matslop.octaveSetPath(downloadedPath)
+            setOctaveStatus({ path: downloadedPath, version: result.version ?? 'unknown', configured: true, engineStatus: 'disconnected' })
+            setOctaveBannerVisible(false)
+            setOctaveBannerError(null)
+            startOctaveProcess(downloadedPath)
+            return
+          }
+        }
+        setOctaveBannerError('Octave download failed. Click Browse to locate octave-cli manually.')
+      } catch (err) {
+        setOctaveBannerError(`Failed to download Octave: ${err instanceof Error ? err.message : String(err)}`)
+      }
     })
   }, [startOctaveProcess])
 

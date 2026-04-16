@@ -43,6 +43,8 @@ contextBridge.exposeInMainWorld('matslop', {
   // Octave configuration
   octaveAutoDetect: (): Promise<string | null> =>
     ipcRenderer.invoke('octave:autoDetect'),
+  octaveDownload: (): Promise<string | null> =>
+    ipcRenderer.invoke('octave:download'),
   octaveValidate: (binaryPath: string): Promise<{ valid: boolean; version?: string; error?: string }> =>
     ipcRenderer.invoke('octave:validate', binaryPath),
   octaveGetPath: (): Promise<string | null> =>

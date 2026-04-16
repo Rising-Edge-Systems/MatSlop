@@ -64,27 +64,6 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y dpkg-dev rpm fakeroot
 
-      - name: Cache Octave
-        uses: actions/cache@v4
-        with:
-          path: resources/octave
-          key: octave-${{ runner.os }}-v1
-
-      - name: Download Octave
-        run: node scripts/download-octave.js
-        timeout-minutes: 25
-        continue-on-error: true
-
-      - name: Verify Octave bundled
-        if: matrix.os != 'macos-latest'
-        shell: bash
-        run: |
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            test -f resources/octave/mingw64/bin/octave-cli.exe && echo "Octave found" || (echo "ERROR: Octave not bundled!" && exit 1)
-          elif [ "$RUNNER_OS" = "Linux" ]; then
-            test -f resources/octave/usr/bin/octave-cli && echo "Octave found" || (echo "ERROR: Octave not bundled!" && exit 1)
-          fi
-
       - name: Build
         run: npx electron-vite build && npx electron-builder ${{ matrix.platform_flag }} --publish never
         env:

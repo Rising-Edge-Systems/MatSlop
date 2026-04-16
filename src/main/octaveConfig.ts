@@ -10,7 +10,10 @@ function getBundledOctavePath(): string | null {
   // In packaged app: resources are in process.resourcesPath
   // In dev mode: __dirname is dist/main/, so project root is ../../
   const searchPaths = app.isPackaged
-    ? [path.join(process.resourcesPath, 'octave')]
+    ? [
+        path.join(app.getPath('userData'), 'octave'),
+        path.join(process.resourcesPath, 'octave'),
+      ]
     : [
         path.join(app.getAppPath(), 'resources', 'octave'),
         path.join(__dirname, '..', '..', 'resources', 'octave')
