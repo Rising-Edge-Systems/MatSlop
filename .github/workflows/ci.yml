@@ -66,8 +66,18 @@ jobs:
 
       - name: Download Octave
         run: node scripts/download-octave.js
-        continue-on-error: true
         timeout-minutes: 15
+
+      - name: Verify Octave bundled
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            test -f resources/octave/mingw64/bin/octave-cli.exe && echo "Octave found" || (echo "ERROR: Octave not bundled!" && exit 1)
+          elif [ "$RUNNER_OS" = "Linux" ]; then
+            test -f resources/octave/usr/bin/octave-cli && echo "Octave found" || (echo "ERROR: Octave not bundled!" && exit 1)
+          elif [ "$RUNNER_OS" = "macOS" ]; then
+            test -d resources/octave/Octave.app && echo "Octave found" || (echo "ERROR: Octave not bundled!" && exit 1)
+          fi
 
       - name: Build
         run: npx electron-vite build && npx electron-builder ${{ matrix.platform_flag }} --publish never
