@@ -60,6 +60,10 @@ jobs:
           cache: npm
       - run: npm ci
 
+      - name: Install Linux build deps
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev rpm fakeroot
+
       - name: Download Octave
         run: node scripts/download-octave.js
         continue-on-error: true
