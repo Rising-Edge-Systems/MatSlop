@@ -73,7 +73,7 @@ jobs:
       - name: Download Octave
         run: node scripts/download-octave.js
         timeout-minutes: 25
-        continue-on-error: ${{ matrix.os == 'macos-latest' }}
+        continue-on-error: true
 
       - name: Verify Octave bundled
         if: matrix.os != 'macos-latest'
