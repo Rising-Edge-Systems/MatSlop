@@ -146,6 +146,7 @@ function seriesToTraces(
   axesIndex: number,
   axesIs3D: boolean,
   showColorbar: boolean,
+  colorscale: [number, string][] | string = 'Viridis',
 ): PlotlyTrace[] {
   const name = series.type === 'unknown' ? undefined : series.label
   const showlegend = typeof name === 'string' && name.length > 0
@@ -275,7 +276,7 @@ function seriesToTraces(
           y: flatY,
           z: series.z,
           surfacecolor: series.c,
-          colorscale: 'Viridis',
+          colorscale,
           name,
           showlegend,
           scene: sceneKey,
@@ -463,7 +464,7 @@ function seriesToTraces(
           showlegend,
           xaxis: xaxisKey,
           yaxis: yaxisKey,
-          colorscale: series.colormap === 'jet' ? 'Jet' : 'Viridis',
+          colorscale: series.colormap === 'jet' ? 'Jet' : colorscale,
           showscale: true,
         },
       ]
@@ -694,9 +695,36 @@ export function defaultExportFilename(figure: PlotFigure): string {
  * Pure function — no DOM access, no Plotly runtime import. Safe to unit
  * test in node.
  */
+/** Convert an Octave colormap (array of [position, [r,g,b]] stops) to a Plotly colorscale. */
+function octaveColormapToPlotly(
+  cmap: [number, number[]][] | undefined,
+): [number, string][] | string {
+  if (!cmap || cmap.length === 0) return 'Viridis'
+  // Sample at most 64 stops to keep the JSON manageable
+  const step = Math.max(1, Math.floor(cmap.length / 64))
+  const stops: [number, string][] = []
+  for (let i = 0; i < cmap.length; i += step) {
+    const [pos, rgb] = cmap[i]
+    const r = Math.round(clamp01(rgb[0]) * 255)
+    const g = Math.round(clamp01(rgb[1]) * 255)
+    const b = Math.round(clamp01(rgb[2]) * 255)
+    stops.push([pos, `rgb(${r},${g},${b})`])
+  }
+  // Ensure the last stop is at position 1.0
+  const last = cmap[cmap.length - 1]
+  if (stops[stops.length - 1][0] < 1.0) {
+    const r = Math.round(clamp01(last[1][0]) * 255)
+    const g = Math.round(clamp01(last[1][1]) * 255)
+    const b = Math.round(clamp01(last[1][2]) * 255)
+    stops.push([1.0, `rgb(${r},${g},${b})`])
+  }
+  return stops
+}
+
 export function figureToPlotly(figure: PlotFigure): PlotlyFigure {
   const data: PlotlyTrace[] = []
   const has3DAxes = figure.axes.some(is3D)
+  const colorscale = octaveColormapToPlotly(figure.colormap)
   const layout: PlotlyLayout = {
     autosize: true,
     margin: has3DAxes
@@ -716,7 +744,7 @@ export function figureToPlotly(figure: PlotFigure): PlotlyFigure {
   figure.axes.forEach((axes, i) => {
     axesToLayoutKeys(axes, i, layout)
     for (const s of axes.series) {
-      for (const trace of seriesToTraces(s, i, is3D(axes), axes.colorbar === true)) {
+      for (const trace of seriesToTraces(s, i, is3D(axes), axes.colorbar === true, colorscale)) {
         data.push(trace)
       }
     }

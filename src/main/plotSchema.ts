@@ -229,6 +229,8 @@ export interface PlotFigure {
   size?: Vec2
   /** All axes belonging to the figure. */
   axes: PlotAxes[]
+  /** Figure colormap as Plotly colorscale stops: [[position, [r,g,b]], ...] */
+  colormap?: [number, number[]][]
 }
 
 // --------------------------------------------------------------------------
@@ -543,6 +545,19 @@ export function parsePlotFigure(input: string | unknown): PlotFigure {
     throw new PlotSchemaError('Figure is missing numeric "handle"')
   }
   const axesRaw = Array.isArray(raw.axes) ? raw.axes : []
+  // Parse colormap: array of [position, [r,g,b]] stops
+  let colormap: [number, number[]][] | undefined
+  if (Array.isArray(raw.colormap)) {
+    try {
+      colormap = (raw.colormap as unknown[]).map((stop) => {
+        const arr = stop as [number, number[]]
+        return [Number(arr[0]), (arr[1] as number[]).map(Number)] as [number, number[]]
+      })
+    } catch {
+      colormap = undefined
+    }
+  }
+
   return {
     schemaVersion: typeof raw.schemaVersion === 'number' ? raw.schemaVersion : PLOT_SCHEMA_VERSION,
     handle,
@@ -550,6 +565,7 @@ export function parsePlotFigure(input: string | unknown): PlotFigure {
     backgroundColor: parseColor(raw.backgroundColor),
     size: parseVec2(raw.size),
     axes: axesRaw.map(parseAxes),
+    colormap,
   }
 }
 

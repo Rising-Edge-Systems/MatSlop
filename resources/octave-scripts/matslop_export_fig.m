@@ -44,6 +44,22 @@ function json = matslop_export_fig(h)
   catch
   end_try_catch
 
+  ## Capture the figure's colormap as an array of [position, r, g, b] stops
+  ## for conversion to a Plotly colorscale.
+  try
+    cmap = get(h, "colormap");
+    if ~isempty(cmap)
+      n = rows(cmap);
+      stops = cell(1, n);
+      for ci = 1:n
+        pos = (ci - 1) / max(n - 1, 1);
+        stops{ci} = {pos, num2cell(double(cmap(ci, :)))};
+      endfor
+      fig.colormap = stops;
+    endif
+  catch
+  end_try_catch
+
   fig.axes = {};
   try
     ax_handles = findall(h, "type", "axes");
@@ -198,6 +214,22 @@ function ser = __matslop_series_to_struct__(k)
       else
         ser.faceColor = num2cell(double(fc));
       endif
+      ## Capture color data for shading interp support
+      try
+        cd = double(get(k, "cdata"));
+        if ~isempty(cd)
+          ser.c = __matslop_mat_to_cell__(cd);
+        endif
+      catch
+      end_try_catch
+      ## facelighting for surfl
+      try
+        fl = get(k, "facelighting");
+        if ischar(fl) && ~strcmp(fl, "none")
+          ser.faceLighting = fl;
+        endif
+      catch
+      end_try_catch
     case "patch"
       ## contour creates patches; best-effort.
       ser.type = "contour";
