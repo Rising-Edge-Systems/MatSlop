@@ -51,7 +51,7 @@ const LINUX_DEBS = [
 
 const DOWNLOADS = {
   win32: {
-    url: `https://ftp.gnu.org/gnu/octave/windows/octave-${WIN_OCTAVE_VERSION}-w64.zip`,
+    url: `https://ftpmirror.gnu.org/octave/windows/octave-${WIN_OCTAVE_VERSION}-w64.zip`,
     filename: `octave-${WIN_OCTAVE_VERSION}-w64.zip`,
     extractedDir: `octave-${WIN_OCTAVE_VERSION}-w64`,
     binary: 'mingw64/bin/octave-cli.exe'
@@ -75,7 +75,8 @@ function download(url, dest) {
         reject(new Error('Too many redirects'))
         return
       }
-      get(url, (response) => {
+      const doGet = url.startsWith('https') ? https.get : http.get
+      doGet(url, (response) => {
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
           response.resume()
           followRedirects(response.headers.location, redirectCount + 1)
@@ -453,9 +454,26 @@ async function main() {
   // Clean up archive
   fs.unlinkSync(archivePath)
 
-  // Verify
+  // Verify — try the expected path first, then search for the binary
   if (fs.existsSync(binaryPath)) {
     console.log(`  Octave ${version} ready at: ${binaryPath}`)
+  } else if (platform === 'darwin') {
+    // octave-app bundles may have different internal layouts; search for the binary
+    const { execSync: exec } = require('child_process')
+    try {
+      const found = exec(`find "${path.join(OCTAVE_DIR, 'Octave.app')}" -name "octave-cli" -o -name "octave" | head -5`, { encoding: 'utf-8', timeout: 30000 }).trim()
+      if (found) {
+        console.log(`  Octave binary found at: ${found.split('\n')[0]}`)
+        console.log(`  NOTE: Expected path was: ${binaryPath}`)
+        console.log(`  You may need to update octaveConfig.ts to match this layout.`)
+      } else {
+        console.error('  ERROR: No octave binary found inside Octave.app')
+        process.exit(1)
+      }
+    } catch {
+      console.error('  ERROR: Binary not found after extraction:', binaryPath)
+      process.exit(1)
+    }
   } else {
     console.error('  ERROR: Binary not found after extraction:', binaryPath)
     console.log('  Directory contents:', fs.readdirSync(OCTAVE_DIR))

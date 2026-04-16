@@ -30,9 +30,8 @@ describe('download-octave macOS support', () => {
     expect(script).toMatch(/octave-app\/releases\/download\/v\$\{MAC_OCTAVE_VERSION\}/)
   })
 
-  it('Windows URL uses ftp.gnu.org (not the ftpmirror.gnu.org redirector)', () => {
-    expect(script).toMatch(/ftp\.gnu\.org\/gnu\/octave\/windows/)
-    expect(script).not.toMatch(/ftpmirror\.gnu\.org/)
+  it('Windows URL uses ftpmirror.gnu.org (auto-selects fastest mirror)', () => {
+    expect(script).toMatch(/ftpmirror\.gnu\.org\/octave\/windows/)
   })
 
   it('uses hdiutil to mount the DMG and copies Octave.app out', () => {
