@@ -59,6 +59,8 @@ jobs:
         run: |
           mkdir -p release-files
           find artifacts -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.blockmap" -o -name "latest*.yml" \) -exec cp {} release-files/ \;
+          # Remove files over 2GB (GitHub release asset limit)
+          find release-files -type f -size +2000M -exec rm -v {} \;
           echo "Files to release:"
           ls -la release-files/
 
