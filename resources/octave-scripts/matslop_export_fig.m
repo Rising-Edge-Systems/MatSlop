@@ -237,10 +237,29 @@ function ser = __matslop_series_to_struct__(k)
       try; ser.y = __matslop_mat_to_cell__(double(get(k, "ydata"))); catch; end_try_catch
       try; ser.z = __matslop_mat_to_cell__(double(get(k, "zdata"))); catch; end_try_catch
     case "hggroup"
-      ## Vector fields (quiver), bar groups, scatter groups are hggroups.
+      ## Vector fields (quiver), bar groups, scatter groups, stem, hist are hggroups.
+      ## Detection strategy: check the tag first, then try to read type-specific
+      ## properties (udata for quiver, barwidth for bar, etc.).
       tag = "";
       try; tag = get(k, "tag"); catch; end_try_catch
-      if ~isempty(strfind(lower(tag), "quiver"))
+      is_quiver = ~isempty(strfind(lower(tag), "quiver"));
+      is_bar = ~isempty(strfind(lower(tag), "bar"));
+      ## If tag is empty, try heuristic: check if udata exists (quiver signature)
+      if ~is_quiver && ~is_bar
+        try
+          get(k, "udata");
+          is_quiver = true;
+        catch
+        end_try_catch
+      endif
+      if ~is_quiver && ~is_bar
+        try
+          get(k, "barwidth");
+          is_bar = true;
+        catch
+        end_try_catch
+      endif
+      if is_quiver
         ser.type = "quiver";
         try
           ser.x = num2cell(double(get(k, "xdata"))(:)');
@@ -256,17 +275,60 @@ function ser = __matslop_series_to_struct__(k)
           catch
           end_try_catch
         catch
+          ## If direct property access fails, try extracting from children lines.
+          try
+            kids = get(k, "children");
+            if numel(kids) >= 1
+              xd = double(get(kids(1), "xdata"));
+              yd = double(get(kids(1), "ydata"));
+              ## Quiver children alternate base-tip pairs separated by NaN
+              ser.x = num2cell(xd(:)');
+              ser.y = num2cell(yd(:)');
+              ## Approximate u,v from the line segments
+              ser.u = num2cell(zeros(1, numel(xd))');
+              ser.v = num2cell(zeros(1, numel(yd))');
+            endif
+          catch
+          end_try_catch
         end_try_catch
-      elseif ~isempty(strfind(lower(tag), "bar"))
+      elseif is_bar
         ser.type = "bar";
         try
           ser.x = num2cell(double(get(k, "xdata"))(:)');
           ser.y = num2cell(double(get(k, "ydata"))(:)');
         catch
+          ## bar hggroup may store data in children patches
+          try
+            kids = get(k, "children");
+            if numel(kids) >= 1
+              ser.x = num2cell(double(get(kids(1), "xdata"))(:)');
+              ser.y = num2cell(double(get(kids(1), "ydata"))(:)');
+            endif
+          catch
+          end_try_catch
         end_try_catch
+        try; ser.barWidth = double(get(k, "barwidth")); catch; end_try_catch
       else
+        ## Try to extract data from children for hist/stem/other hggroups
         ser.type = "unknown";
         ser.octaveType = tp;
+        try
+          kids = get(k, "children");
+          if numel(kids) >= 1
+            child_type = get(kids(1), "type");
+            ## If children are patches (hist) or lines (stem), extract as bar/line
+            if strcmp(child_type, "patch")
+              ser.type = "bar";
+              ser.x = num2cell(double(get(kids(1), "xdata"))(:)');
+              ser.y = num2cell(double(get(kids(1), "ydata"))(:)');
+            elseif strcmp(child_type, "line")
+              ser.type = "line";
+              ser.x = num2cell(double(get(kids(1), "xdata"))(:)');
+              ser.y = num2cell(double(get(kids(1), "ydata"))(:)');
+            endif
+          endif
+        catch
+        end_try_catch
       endif
     case "image"
       ser.type = "image";
