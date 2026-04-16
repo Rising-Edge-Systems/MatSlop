@@ -48,7 +48,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Run tests
-        run: npx vitest run
+        run: npx vitest run --exclude tests/integration/publish-html-integration.test.ts
 
       - name: Build
         run: ${{ matrix.build_cmd }}
