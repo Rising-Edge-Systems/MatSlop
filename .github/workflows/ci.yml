@@ -23,8 +23,34 @@ jobs:
   build:
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: windows-latest
-    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform_flag: --win
+            artifact_name: windows-installer
+            artifact_glob: |
+              release/*.exe
+              release/*.blockmap
+              release/latest.yml
+          - os: ubuntu-latest
+            platform_flag: --linux
+            artifact_name: linux-installer
+            artifact_glob: |
+              release/*.AppImage
+              release/*.deb
+              release/latest-linux.yml
+          - os: macos-latest
+            platform_flag: --mac
+            artifact_name: macos-installer
+            artifact_glob: |
+              release/*.dmg
+              release/*.zip
+              release/latest-mac.yml
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
@@ -35,24 +61,21 @@ jobs:
       - run: npm ci
 
       - name: Download Octave
-        run: npm run download:octave
+        run: node scripts/download-octave.js
         continue-on-error: true
         timeout-minutes: 15
 
       - name: Build
-        run: npm run build:win
+        run: npx electron-vite build && npx electron-builder ${{ matrix.platform_flag }}
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload installer
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: windows-installer
-          path: |
-            release/*.exe
-            release/*.blockmap
-            release/latest.yml
-          if-no-files-found: error
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: warn
           retention-days: 7
