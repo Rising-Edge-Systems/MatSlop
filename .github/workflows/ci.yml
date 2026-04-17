@@ -3,8 +3,12 @@ name: CI
 on:
   push:
     branches: ['**']
+    tags: ['v*.*.*']
   pull_request:
     branches: [main]
+
+permissions:
+  contents: write
 
 jobs:
   test:
@@ -22,32 +26,16 @@ jobs:
 
   build:
     needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
             platform_flag: --win
-            artifact_name: windows-installer
-            artifact_glob: |
-              release/*.exe
-              release/*.blockmap
-              release/latest.yml
           - os: ubuntu-latest
             platform_flag: --linux
-            artifact_name: linux-installer
-            artifact_glob: |
-              release/*.AppImage
-              release/*.deb
-              release/latest-linux.yml
           - os: macos-latest
             platform_flag: --mac --arm64 --x64
-            artifact_name: macos-installer
-            artifact_glob: |
-              release/*.dmg
-              release/*.zip
-              release/latest-mac.yml
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
@@ -64,16 +52,8 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y dpkg-dev rpm fakeroot
 
-      - name: Build
-        run: npx electron-vite build && npx electron-builder ${{ matrix.platform_flag }} --publish never
+      - name: Build & Publish
+        run: npx electron-vite build && npx electron-builder ${{ matrix.platform_flag }} --publish onTag
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_glob }}
-          if-no-files-found: warn
-          retention-days: 7

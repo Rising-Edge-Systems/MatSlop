@@ -71,10 +71,8 @@
         "zip"
       ],
       "icon": "build/icon.png",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false
+      "identity": null
     },
-    "afterSign": "scripts/notarize.cjs",
     "win": {
       "target": [
         "nsis"

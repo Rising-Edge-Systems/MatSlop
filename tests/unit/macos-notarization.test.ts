@@ -23,16 +23,13 @@ describe('US-042 macOS notarization', () => {
   }
 
   describe('package.json build config', () => {
-    it('wires afterSign hook to scripts/notarize.cjs', () => {
-      expect(pkgJson.build.afterSign).toBe('scripts/notarize.cjs')
+    it('disables code signing with identity: null (unsigned builds)', () => {
+      expect(pkgJson.build.mac.identity).toBe(null)
     })
 
-    it('enables hardenedRuntime on mac (required by Apple notary service)', () => {
-      expect(pkgJson.build.mac.hardenedRuntime).toBe(true)
-    })
-
-    it('still targets dmg (the artifact we notarize)', () => {
+    it('targets dmg and zip (zip required for electron-updater)', () => {
       expect(pkgJson.build.mac.target).toContain('dmg')
+      expect(pkgJson.build.mac.target).toContain('zip')
     })
   })
 
