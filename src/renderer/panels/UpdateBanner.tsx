@@ -140,10 +140,16 @@ export function UpdateBanner({ initialStatus }: Props): React.JSX.Element | null
               className="update-banner-btn update-banner-btn-primary"
               data-testid="update-banner-install-now"
               onClick={() => {
-                void window.matslop.updateInstall()
+                if (window.matslop.platform === 'darwin') {
+                  // macOS unsigned apps can't do in-place updates — open the release page
+                  const version = status.kind === 'downloaded' ? status.version : ''
+                  void window.matslop.openExternal(`https://github.com/Rising-Edge-Systems/MatSlop/releases/tag/v${version}`)
+                } else {
+                  void window.matslop.updateInstall()
+                }
               }}
             >
-              Install &amp; Restart
+              {window.matslop.platform === 'darwin' ? 'Download Update' : 'Install & Restart'}
             </button>
           </div>
           {closeButton}
