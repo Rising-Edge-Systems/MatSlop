@@ -724,14 +724,30 @@ ipcMain.handle('octave:download', async (): Promise<{ path: string | null; error
         if (!copied) {
           throw new Error('Failed to copy Octave.app out of the mounted DMG')
         }
-        // Find the binary after extraction
-        const { execSync: exec2 } = await import('child_process')
-        const found = exec2(`find "${appPath}" -name "octave-cli" -o -name "octave" | head -3`, { encoding: 'utf-8', timeout: 30000 }).trim()
-        if (found) {
-          const firstBin = found.split('\n')[0]
+        // Prefer the well-known locations (octave-cli first — it's the real
+        // binary). `octave` on octave-app bundles is usually a Homebrew
+        // wrapper script with a hardcoded-path shebang that breaks after
+        // relocation (spawn ENOENT on the interpreter).
+        const postExtractBinary = binaryCandidates.find((p) => fs.existsSync(p))
+        if (postExtractBinary) {
           emitProgress('extract', 'Octave ready', 100)
-          console.log('Octave ready at:', firstBin)
-          return { path: firstBin, error: null }
+          console.log('Octave ready at:', postExtractBinary)
+          return { path: postExtractBinary, error: null }
+        }
+        // Unexpected layout — search by name, preferring octave-cli over
+        // octave for the same reason as above.
+        const { execSync: exec2 } = await import('child_process')
+        const cliHit = exec2(`find "${appPath}" -name "octave-cli" -print -quit`, { encoding: 'utf-8', timeout: 30000 }).trim()
+        if (cliHit) {
+          emitProgress('extract', 'Octave ready', 100)
+          console.log('Octave ready at:', cliHit)
+          return { path: cliHit, error: null }
+        }
+        const octaveHit = exec2(`find "${appPath}" -name "octave" -print -quit`, { encoding: 'utf-8', timeout: 30000 }).trim()
+        if (octaveHit) {
+          emitProgress('extract', 'Octave ready', 100)
+          console.log('Octave ready at (fallback):', octaveHit)
+          return { path: octaveHit, error: null }
         }
         throw new Error(`Octave.app was extracted but no octave-cli binary was found under ${appPath}`)
       }
