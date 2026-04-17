@@ -133,9 +133,16 @@ export function autoDetectOctavePath(): string | null {
 export function validateOctavePath(binaryPath: string): Promise<{ valid: boolean; version?: string; error?: string }> {
   return new Promise((resolve) => {
     try {
-      execFile(binaryPath, ['--version'], { timeout: 10000 }, (err, stdout, stderr) => {
+      execFile(binaryPath, ['--version'], { timeout: 10000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
         if (err) {
-          resolve({ valid: false, error: String(err.message) })
+          // Include stderr in the error — Node's default err.message
+          // ("Command failed: ...") tells us nothing about what actually
+          // went wrong. The real reason (missing dylib, Gatekeeper block,
+          // quarantine, etc.) is always in stderr.
+          const parts = [err.message]
+          const stderrText = (stderr ?? '').toString().trim()
+          if (stderrText) parts.push(stderrText)
+          resolve({ valid: false, error: parts.join(' — ') })
           return
         }
         const output = stdout || stderr

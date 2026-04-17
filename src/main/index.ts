@@ -741,6 +741,17 @@ ipcMain.handle('octave:download', async (): Promise<{ path: string | null; error
               timeout: 1800000,
               ...quietExec,
             })
+            // Strip Gatekeeper quarantine xattr recursively. ditto preserves
+            // xattrs by default, so every file inside the extracted bundle
+            // carries com.apple.quarantine from the DMG mount — macOS will
+            // silently refuse to execute quarantined binaries, which surfaces
+            // as opaque "Command failed" errors when octave-cli tries to run.
+            try {
+              execSync(`xattr -cr "${appPath}"`, {
+                timeout: 120000,
+                ...quietExec,
+              })
+            } catch { /* best-effort — some files may have immutable xattrs, but clearing as many as we can is still worth it */ }
           } catch (dittoErr) {
             // Clean up partial state so the next run starts fresh instead
             // of hitting the same "Permission denied" overwrite problem.
