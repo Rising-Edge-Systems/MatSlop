@@ -674,6 +674,20 @@ ipcMain.handle('octave:download', async (): Promise<{ path: string | null; error
             timeout: 180000,
             ...quietExec,
           })
+          // If a previous run left behind a partial Octave.app (e.g. ditto
+          // died mid-copy), ditto's next attempt hits "Permission denied"
+          // trying to overwrite files from the botched copy. Clear the
+          // destination first. chflags/chmod handle any stuck write-protect
+          // bits; rm -rf then removes the tree.
+          if (fs.existsSync(appPath)) {
+            emitProgress('extract', 'Cleaning up previous partial install', 30)
+            try {
+              execSync(
+                `chflags -R nouchg "${appPath}" 2>/dev/null; chmod -R u+w "${appPath}" 2>/dev/null; rm -rf "${appPath}"`,
+                { timeout: 120000, ...quietExec },
+              )
+            } catch { /* best-effort — ditto will surface a clearer error if this wasn't enough */ }
+          }
           emitProgress('extract', 'Copying Octave.app (this takes a few minutes)', 40)
           // Find Octave.app in the mounted volume
           const candidates = ['Octave.app', 'Octave-9.2.app']
@@ -684,10 +698,22 @@ ipcMain.handle('octave:download', async (): Promise<{ path: string | null; error
           // `ditto` is designed for copying macOS app bundles (preserves
           // xattrs, symlinks, resource forks) and is substantially faster
           // than `cp -R` for large bundles.
-          execSync(`ditto "${found}" "${appPath}"`, {
-            timeout: 1800000,
-            ...quietExec,
-          })
+          try {
+            execSync(`ditto "${found}" "${appPath}"`, {
+              timeout: 1800000,
+              ...quietExec,
+            })
+          } catch (dittoErr) {
+            // Clean up partial state so the next run starts fresh instead
+            // of hitting the same "Permission denied" overwrite problem.
+            try {
+              execSync(
+                `chflags -R nouchg "${appPath}" 2>/dev/null; chmod -R u+w "${appPath}" 2>/dev/null; rm -rf "${appPath}"`,
+                { timeout: 120000, ...quietExec },
+              )
+            } catch { /* ignore */ }
+            throw dittoErr
+          }
           copied = true
           emitProgress('extract', 'Finalizing', 90)
         } finally {
