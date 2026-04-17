@@ -297,11 +297,21 @@ export function createUpdateBridge(deps: UpdateBridgeDeps): UpdateBridge {
   function quitAndInstall(): void {
     if (!updater) return
     try {
-      updater.quitAndInstall(false, true)
+      // autoInstallOnAppQuit ensures the update is applied when the app exits.
+      // On macOS, quitAndInstall may fail silently for unsigned apps, so we
+      // also set autoInstallOnAppQuit=true as a fallback — the update will
+      // apply next time the user manually restarts.
+      updater.autoInstallOnAppQuit = true
+      updater.quitAndInstall(true, true)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to install update'
       _latestState = { kind: 'error', message }
       deps.sendStatus(_latestState)
+      // Fallback: just quit and let autoInstallOnAppQuit handle it
+      try {
+        const { app } = require('electron')
+        app.quit()
+      } catch {}
     }
   }
 
