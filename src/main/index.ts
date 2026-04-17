@@ -554,8 +554,84 @@ ipcMain.handle('octave:download', async () => {
         console.log('Octave ready at:', binaryPath)
       }
       if (fs.existsSync(binaryPath)) return binaryPath
+    } else if (process.platform === 'darwin') {
+      const dmgUrl = 'https://github.com/octave-app/octave-app/releases/download/v9.2.0/Octave-9.2.0.dmg'
+      const dmgPath = path.join(targetDir, 'Octave.dmg')
+      const appPath = path.join(targetDir, 'Octave.app')
+      // Check multiple possible binary locations inside Octave.app
+      const binaryCandidates = [
+        path.join(appPath, 'Contents', 'Resources', 'usr', 'bin', 'octave-cli'),
+        path.join(appPath, 'Contents', 'Resources', 'usr', 'bin', 'octave'),
+        path.join(appPath, 'Contents', 'MacOS', 'Octave'),
+      ]
+      const existingBinary = binaryCandidates.find(p => fs.existsSync(p))
+      if (!existingBinary) {
+        console.log('Downloading Octave for macOS...')
+        await downloadFile(dmgUrl, dmgPath)
+        console.log('Extracting...')
+        const { execSync } = await import('child_process')
+        const mountPoint = path.join(targetDir, '.mount')
+        fs.mkdirSync(mountPoint, { recursive: true })
+        try {
+          execSync(`hdiutil attach -nobrowse -readonly -mountpoint "${mountPoint}" "${dmgPath}"`, { timeout: 120000 })
+          // Find Octave.app in the mounted volume
+          const candidates = ['Octave.app', 'Octave-9.2.0.app']
+          const found = candidates.map(c => path.join(mountPoint, c)).find(p => fs.existsSync(p))
+          if (found) {
+            execSync(`cp -R "${found}" "${appPath}"`, { timeout: 600000 })
+          }
+        } finally {
+          try { execSync(`hdiutil detach "${mountPoint}" -force`, { timeout: 30000 }) } catch {}
+          try { fs.rmdirSync(mountPoint) } catch {}
+        }
+        try { fs.unlinkSync(dmgPath) } catch {}
+        // Find the binary after extraction
+        const { execSync: exec2 } = await import('child_process')
+        try {
+          const found = exec2(`find "${appPath}" -name "octave-cli" -o -name "octave" | head -3`, { encoding: 'utf-8', timeout: 15000 }).trim()
+          if (found) {
+            const firstBin = found.split('\n')[0]
+            console.log('Octave ready at:', firstBin)
+            return firstBin
+          }
+        } catch {}
+      }
+      if (existingBinary) return existingBinary
+    } else if (process.platform === 'linux') {
+      // On Linux, download .deb packages from Ubuntu archive
+      const version = '8.4.0'
+      const debBase = 'http://archive.ubuntu.com/ubuntu/pool/universe/o/octave'
+      const debs = [
+        { url: `${debBase}/octave_${version}-1build5_amd64.deb`, name: `octave.deb` },
+        { url: `${debBase}/octave-common_${version}-1build5_all.deb`, name: `octave-common.deb` },
+        { url: `${debBase}/octave-dev_${version}-1build5_amd64.deb`, name: `octave-dev.deb` },
+      ]
+      const binaryPath = path.join(targetDir, 'usr', 'bin', 'octave-cli')
+      if (!fs.existsSync(binaryPath)) {
+        console.log('Downloading Octave for Linux...')
+        const { execSync } = await import('child_process')
+        for (const deb of debs) {
+          const debPath = path.join(targetDir, deb.name)
+          await downloadFile(deb.url, debPath)
+          // Extract .deb: dpkg-deb -x or ar+tar fallback
+          try {
+            execSync(`dpkg-deb -x "${debPath}" "${targetDir}"`, { timeout: 120000 })
+          } catch {
+            const tmpDir = path.join(targetDir, '.deb-tmp')
+            fs.mkdirSync(tmpDir, { recursive: true })
+            try {
+              execSync(`cd "${tmpDir}" && ar x "${debPath}" && tar xf data.tar.* -C "${targetDir}"`, { timeout: 120000 })
+            } finally {
+              fs.rmSync(tmpDir, { recursive: true, force: true })
+            }
+          }
+          try { fs.unlinkSync(debPath) } catch {}
+        }
+        console.log('Octave ready at:', binaryPath)
+      }
+      if (fs.existsSync(binaryPath)) return binaryPath
     }
-    // For other platforms, fall back to auto-detect (system Octave)
+    // Last resort: check for system-installed Octave
     return autoDetectOctavePath()
   } catch (err) {
     console.error('Octave download failed:', err)
