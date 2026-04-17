@@ -555,7 +555,7 @@ ipcMain.handle('octave:download', async () => {
       }
       if (fs.existsSync(binaryPath)) return binaryPath
     } else if (process.platform === 'darwin') {
-      const dmgUrl = 'https://github.com/octave-app/octave-app/releases/download/v9.2.0/Octave-9.2.0.dmg'
+      const dmgUrl = 'https://github.com/octave-app/octave-app/releases/download/v9.2/Octave-9.2.dmg'
       const dmgPath = path.join(targetDir, 'Octave.dmg')
       const appPath = path.join(targetDir, 'Octave.app')
       // Check multiple possible binary locations inside Octave.app
@@ -575,7 +575,7 @@ ipcMain.handle('octave:download', async () => {
         try {
           execSync(`hdiutil attach -nobrowse -readonly -mountpoint "${mountPoint}" "${dmgPath}"`, { timeout: 120000 })
           // Find Octave.app in the mounted volume
-          const candidates = ['Octave.app', 'Octave-9.2.0.app']
+          const candidates = ['Octave.app', 'Octave-9.2.app']
           const found = candidates.map(c => path.join(mountPoint, c)).find(p => fs.existsSync(p))
           if (found) {
             execSync(`cp -R "${found}" "${appPath}"`, { timeout: 600000 })
