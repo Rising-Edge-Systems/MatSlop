@@ -497,7 +497,7 @@ ipcMain.handle('octave:autoDetect', () => {
   return autoDetectOctavePath()
 })
 
-ipcMain.handle('octave:download', async () => {
+ipcMain.handle('octave:download', async (): Promise<{ path: string | null; error: string | null }> => {
   // Download Octave to a writable directory, then return the binary path.
   // In packaged mode, resources/ is read-only, so download to userData.
   const targetDir = app.isPackaged
@@ -507,25 +507,107 @@ ipcMain.handle('octave:download', async () => {
   const https = await import('https')
   const http = await import('http')
 
-  function downloadFile(url: string, dest: string): Promise<void> {
+  type ProgressPhase = 'download' | 'extract'
+  function emitProgress(phase: ProgressPhase, label: string, percent: number, bytes?: number, total?: number): void {
+    const w = mainWindow
+    if (!w || w.isDestroyed()) return
+    w.webContents.send('octave:downloadProgress', {
+      phase,
+      label,
+      percent: Math.max(0, Math.min(100, Math.round(percent))),
+      bytesDownloaded: bytes ?? 0,
+      totalBytes: total ?? 0,
+    })
+  }
+
+  // Idle/socket timeout per-attempt. Large Octave DMG (~600MB–1GB) can legitimately
+  // take a while over slow connections, so we use an idle timeout (no bytes for N sec)
+  // rather than a wall-clock timeout.
+  const IDLE_TIMEOUT_MS = 60_000
+  const MAX_ATTEMPTS = 3
+
+  function downloadOnce(url: string, dest: string, label: string): Promise<void> {
     return new Promise((resolve, reject) => {
       fs.mkdirSync(path.dirname(dest), { recursive: true })
+      try { fs.unlinkSync(dest) } catch { /* no partial to clean */ }
+
       const file = fs.createWriteStream(dest)
-      const doGet = url.startsWith('https') ? https.get : http.get
+      let settled = false
+      let lastEmit = 0
+
+      const fail = (err: Error): void => {
+        if (settled) return
+        settled = true
+        try { file.destroy() } catch { /* ignore */ }
+        try { fs.unlinkSync(dest) } catch { /* ignore */ }
+        reject(err)
+      }
+      const done = (): void => {
+        if (settled) return
+        settled = true
+        file.close()
+        resolve()
+      }
+
+      file.on('error', (err) => fail(new Error(`Disk write error: ${err.message}`)))
+
       function follow(u: string, depth = 0): void {
-        if (depth > 10) { reject(new Error('Too many redirects')); return }
+        if (depth > 10) { fail(new Error('Too many redirects')); return }
         const getter = u.startsWith('https') ? https.get : http.get
-        getter(u, (res) => {
+        const req = getter(u, (res) => {
           if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-            res.resume(); follow(res.headers.location, depth + 1); return
+            res.resume()
+            follow(res.headers.location, depth + 1)
+            return
           }
-          if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return }
+          if (res.statusCode !== 200) {
+            fail(new Error(`HTTP ${res.statusCode} fetching ${u}`))
+            return
+          }
+          const totalBytes = parseInt(res.headers['content-length'] ?? '0', 10)
+          let downloadedBytes = 0
+          res.on('data', (chunk: Buffer) => {
+            downloadedBytes += chunk.length
+            const now = Date.now()
+            if (now - lastEmit > 500) {
+              lastEmit = now
+              const percent = totalBytes > 0 ? (downloadedBytes / totalBytes) * 100 : 0
+              emitProgress('download', label, percent, downloadedBytes, totalBytes)
+            }
+          })
+          res.on('error', (err) => fail(new Error(`Download error: ${err.message}`)))
           res.pipe(file)
-          file.on('finish', () => { file.close(); resolve() })
-        }).on('error', reject)
+          file.on('finish', () => {
+            emitProgress('download', label, 100, downloadedBytes, totalBytes)
+            done()
+          })
+        })
+        req.setTimeout(IDLE_TIMEOUT_MS, () => {
+          req.destroy(new Error(`Download stalled — no data for ${IDLE_TIMEOUT_MS / 1000}s`))
+        })
+        req.on('error', (err) => fail(new Error(`Connection error: ${err.message}`)))
       }
       follow(url)
     })
+  }
+
+  async function downloadFile(url: string, dest: string, label: string): Promise<void> {
+    let lastErr: Error | null = null
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      try {
+        if (attempt > 1) {
+          console.log(`Retry ${attempt}/${MAX_ATTEMPTS} for ${label}...`)
+          emitProgress('download', `${label} (retry ${attempt})`, 0)
+          await new Promise((r) => setTimeout(r, 2000 * attempt))
+        }
+        await downloadOnce(url, dest, label)
+        return
+      } catch (err) {
+        lastErr = err instanceof Error ? err : new Error(String(err))
+        console.warn(`Attempt ${attempt}/${MAX_ATTEMPTS} failed: ${lastErr.message}`)
+      }
+    }
+    throw lastErr ?? new Error('Download failed')
   }
 
   try {
@@ -536,8 +618,9 @@ ipcMain.handle('octave:download', async () => {
       const binaryPath = path.join(targetDir, 'mingw64', 'bin', 'octave-cli.exe')
       if (!fs.existsSync(binaryPath)) {
         console.log('Downloading Octave for Windows...')
-        await downloadFile(zipUrl, zipPath)
+        await downloadFile(zipUrl, zipPath, 'GNU Octave for Windows')
         console.log('Extracting...')
+        emitProgress('extract', 'Extracting Octave archive', 0)
         const { execSync } = await import('child_process')
         execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${targetDir}' -Force"`, { timeout: 600000 })
         // Move from subdirectory to root
@@ -550,10 +633,11 @@ ipcMain.handle('octave:download', async () => {
           }
           fs.rmSync(subdir, { recursive: true, force: true })
         }
-        try { fs.unlinkSync(zipPath) } catch {}
+        try { fs.unlinkSync(zipPath) } catch { /* ignore */ }
+        emitProgress('extract', 'Octave ready', 100)
         console.log('Octave ready at:', binaryPath)
       }
-      if (fs.existsSync(binaryPath)) return binaryPath
+      if (fs.existsSync(binaryPath)) return { path: binaryPath, error: null }
     } else if (process.platform === 'darwin') {
       const dmgUrl = 'https://github.com/octave-app/octave-app/releases/download/v9.2/Octave-9.2.dmg'
       const dmgPath = path.join(targetDir, 'Octave.dmg')
@@ -567,44 +651,56 @@ ipcMain.handle('octave:download', async () => {
       const existingBinary = binaryCandidates.find(p => fs.existsSync(p))
       if (!existingBinary) {
         console.log('Downloading Octave for macOS...')
-        await downloadFile(dmgUrl, dmgPath)
-        console.log('Extracting...')
+        await downloadFile(dmgUrl, dmgPath, 'GNU Octave for macOS')
+        console.log('Extracting Octave.app from DMG...')
+        emitProgress('extract', 'Mounting Octave DMG', 20)
         const { execSync } = await import('child_process')
         const mountPoint = path.join(targetDir, '.mount')
         fs.mkdirSync(mountPoint, { recursive: true })
+        let copied = false
         try {
-          execSync(`hdiutil attach -nobrowse -readonly -mountpoint "${mountPoint}" "${dmgPath}"`, { timeout: 120000 })
+          execSync(`hdiutil attach -nobrowse -readonly -mountpoint "${mountPoint}" "${dmgPath}"`, { timeout: 180000 })
+          emitProgress('extract', 'Copying Octave.app (this takes a few minutes)', 40)
           // Find Octave.app in the mounted volume
           const candidates = ['Octave.app', 'Octave-9.2.app']
           const found = candidates.map(c => path.join(mountPoint, c)).find(p => fs.existsSync(p))
-          if (found) {
-            execSync(`cp -R "${found}" "${appPath}"`, { timeout: 600000 })
+          if (!found) {
+            throw new Error(`Octave.app not found in DMG. Volume contents: ${fs.readdirSync(mountPoint).join(', ')}`)
           }
+          // `ditto` is designed for copying macOS app bundles (preserves
+          // xattrs, symlinks, resource forks) and is substantially faster
+          // than `cp -R` for large bundles.
+          execSync(`ditto "${found}" "${appPath}"`, { timeout: 1800000 })
+          copied = true
+          emitProgress('extract', 'Finalizing', 90)
         } finally {
-          try { execSync(`hdiutil detach "${mountPoint}" -force`, { timeout: 30000 }) } catch {}
-          try { fs.rmdirSync(mountPoint) } catch {}
+          try { execSync(`hdiutil detach "${mountPoint}" -force`, { timeout: 60000 }) } catch { /* ignore */ }
+          try { fs.rmdirSync(mountPoint) } catch { /* ignore */ }
+          try { fs.unlinkSync(dmgPath) } catch { /* ignore */ }
         }
-        try { fs.unlinkSync(dmgPath) } catch {}
+        if (!copied) {
+          throw new Error('Failed to copy Octave.app out of the mounted DMG')
+        }
         // Find the binary after extraction
         const { execSync: exec2 } = await import('child_process')
-        try {
-          const found = exec2(`find "${appPath}" -name "octave-cli" -o -name "octave" | head -3`, { encoding: 'utf-8', timeout: 15000 }).trim()
-          if (found) {
-            const firstBin = found.split('\n')[0]
-            console.log('Octave ready at:', firstBin)
-            return firstBin
-          }
-        } catch {}
+        const found = exec2(`find "${appPath}" -name "octave-cli" -o -name "octave" | head -3`, { encoding: 'utf-8', timeout: 30000 }).trim()
+        if (found) {
+          const firstBin = found.split('\n')[0]
+          emitProgress('extract', 'Octave ready', 100)
+          console.log('Octave ready at:', firstBin)
+          return { path: firstBin, error: null }
+        }
+        throw new Error(`Octave.app was extracted but no octave-cli binary was found under ${appPath}`)
       }
-      if (existingBinary) return existingBinary
+      if (existingBinary) return { path: existingBinary, error: null }
     } else if (process.platform === 'linux') {
       // On Linux, download .deb packages from Ubuntu archive
       const version = '8.4.0'
       const debBase = 'http://archive.ubuntu.com/ubuntu/pool/universe/o/octave'
       const debs = [
-        { url: `${debBase}/octave_${version}-1build5_amd64.deb`, name: `octave.deb` },
-        { url: `${debBase}/octave-common_${version}-1build5_all.deb`, name: `octave-common.deb` },
-        { url: `${debBase}/octave-dev_${version}-1build5_amd64.deb`, name: `octave-dev.deb` },
+        { url: `${debBase}/octave_${version}-1build5_amd64.deb`, name: `octave.deb`, label: 'octave' },
+        { url: `${debBase}/octave-common_${version}-1build5_all.deb`, name: `octave-common.deb`, label: 'octave-common' },
+        { url: `${debBase}/octave-dev_${version}-1build5_amd64.deb`, name: `octave-dev.deb`, label: 'octave-dev' },
       ]
       const binaryPath = path.join(targetDir, 'usr', 'bin', 'octave-cli')
       if (!fs.existsSync(binaryPath)) {
@@ -612,7 +708,8 @@ ipcMain.handle('octave:download', async () => {
         const { execSync } = await import('child_process')
         for (const deb of debs) {
           const debPath = path.join(targetDir, deb.name)
-          await downloadFile(deb.url, debPath)
+          await downloadFile(deb.url, debPath, deb.label)
+          emitProgress('extract', `Extracting ${deb.label}`, 0)
           // Extract .deb: dpkg-deb -x or ar+tar fallback
           try {
             execSync(`dpkg-deb -x "${debPath}" "${targetDir}"`, { timeout: 120000 })
@@ -625,17 +722,20 @@ ipcMain.handle('octave:download', async () => {
               fs.rmSync(tmpDir, { recursive: true, force: true })
             }
           }
-          try { fs.unlinkSync(debPath) } catch {}
+          try { fs.unlinkSync(debPath) } catch { /* ignore */ }
         }
+        emitProgress('extract', 'Octave ready', 100)
         console.log('Octave ready at:', binaryPath)
       }
-      if (fs.existsSync(binaryPath)) return binaryPath
+      if (fs.existsSync(binaryPath)) return { path: binaryPath, error: null }
     }
     // Last resort: check for system-installed Octave
-    return autoDetectOctavePath()
+    const fallback = autoDetectOctavePath()
+    return { path: fallback, error: fallback ? null : 'No Octave binary found after download.' }
   } catch (err) {
-    console.error('Octave download failed:', err)
-    return null
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('Octave download failed:', message)
+    return { path: null, error: message }
   }
 })
 

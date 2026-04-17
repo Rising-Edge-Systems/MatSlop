@@ -635,22 +635,43 @@ function App(): React.JSX.Element {
       // No bundled or system Octave found — download it automatically
       setOctaveBannerVisible(true)
       setOctaveBannerError('Downloading GNU Octave... This may take a few minutes on first launch.')
+      const unsubProgress = window.matslop.onOctaveDownloadProgress((p) => {
+        const sizeMB = p.totalBytes > 0
+          ? ` (${(p.bytesDownloaded / 1024 / 1024).toFixed(0)}MB / ${(p.totalBytes / 1024 / 1024).toFixed(0)}MB)`
+          : p.bytesDownloaded > 0
+            ? ` (${(p.bytesDownloaded / 1024 / 1024).toFixed(0)}MB)`
+            : ''
+        const verb = p.phase === 'download' ? 'Downloading' : ''
+        setOctaveBannerError(
+          verb
+            ? `${verb} ${p.label}${sizeMB} — ${p.percent}%`
+            : `${p.label} — ${p.percent}%`,
+        )
+      })
       try {
-        const downloadedPath = await window.matslop.octaveDownload()
-        if (downloadedPath) {
-          const result = await window.matslop.octaveValidate(downloadedPath)
-          if (result.valid) {
-            await window.matslop.octaveSetPath(downloadedPath)
-            setOctaveStatus({ path: downloadedPath, version: result.version ?? 'unknown', configured: true, engineStatus: 'disconnected' })
+        const result = await window.matslop.octaveDownload()
+        if (result.path) {
+          const validation = await window.matslop.octaveValidate(result.path)
+          if (validation.valid) {
+            await window.matslop.octaveSetPath(result.path)
+            setOctaveStatus({ path: result.path, version: validation.version ?? 'unknown', configured: true, engineStatus: 'disconnected' })
             setOctaveBannerVisible(false)
             setOctaveBannerError(null)
-            startOctaveProcess(downloadedPath)
+            startOctaveProcess(result.path)
             return
           }
+          setOctaveBannerError(
+            `Octave downloaded but failed to validate${validation.error ? `: ${validation.error}` : ''}. Click Browse to locate octave-cli manually.`,
+          )
+        } else {
+          setOctaveBannerError(
+            `Octave download failed${result.error ? `: ${result.error}` : ''}. Click Browse to locate octave-cli manually.`,
+          )
         }
-        setOctaveBannerError('Octave download failed. Click Browse to locate octave-cli manually.')
       } catch (err) {
         setOctaveBannerError(`Failed to download Octave: ${err instanceof Error ? err.message : String(err)}`)
+      } finally {
+        unsubProgress()
       }
     })
   }, [startOctaveProcess])

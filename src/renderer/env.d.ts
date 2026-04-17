@@ -62,7 +62,16 @@ interface Window {
     confirmDelete: (name: string, isDirectory: boolean) => Promise<boolean>
     // Octave configuration
     octaveAutoDetect: () => Promise<string | null>
-    octaveDownload: () => Promise<string | null>
+    octaveDownload: () => Promise<{ path: string | null; error: string | null }>
+    onOctaveDownloadProgress: (
+      callback: (progress: {
+        phase: 'download' | 'extract'
+        label: string
+        percent: number
+        bytesDownloaded: number
+        totalBytes: number
+      }) => void,
+    ) => () => void
     octaveValidate: (binaryPath: string) => Promise<{ valid: boolean; version?: string; error?: string }>
     octaveGetPath: () => Promise<string | null>
     octaveSetPath: (binaryPath: string) => Promise<void>
