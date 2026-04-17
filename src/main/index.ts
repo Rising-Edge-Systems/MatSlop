@@ -636,221 +636,196 @@ ipcMain.handle('octave:download', async (): Promise<{ path: string | null; error
     })
   }
 
+  // conda-forge Octave via micromamba. Conda packages are built to be
+  // relocatable (proper @rpath / ld rpath / relocatable PREFIX) so the
+  // resulting env works from ~/Library/Application Support/... or anywhere
+  // else we drop it — none of the Homebrew-bottle / Gatekeeper / DMG
+  // / quarantine drama that haunts octave-app's DMG.
+  async function ensureMicromamba(micromambaDir: string): Promise<string> {
+    const platform = process.platform
+    const arch = process.arch
+    let assetName: string
+    let binName: string
+    if (platform === 'darwin') {
+      assetName = arch === 'arm64' ? 'micromamba-osx-arm64' : 'micromamba-osx-64'
+      binName = 'micromamba'
+    } else if (platform === 'linux') {
+      assetName = arch === 'arm64' ? 'micromamba-linux-aarch64' : 'micromamba-linux-64'
+      binName = 'micromamba'
+    } else if (platform === 'win32') {
+      assetName = 'micromamba-win-64.exe'
+      binName = 'micromamba.exe'
+    } else {
+      throw new Error(`Unsupported platform for conda-forge Octave: ${platform}/${arch}`)
+    }
+
+    const binPath = path.join(micromambaDir, binName)
+    if (fs.existsSync(binPath) && await isWorkingBinary(binPath)) {
+      return binPath
+    }
+
+    emitProgress('download', 'Downloading package manager', 0)
+    const url = `https://github.com/mamba-org/micromamba-releases/releases/latest/download/${assetName}`
+    fs.mkdirSync(micromambaDir, { recursive: true })
+    await downloadFile(url, binPath, 'package manager (~10MB)')
+
+    if (platform !== 'win32') {
+      try { fs.chmodSync(binPath, 0o755) } catch { /* ignore */ }
+    }
+    if (platform === 'darwin') {
+      // Unsigned binary; macOS would block on exec if it arrived with a
+      // quarantine xattr. Strip it so Gatekeeper doesn't touch it.
+      try {
+        const { execSync } = await import('child_process')
+        execSync(`xattr -rd com.apple.quarantine "${binPath}" 2>/dev/null || true`, {
+          stdio: ['ignore', 'ignore', 'pipe'],
+          timeout: 10000,
+          maxBuffer: 4 * 1024 * 1024,
+        })
+      } catch { /* best-effort */ }
+    }
+    return binPath
+  }
+
+  function runMicromambaCreate(bin: string, envPrefix: string, rootPrefix: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      import('child_process').then(({ spawn }) => {
+        const args = [
+          'create',
+          '-r', rootPrefix,
+          '-p', envPrefix,
+          '-c', 'conda-forge',
+          'octave',
+          '--yes',
+          '--no-rc',
+          '--no-env',
+          '--safety-checks', 'disabled',
+        ]
+        const proc = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+        let stderrTail = ''
+        let phase: ProgressPhase = 'download'
+        let label = 'Resolving Octave dependencies'
+        let pct = 8
+
+        const interpret = (text: string): void => {
+          // micromamba intermixes status lines on stdout and stderr. Detect
+          // coarse phases; scale any embedded percentage into our banner's
+          // phase-specific range so the bar moves monotonically.
+          if (/Solving|Collecting|Transaction\s+started/i.test(text)) {
+            phase = 'download'
+            label = 'Resolving Octave dependencies'
+            pct = Math.max(pct, 10)
+          } else if (/fetch|Downloading|downloading/i.test(text)) {
+            phase = 'download'
+            label = 'Downloading Octave packages'
+            const m = text.match(/(\d+(?:\.\d+)?)\s*%/)
+            if (m) {
+              const raw = parseFloat(m[1])
+              if (!isNaN(raw)) pct = Math.min(75, 15 + Math.floor(raw * 0.6))
+            } else {
+              pct = Math.max(pct, 30)
+            }
+          } else if (/Extracting|extracting|Preparing/i.test(text)) {
+            phase = 'extract'
+            label = 'Extracting Octave packages'
+            pct = Math.max(pct, 80)
+          } else if (/Executing transaction|Linking|linking|Finalizing/i.test(text)) {
+            phase = 'extract'
+            label = 'Finalizing install'
+            pct = Math.max(pct, 95)
+          }
+          emitProgress(phase, label, pct)
+        }
+
+        proc.stdout?.on('data', (chunk: Buffer) => interpret(chunk.toString()))
+        proc.stderr?.on('data', (chunk: Buffer) => {
+          const text = chunk.toString()
+          stderrTail += text
+          if (stderrTail.length > 16384) stderrTail = stderrTail.slice(-8192)
+          interpret(text)
+        })
+        proc.on('error', (err) => reject(err))
+        proc.on('exit', (code) => {
+          if (code === 0) resolve()
+          else {
+            const tail = stderrTail.slice(-1500).trim()
+            reject(new Error(`micromamba create exited with code ${code}${tail ? `\n${tail}` : ''}`))
+          }
+        })
+      }).catch(reject)
+    })
+  }
+
   try {
     fs.mkdirSync(targetDir, { recursive: true })
-    if (process.platform === 'win32') {
-      const zipUrl = 'https://ftpmirror.gnu.org/octave/windows/octave-9.4.0-w64.zip'
-      const zipPath = path.join(targetDir, 'octave.zip')
-      const binaryPath = path.join(targetDir, 'mingw64', 'bin', 'octave-cli.exe')
-      if (!fs.existsSync(binaryPath)) {
-        console.log('Downloading Octave for Windows...')
-        await downloadFile(zipUrl, zipPath, 'GNU Octave for Windows')
-        console.log('Extracting...')
-        emitProgress('extract', 'Extracting Octave archive', 0)
+
+    const micromambaDir = path.join(targetDir, 'micromamba')
+    const envPrefix = path.join(targetDir, 'env')
+    // micromamba's package cache lives here so it never touches the user's
+    // home directory.
+    const rootPrefix = path.join(targetDir, 'mamba-root')
+
+    // conda-forge env layout: unix-style binaries under <prefix>/bin on
+    // mac/linux; Windows puts them under <prefix>/Library/bin.
+    const octaveBinary = process.platform === 'win32'
+      ? path.join(envPrefix, 'Library', 'bin', 'octave-cli.exe')
+      : path.join(envPrefix, 'bin', 'octave-cli')
+
+    // If a prior run left a working Octave in place, reuse it.
+    if (fs.existsSync(octaveBinary) && await isWorkingBinary(octaveBinary)) {
+      return { path: octaveBinary, error: null }
+    }
+
+    // Wipe any partial env — micromamba create refuses a non-empty prefix.
+    if (fs.existsSync(envPrefix)) {
+      emitProgress('extract', 'Clearing previous partial install', 3)
+      try { fs.rmSync(envPrefix, { recursive: true, force: true }) } catch { /* best-effort */ }
+    }
+
+    const micromambaBin = await ensureMicromamba(micromambaDir)
+    fs.mkdirSync(rootPrefix, { recursive: true })
+
+    console.log('Installing Octave via micromamba...')
+    await runMicromambaCreate(micromambaBin, envPrefix, rootPrefix)
+
+    // Belt-and-suspenders: strip quarantine from anything the install
+    // dropped inside the env on macOS. conda-forge packages don't usually
+    // carry it, but we're paying an already-done-once cost to be safe.
+    if (process.platform === 'darwin') {
+      try {
         const { execSync } = await import('child_process')
-        execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${targetDir}' -Force"`, {
-          timeout: 600000,
+        execSync(`xattr -rd com.apple.quarantine "${envPrefix}" 2>/dev/null || true`, {
+          timeout: 120000,
           stdio: ['ignore', 'ignore', 'pipe'],
           maxBuffer: 64 * 1024 * 1024,
         })
-        // Move from subdirectory to root
-        const subdir = path.join(targetDir, 'octave-9.4.0-w64')
-        if (fs.existsSync(subdir)) {
-          for (const entry of fs.readdirSync(subdir)) {
-            const src = path.join(subdir, entry)
-            const dst = path.join(targetDir, entry)
-            if (!fs.existsSync(dst)) fs.renameSync(src, dst)
-          }
-          fs.rmSync(subdir, { recursive: true, force: true })
-        }
-        try { fs.unlinkSync(zipPath) } catch { /* ignore */ }
-        emitProgress('extract', 'Octave ready', 100)
-        console.log('Octave ready at:', binaryPath)
-      }
-      if (fs.existsSync(binaryPath)) return { path: binaryPath, error: null }
-    } else if (process.platform === 'darwin') {
-      // octave-app ships arch-specific DMGs: Octave-9.2.dmg is arm64 only,
-      // Octave-9.2-Intel.dmg is x86_64 only. Running the wrong one surfaces
-      // as EBADARCH ("spawn Unknown system error -86").
-      const isAppleSilicon = process.arch === 'arm64'
-      const dmgFilename = isAppleSilicon ? 'Octave-9.2.dmg' : 'Octave-9.2-Intel.dmg'
-      const dmgUrl = `https://github.com/octave-app/octave-app/releases/download/v9.2/${dmgFilename}`
-      const dmgPath = path.join(targetDir, 'Octave.dmg')
-      const appPath = path.join(targetDir, 'Octave.app')
-      // Check multiple possible binary locations inside Octave.app
-      const binaryCandidates = [
-        path.join(appPath, 'Contents', 'Resources', 'usr', 'bin', 'octave-cli'),
-        path.join(appPath, 'Contents', 'Resources', 'usr', 'bin', 'octave'),
-        path.join(appPath, 'Contents', 'MacOS', 'Octave'),
-      ]
-      const existingBinary = binaryCandidates.find(p => fs.existsSync(p))
-      // If a prior install left a working binary, use it. If it's there but
-      // broken (wrong arch, broken shebang, etc.), fall through to re-download —
-      // the cleanup step before ditto will wipe the bad bundle first.
-      if (existingBinary && await isWorkingBinary(existingBinary)) {
-        return { path: existingBinary, error: null }
-      }
-      console.log('Downloading Octave for macOS...')
-        await downloadFile(dmgUrl, dmgPath, 'GNU Octave for macOS')
-        console.log('Extracting Octave.app from DMG...')
-        emitProgress('extract', 'Mounting Octave DMG', 20)
-        const { execSync } = await import('child_process')
-        const mountPoint = path.join(targetDir, '.mount')
-        fs.mkdirSync(mountPoint, { recursive: true })
-        let copied = false
-        // Discard stdout and bound stderr. ditto on a 20k-file app bundle
-        // can emit enough per-file noise to blow past Node's default 1MB
-        // maxBuffer on execSync, which surfaces as ENOBUFS.
-        const quietExec = {
-          stdio: ['ignore', 'ignore', 'pipe'] as ('ignore' | 'pipe')[],
-          maxBuffer: 64 * 1024 * 1024,
-        }
-        try {
-          execSync(`hdiutil attach -nobrowse -readonly -mountpoint "${mountPoint}" "${dmgPath}"`, {
-            timeout: 180000,
-            ...quietExec,
-          })
-          // If a previous run left behind a partial Octave.app (e.g. ditto
-          // died mid-copy), ditto's next attempt hits "Permission denied"
-          // trying to overwrite files from the botched copy. Clear the
-          // destination first. chflags/chmod handle any stuck write-protect
-          // bits; rm -rf then removes the tree.
-          if (fs.existsSync(appPath)) {
-            emitProgress('extract', 'Cleaning up previous partial install', 30)
-            try {
-              execSync(
-                `chflags -R nouchg "${appPath}" 2>/dev/null; chmod -R u+w "${appPath}" 2>/dev/null; rm -rf "${appPath}"`,
-                { timeout: 120000, ...quietExec },
-              )
-            } catch { /* best-effort — ditto will surface a clearer error if this wasn't enough */ }
-          }
-          emitProgress('extract', 'Copying Octave.app (this takes a few minutes)', 40)
-          // Find Octave.app in the mounted volume — the name varies
-          // across builds (Octave.app, Octave-9.2.app, Octave-9.2-Intel.app).
-          const mounted = fs.readdirSync(mountPoint)
-          const dmgAppName = mounted.find((n) => n.startsWith('Octave') && n.endsWith('.app'))
-          if (!dmgAppName) {
-            throw new Error(`No Octave*.app found in DMG. Volume contents: ${mounted.join(', ')}`)
-          }
-          const found = path.join(mountPoint, dmgAppName)
-          // `ditto` is designed for copying macOS app bundles (preserves
-          // xattrs, symlinks, resource forks) and is substantially faster
-          // than `cp -R` for large bundles.
-          try {
-            execSync(`ditto "${found}" "${appPath}"`, {
-              timeout: 1800000,
-              ...quietExec,
-            })
-            // Strip Gatekeeper quarantine recursively. ditto preserves
-            // xattrs by default, so every file inside the extracted bundle
-            // carries com.apple.quarantine from the DMG mount, and macOS
-            // silently SIGKILLs quarantined binaries on exec.
-            //
-            // IMPORTANT: use `-rd com.apple.quarantine`, NOT `-cr`.
-            // `xattr -cr` nukes *every* xattr including com.apple.cs.*, which
-            // holds code-signing metadata — that invalidates octave-app's
-            // notarization signature and Gatekeeper blocks execution for a
-            // different reason (invalid signature instead of quarantined).
-            try {
-              execSync(`xattr -rd com.apple.quarantine "${appPath}"`, {
-                timeout: 120000,
-                ...quietExec,
-              })
-            } catch { /* best-effort — not every file has the xattr, so non-zero exit is fine */ }
-          } catch (dittoErr) {
-            // Clean up partial state so the next run starts fresh instead
-            // of hitting the same "Permission denied" overwrite problem.
-            try {
-              execSync(
-                `chflags -R nouchg "${appPath}" 2>/dev/null; chmod -R u+w "${appPath}" 2>/dev/null; rm -rf "${appPath}"`,
-                { timeout: 120000, ...quietExec },
-              )
-            } catch { /* ignore */ }
-            throw dittoErr
-          }
-          copied = true
-          emitProgress('extract', 'Finalizing', 90)
-        } finally {
-          try { execSync(`hdiutil detach "${mountPoint}" -force`, { timeout: 60000, ...quietExec }) } catch { /* ignore */ }
-          try { fs.rmdirSync(mountPoint) } catch { /* ignore */ }
-          try { fs.unlinkSync(dmgPath) } catch { /* ignore */ }
-        }
-        if (!copied) {
-          throw new Error('Failed to copy Octave.app out of the mounted DMG')
-        }
-        // Prefer the well-known locations (octave-cli first — it's the real
-        // binary). `octave` on octave-app bundles is usually a Homebrew
-        // wrapper script with a hardcoded-path shebang that breaks after
-        // relocation (spawn ENOENT on the interpreter).
-        const postExtractBinary = binaryCandidates.find((p) => fs.existsSync(p))
-        if (postExtractBinary) {
-          emitProgress('extract', 'Octave ready', 100)
-          console.log('Octave ready at:', postExtractBinary)
-          return { path: postExtractBinary, error: null }
-        }
-        // Unexpected layout — search by name, preferring octave-cli over
-        // octave for the same reason as above.
-        const { execSync: exec2 } = await import('child_process')
-        const cliHit = exec2(`find "${appPath}" -name "octave-cli" -print -quit`, { encoding: 'utf-8', timeout: 30000 }).trim()
-        if (cliHit) {
-          emitProgress('extract', 'Octave ready', 100)
-          console.log('Octave ready at:', cliHit)
-          return { path: cliHit, error: null }
-        }
-        const octaveHit = exec2(`find "${appPath}" -name "octave" -print -quit`, { encoding: 'utf-8', timeout: 30000 }).trim()
-        if (octaveHit) {
-          emitProgress('extract', 'Octave ready', 100)
-          console.log('Octave ready at (fallback):', octaveHit)
-          return { path: octaveHit, error: null }
-        }
-      throw new Error(`Octave.app was extracted but no octave-cli binary was found under ${appPath}`)
-    } else if (process.platform === 'linux') {
-      // On Linux, download .deb packages from Ubuntu archive
-      const version = '8.4.0'
-      const debBase = 'http://archive.ubuntu.com/ubuntu/pool/universe/o/octave'
-      const debs = [
-        { url: `${debBase}/octave_${version}-1build5_amd64.deb`, name: `octave.deb`, label: 'octave' },
-        { url: `${debBase}/octave-common_${version}-1build5_all.deb`, name: `octave-common.deb`, label: 'octave-common' },
-        { url: `${debBase}/octave-dev_${version}-1build5_amd64.deb`, name: `octave-dev.deb`, label: 'octave-dev' },
-      ]
-      const binaryPath = path.join(targetDir, 'usr', 'bin', 'octave-cli')
-      if (!fs.existsSync(binaryPath)) {
-        console.log('Downloading Octave for Linux...')
-        const { execSync } = await import('child_process')
-        for (const deb of debs) {
-          const debPath = path.join(targetDir, deb.name)
-          await downloadFile(deb.url, debPath, deb.label)
-          emitProgress('extract', `Extracting ${deb.label}`, 0)
-          const debExec = {
-            timeout: 120000,
-            stdio: ['ignore', 'ignore', 'pipe'] as ('ignore' | 'pipe')[],
-            maxBuffer: 64 * 1024 * 1024,
-          }
-          // Extract .deb: dpkg-deb -x or ar+tar fallback
-          try {
-            execSync(`dpkg-deb -x "${debPath}" "${targetDir}"`, debExec)
-          } catch {
-            const tmpDir = path.join(targetDir, '.deb-tmp')
-            fs.mkdirSync(tmpDir, { recursive: true })
-            try {
-              execSync(`cd "${tmpDir}" && ar x "${debPath}" && tar xf data.tar.* -C "${targetDir}"`, debExec)
-            } finally {
-              fs.rmSync(tmpDir, { recursive: true, force: true })
-            }
-          }
-          try { fs.unlinkSync(debPath) } catch { /* ignore */ }
-        }
-        emitProgress('extract', 'Octave ready', 100)
-        console.log('Octave ready at:', binaryPath)
-      }
-      if (fs.existsSync(binaryPath)) return { path: binaryPath, error: null }
+      } catch { /* best-effort */ }
     }
-    // Last resort: check for system-installed Octave
-    const fallback = autoDetectOctavePath()
-    return { path: fallback, error: fallback ? null : 'No Octave binary found after download.' }
+
+    if (fs.existsSync(octaveBinary)) {
+      emitProgress('extract', 'Octave ready', 100)
+      console.log('Octave ready at:', octaveBinary)
+      return { path: octaveBinary, error: null }
+    }
+
+    // Fallback: unexpected layout — search the env for octave-cli.
+    const searchName = process.platform === 'win32' ? 'octave-cli.exe' : 'octave-cli'
+    try {
+      const { execSync } = await import('child_process')
+      const cmd = process.platform === 'win32'
+        ? `where /r "${envPrefix}" ${searchName}`
+        : `find "${envPrefix}" -name "${searchName}" -print -quit`
+      const hit = execSync(cmd, { encoding: 'utf-8', timeout: 30000 }).trim().split(/\r?\n/)[0]
+      if (hit) {
+        emitProgress('extract', 'Octave ready', 100)
+        return { path: hit, error: null }
+      }
+    } catch { /* fall through */ }
+
+    return { path: null, error: `octave-cli not found after install. Expected at ${octaveBinary}.` }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    console.error('Octave download failed:', message)
+    console.error('Octave install failed:', message)
     return { path: null, error: message }
   }
 })

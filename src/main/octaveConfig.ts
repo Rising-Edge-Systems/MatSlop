@@ -22,20 +22,33 @@ function getBundledOctavePath(): string | null {
   for (const base of searchPaths) {
     let candidates: string[]
     if (process.platform === 'win32') {
-      candidates = [path.join(base, 'mingw64', 'bin', 'octave-cli.exe')]
-    } else if (process.platform === 'darwin') {
-      // download-octave.js places Octave.app at resources/octave/Octave.app
       candidates = [
+        // conda-forge env layout (micromamba install path).
+        path.join(base, 'env', 'Library', 'bin', 'octave-cli.exe'),
+        path.join(base, 'env', 'bin', 'octave-cli.exe'),
+        // Legacy mingw64 portable layout from the pre-conda days.
+        path.join(base, 'mingw64', 'bin', 'octave-cli.exe'),
+      ]
+    } else if (process.platform === 'darwin') {
+      candidates = [
+        // conda-forge env layout (micromamba install path).
+        path.join(base, 'env', 'bin', 'octave-cli'),
+        path.join(base, 'env', 'bin', 'octave'),
+        // Legacy octave-app DMG layout.
         path.join(base, 'Octave.app', 'Contents', 'Resources', 'usr', 'bin', 'octave-cli'),
         path.join(base, 'Octave.app', 'Contents', 'Resources', 'usr', 'bin', 'octave'),
         path.join(base, 'bin', 'octave-cli'),
         path.join(base, 'bin', 'octave')
       ]
     } else {
-      // Linux: download-octave.js extracts an AppImage into
-      // resources/octave/squashfs-root/. Fall through to legacy bin/ paths
-      // for source-built or tarball layouts.
       candidates = [
+        // conda-forge env layout (micromamba install path).
+        path.join(base, 'env', 'bin', 'octave-cli'),
+        path.join(base, 'env', 'bin', 'octave'),
+        // Legacy .deb extraction layout.
+        path.join(base, 'usr', 'bin', 'octave-cli'),
+        path.join(base, 'usr', 'bin', 'octave'),
+        // Legacy AppImage layout.
         path.join(base, 'squashfs-root', 'usr', 'bin', 'octave-cli'),
         path.join(base, 'squashfs-root', 'usr', 'bin', 'octave'),
         path.join(base, 'bin', 'octave-cli'),
