@@ -622,7 +622,11 @@ ipcMain.handle('octave:download', async (): Promise<{ path: string | null; error
         console.log('Extracting...')
         emitProgress('extract', 'Extracting Octave archive', 0)
         const { execSync } = await import('child_process')
-        execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${targetDir}' -Force"`, { timeout: 600000 })
+        execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${targetDir}' -Force"`, {
+          timeout: 600000,
+          stdio: ['ignore', 'ignore', 'pipe'],
+          maxBuffer: 64 * 1024 * 1024,
+        })
         // Move from subdirectory to root
         const subdir = path.join(targetDir, 'octave-9.4.0-w64')
         if (fs.existsSync(subdir)) {
@@ -658,8 +662,18 @@ ipcMain.handle('octave:download', async (): Promise<{ path: string | null; error
         const mountPoint = path.join(targetDir, '.mount')
         fs.mkdirSync(mountPoint, { recursive: true })
         let copied = false
+        // Discard stdout and bound stderr. ditto on a 20k-file app bundle
+        // can emit enough per-file noise to blow past Node's default 1MB
+        // maxBuffer on execSync, which surfaces as ENOBUFS.
+        const quietExec = {
+          stdio: ['ignore', 'ignore', 'pipe'] as ('ignore' | 'pipe')[],
+          maxBuffer: 64 * 1024 * 1024,
+        }
         try {
-          execSync(`hdiutil attach -nobrowse -readonly -mountpoint "${mountPoint}" "${dmgPath}"`, { timeout: 180000 })
+          execSync(`hdiutil attach -nobrowse -readonly -mountpoint "${mountPoint}" "${dmgPath}"`, {
+            timeout: 180000,
+            ...quietExec,
+          })
           emitProgress('extract', 'Copying Octave.app (this takes a few minutes)', 40)
           // Find Octave.app in the mounted volume
           const candidates = ['Octave.app', 'Octave-9.2.app']
@@ -670,11 +684,14 @@ ipcMain.handle('octave:download', async (): Promise<{ path: string | null; error
           // `ditto` is designed for copying macOS app bundles (preserves
           // xattrs, symlinks, resource forks) and is substantially faster
           // than `cp -R` for large bundles.
-          execSync(`ditto "${found}" "${appPath}"`, { timeout: 1800000 })
+          execSync(`ditto "${found}" "${appPath}"`, {
+            timeout: 1800000,
+            ...quietExec,
+          })
           copied = true
           emitProgress('extract', 'Finalizing', 90)
         } finally {
-          try { execSync(`hdiutil detach "${mountPoint}" -force`, { timeout: 60000 }) } catch { /* ignore */ }
+          try { execSync(`hdiutil detach "${mountPoint}" -force`, { timeout: 60000, ...quietExec }) } catch { /* ignore */ }
           try { fs.rmdirSync(mountPoint) } catch { /* ignore */ }
           try { fs.unlinkSync(dmgPath) } catch { /* ignore */ }
         }
@@ -710,14 +727,19 @@ ipcMain.handle('octave:download', async (): Promise<{ path: string | null; error
           const debPath = path.join(targetDir, deb.name)
           await downloadFile(deb.url, debPath, deb.label)
           emitProgress('extract', `Extracting ${deb.label}`, 0)
+          const debExec = {
+            timeout: 120000,
+            stdio: ['ignore', 'ignore', 'pipe'] as ('ignore' | 'pipe')[],
+            maxBuffer: 64 * 1024 * 1024,
+          }
           // Extract .deb: dpkg-deb -x or ar+tar fallback
           try {
-            execSync(`dpkg-deb -x "${debPath}" "${targetDir}"`, { timeout: 120000 })
+            execSync(`dpkg-deb -x "${debPath}" "${targetDir}"`, debExec)
           } catch {
             const tmpDir = path.join(targetDir, '.deb-tmp')
             fs.mkdirSync(tmpDir, { recursive: true })
             try {
-              execSync(`cd "${tmpDir}" && ar x "${debPath}" && tar xf data.tar.* -C "${targetDir}"`, { timeout: 120000 })
+              execSync(`cd "${tmpDir}" && ar x "${debPath}" && tar xf data.tar.* -C "${targetDir}"`, debExec)
             } finally {
               fs.rmSync(tmpDir, { recursive: true, force: true })
             }

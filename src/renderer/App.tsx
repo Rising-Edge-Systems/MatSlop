@@ -665,11 +665,11 @@ function App(): React.JSX.Element {
           )
         } else {
           setOctaveBannerError(
-            `Octave download failed${result.error ? `: ${result.error}` : ''}. Click Browse to locate octave-cli manually.`,
+            `Octave setup failed${result.error ? `: ${result.error}` : ''}. Click Browse to locate octave-cli manually.`,
           )
         }
       } catch (err) {
-        setOctaveBannerError(`Failed to download Octave: ${err instanceof Error ? err.message : String(err)}`)
+        setOctaveBannerError(`Octave setup failed: ${err instanceof Error ? err.message : String(err)}`)
       } finally {
         unsubProgress()
       }
