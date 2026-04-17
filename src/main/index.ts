@@ -610,6 +610,32 @@ ipcMain.handle('octave:download', async (): Promise<{ path: string | null; error
     throw lastErr ?? new Error('Download failed')
   }
 
+  // Quick probe: can this binary actually execute? Covers wrong-arch binaries
+  // (EBADARCH / error -86 on macOS), broken interpreter shebangs (ENOENT), and
+  // missing execute permissions. Needed so we don't keep returning a known-bad
+  // binary left behind from a previous failed install.
+  async function isWorkingBinary(binPath: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      try {
+        const cp = require('child_process') as typeof import('child_process')
+        const proc = cp.spawn(binPath, ['--version'], { stdio: 'ignore', timeout: 5000 })
+        let done = false
+        proc.on('exit', (code) => {
+          if (done) return
+          done = true
+          resolve(code === 0)
+        })
+        proc.on('error', () => {
+          if (done) return
+          done = true
+          resolve(false)
+        })
+      } catch {
+        resolve(false)
+      }
+    })
+  }
+
   try {
     fs.mkdirSync(targetDir, { recursive: true })
     if (process.platform === 'win32') {
@@ -643,7 +669,12 @@ ipcMain.handle('octave:download', async (): Promise<{ path: string | null; error
       }
       if (fs.existsSync(binaryPath)) return { path: binaryPath, error: null }
     } else if (process.platform === 'darwin') {
-      const dmgUrl = 'https://github.com/octave-app/octave-app/releases/download/v9.2/Octave-9.2.dmg'
+      // octave-app ships arch-specific DMGs: Octave-9.2.dmg is arm64 only,
+      // Octave-9.2-Intel.dmg is x86_64 only. Running the wrong one surfaces
+      // as EBADARCH ("spawn Unknown system error -86").
+      const isAppleSilicon = process.arch === 'arm64'
+      const dmgFilename = isAppleSilicon ? 'Octave-9.2.dmg' : 'Octave-9.2-Intel.dmg'
+      const dmgUrl = `https://github.com/octave-app/octave-app/releases/download/v9.2/${dmgFilename}`
       const dmgPath = path.join(targetDir, 'Octave.dmg')
       const appPath = path.join(targetDir, 'Octave.app')
       // Check multiple possible binary locations inside Octave.app
@@ -653,8 +684,13 @@ ipcMain.handle('octave:download', async (): Promise<{ path: string | null; error
         path.join(appPath, 'Contents', 'MacOS', 'Octave'),
       ]
       const existingBinary = binaryCandidates.find(p => fs.existsSync(p))
-      if (!existingBinary) {
-        console.log('Downloading Octave for macOS...')
+      // If a prior install left a working binary, use it. If it's there but
+      // broken (wrong arch, broken shebang, etc.), fall through to re-download —
+      // the cleanup step before ditto will wipe the bad bundle first.
+      if (existingBinary && await isWorkingBinary(existingBinary)) {
+        return { path: existingBinary, error: null }
+      }
+      console.log('Downloading Octave for macOS...')
         await downloadFile(dmgUrl, dmgPath, 'GNU Octave for macOS')
         console.log('Extracting Octave.app from DMG...')
         emitProgress('extract', 'Mounting Octave DMG', 20)
@@ -689,12 +725,14 @@ ipcMain.handle('octave:download', async (): Promise<{ path: string | null; error
             } catch { /* best-effort — ditto will surface a clearer error if this wasn't enough */ }
           }
           emitProgress('extract', 'Copying Octave.app (this takes a few minutes)', 40)
-          // Find Octave.app in the mounted volume
-          const candidates = ['Octave.app', 'Octave-9.2.app']
-          const found = candidates.map(c => path.join(mountPoint, c)).find(p => fs.existsSync(p))
-          if (!found) {
-            throw new Error(`Octave.app not found in DMG. Volume contents: ${fs.readdirSync(mountPoint).join(', ')}`)
+          // Find Octave.app in the mounted volume — the name varies
+          // across builds (Octave.app, Octave-9.2.app, Octave-9.2-Intel.app).
+          const mounted = fs.readdirSync(mountPoint)
+          const dmgAppName = mounted.find((n) => n.startsWith('Octave') && n.endsWith('.app'))
+          if (!dmgAppName) {
+            throw new Error(`No Octave*.app found in DMG. Volume contents: ${mounted.join(', ')}`)
           }
+          const found = path.join(mountPoint, dmgAppName)
           // `ditto` is designed for copying macOS app bundles (preserves
           // xattrs, symlinks, resource forks) and is substantially faster
           // than `cp -R` for large bundles.
@@ -749,9 +787,7 @@ ipcMain.handle('octave:download', async (): Promise<{ path: string | null; error
           console.log('Octave ready at (fallback):', octaveHit)
           return { path: octaveHit, error: null }
         }
-        throw new Error(`Octave.app was extracted but no octave-cli binary was found under ${appPath}`)
-      }
-      if (existingBinary) return { path: existingBinary, error: null }
+      throw new Error(`Octave.app was extracted but no octave-cli binary was found under ${appPath}`)
     } else if (process.platform === 'linux') {
       // On Linux, download .deb packages from Ubuntu archive
       const version = '8.4.0'
