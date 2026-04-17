@@ -42,7 +42,7 @@ jobs:
               release/*.deb
               release/latest-linux.yml
           - os: macos-latest
-            platform_flag: --mac
+            platform_flag: --mac --arm64 --x64
             artifact_name: macos-installer
             artifact_glob: |
               release/*.dmg
