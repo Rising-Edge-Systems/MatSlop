@@ -143,10 +143,24 @@ export function autoDetectOctavePath(): string | null {
   }
 }
 
-export function validateOctavePath(binaryPath: string): Promise<{ valid: boolean; version?: string; error?: string }> {
+export function validateOctavePath(
+  binaryPath: string,
+  timeoutMs: number = 120_000,
+): Promise<{ valid: boolean; version?: string; error?: string }> {
+  // First-run timeout has to absorb macOS Gatekeeper's transitive-dylib scan,
+  // which takes ~30–60s on an ad-hoc-signed conda-forge Octave the very first
+  // time the binary (and everything it links against) is exec'd. Once the OS
+  // caches the assessment, subsequent `--version` calls return in ~200ms.
+  //
+  // OCTAVE_HOME/OCTAVE_EXEC_HOME: see the long comment in octaveProcess.ts
+  // start() — conda-forge's embedded prefix is NUL-padded and, if Octave
+  // falls back to it, std::string keeps the NULs and `genpath` recurses into
+  // the prefix dir forever. These env vars make Octave use a clean prefix.
+  const octaveHome = path.dirname(path.dirname(binaryPath))
+  const env = { ...process.env, OCTAVE_HOME: octaveHome, OCTAVE_EXEC_HOME: octaveHome }
   return new Promise((resolve) => {
     try {
-      execFile(binaryPath, ['--version'], { timeout: 10000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
+      execFile(binaryPath, ['--version'], { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024, env }, (err, stdout, stderr) => {
         if (err) {
           // Include stderr in the error — Node's default err.message
           // ("Command failed: ...") tells us nothing about what actually

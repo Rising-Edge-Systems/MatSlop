@@ -651,6 +651,11 @@ function App(): React.JSX.Element {
       try {
         const result = await window.matslop.octaveDownload()
         if (result.path) {
+          // First `octave-cli --version` after install triggers macOS Gatekeeper's
+          // transitive-dylib scan and can take ~30–60s on an Intel Mac. Swap the
+          // banner off the stale download-progress text while we wait.
+          unsubProgress()
+          setOctaveBannerError('Verifying Octave installation — this can take up to a minute on first launch...')
           const validation = await window.matslop.octaveValidate(result.path)
           if (validation.valid) {
             await window.matslop.octaveSetPath(result.path)

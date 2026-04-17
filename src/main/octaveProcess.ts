@@ -42,7 +42,20 @@ export class OctaveProcessManager extends EventEmitter {
     // so it can find its DLLs and dependencies
     const octaveBinDir = path.dirname(this.octavePath)
     const octaveRootDir = path.resolve(octaveBinDir, '..', '..')
-    const env: NodeJS.ProcessEnv = { ...process.env, TERM: 'dumb' }
+    // OCTAVE_HOME is the install prefix (one level above bin/). Conda-forge
+    // binaries on osx-64 carry a 248–258-byte NUL-padded prefix placeholder
+    // that, absent this env var, gets read into a std::string with the NULs
+    // intact. Concatenating that with "/share/octave/..." keeps c_str()
+    // pointing at just the prefix, so `octave::genpath` re-opens the same
+    // directory every iteration until the 8MB stack overflows. Setting
+    // OCTAVE_HOME bypasses the placeholder entirely.
+    const octaveHome = path.dirname(octaveBinDir)
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      TERM: 'dumb',
+      OCTAVE_HOME: octaveHome,
+      OCTAVE_EXEC_HOME: octaveHome,
+    }
     // Prepend Octave's bin dir and usr/bin to PATH
     const extraPaths = [
       octaveBinDir,
