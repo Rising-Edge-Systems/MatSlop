@@ -42,6 +42,7 @@ declare module 'plotly.js-dist-min' {
 interface Window {
   matslop: {
     platform: string
+    updateManualInstallOnly: boolean
     openFile: () => Promise<{ filePath: string; content: string; filename: string } | null>
     saveFile: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>
     saveFileAs: (content: string, defaultName?: string) => Promise<{ filePath: string; filename: string } | null>

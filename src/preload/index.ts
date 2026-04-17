@@ -6,8 +6,16 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron'
 let _busyBeginCb: (() => void) | null = null
 let _busyEndCb: (() => void) | null = null
 
+// Platforms where in-app auto-update can't complete (unsigned macOS, Linux
+// not launched from an AppImage). The banner uses this to route the user
+// to the GitHub release page instead of calling updateDownload/install.
+const UPDATE_MANUAL_INSTALL_ONLY =
+  process.platform === 'darwin' ||
+  (process.platform === 'linux' && !process.env.APPIMAGE)
+
 contextBridge.exposeInMainWorld('matslop', {
   platform: process.platform,
+  updateManualInstallOnly: UPDATE_MANUAL_INSTALL_ONLY,
   openFile: (): Promise<{ filePath: string; content: string; filename: string } | null> =>
     ipcRenderer.invoke('file:open'),
   saveFile: (filePath: string, content: string): Promise<{ success: boolean; error?: string }> =>

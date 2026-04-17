@@ -91,7 +91,8 @@ export function UpdateBanner({ initialStatus }: Props): React.JSX.Element | null
 
   // Only surface the banner for states the user needs to act on.
   switch (status.kind) {
-    case 'available':
+    case 'available': {
+      const manual = window.matslop.updateManualInstallOnly
       return (
         <div className="update-banner" data-testid="update-banner" role="status">
           <span className="update-banner-message">
@@ -104,15 +105,22 @@ export function UpdateBanner({ initialStatus }: Props): React.JSX.Element | null
               className="update-banner-btn update-banner-btn-primary"
               data-testid="update-banner-download"
               onClick={() => {
-                void window.matslop.updateDownload()
+                if (manual) {
+                  void window.matslop.openExternal(
+                    `https://github.com/Rising-Edge-Systems/MatSlop/releases/tag/v${status.version}`,
+                  )
+                } else {
+                  void window.matslop.updateDownload()
+                }
               }}
             >
-              Download
+              {manual ? 'Download Update' : 'Download'}
             </button>
           </div>
           {closeButton}
         </div>
       )
+    }
     case 'downloading':
       return (
         <div className="update-banner" data-testid="update-banner" role="status">
@@ -140,8 +148,7 @@ export function UpdateBanner({ initialStatus }: Props): React.JSX.Element | null
               className="update-banner-btn update-banner-btn-primary"
               data-testid="update-banner-install-now"
               onClick={() => {
-                if (window.matslop.platform === 'darwin') {
-                  // macOS unsigned apps can't do in-place updates — open the release page
+                if (window.matslop.updateManualInstallOnly) {
                   const version = status.kind === 'downloaded' ? status.version : ''
                   void window.matslop.openExternal(`https://github.com/Rising-Edge-Systems/MatSlop/releases/tag/v${version}`)
                 } else {
@@ -149,7 +156,7 @@ export function UpdateBanner({ initialStatus }: Props): React.JSX.Element | null
                 }
               }}
             >
-              {window.matslop.platform === 'darwin' ? 'Download Update' : 'Install & Restart'}
+              {window.matslop.updateManualInstallOnly ? 'Download Update' : 'Install & Restart'}
             </button>
           </div>
           {closeButton}

@@ -52,8 +52,32 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y dpkg-dev rpm fakeroot
 
-      - name: Build & Publish
-        run: npx electron-vite build && npx electron-builder ${{ matrix.platform_flag }} --publish onTag
+      # Caches electron-builder's downloaded helper binaries (winCodeSign,
+      # nsis-resources, Squirrel.Mac, appimage runtime, etc.) across runs so
+      # we don't depend on GitHub's CDN staying up every time we tag.
+      - name: Cache electron-builder binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron-builder
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-builder-${{ runner.os }}
+
+      - name: Build sources
+        run: npx electron-vite build
+
+      # Retried because the cold-cache run on a fresh runner still has to
+      # fetch winCodeSign / appimage-runtime from github.com, which
+      # intermittently returns 502. Once the cache above is warm, the retry
+      # is effectively a no-op.
+      - name: Package & Publish
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 30
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: npx electron-builder ${{ matrix.platform_flag }} --publish onTag
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

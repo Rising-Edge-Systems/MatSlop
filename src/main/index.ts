@@ -1348,6 +1348,17 @@ ipcMain.handle('session:setRestoreEnabled', (_event, enabled: boolean) => {
 // ---------------------------------------------------------------------------
 let updateBridge: UpdateBridge | null = null
 
+/**
+ * True on platforms where electron-updater cannot perform an in-place
+ * install: unsigned macOS (we don't have an Apple Developer cert) and
+ * Linux when the app was not launched from an AppImage (e.g. a .deb
+ * install). In these cases the UI routes the user to the GitHub release
+ * page for manual download.
+ */
+const MANUAL_INSTALL_ONLY =
+  process.platform === 'darwin' ||
+  (process.platform === 'linux' && !process.env.APPIMAGE)
+
 function getUpdateBridge(): UpdateBridge {
   if (!updateBridge) {
     updateBridge = createUpdateBridge({
@@ -1356,6 +1367,8 @@ function getUpdateBridge(): UpdateBridge {
       setLastCheckMs: setUpdateLastCheckMs,
       getLastCheckMs: getUpdateLastCheckMs,
       getIntervalHours: () => normalizeUpdateCheckIntervalHours(getUpdateCheckIntervalHours()),
+      manualInstallOnly: MANUAL_INSTALL_ONLY,
+      githubRepo: { owner: 'Rising-Edge-Systems', repo: 'MatSlop' },
     })
   }
   return updateBridge

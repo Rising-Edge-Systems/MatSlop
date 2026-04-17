@@ -14,6 +14,7 @@
  */
 
 import type { BrowserWindow } from 'electron'
+import https from 'https'
 
 // ---------------------------------------------------------------------------
 // Pure helpers (no electron / electron-updater imports — unit-testable)
@@ -156,6 +157,21 @@ export interface UpdateBridgeDeps {
   getLastCheckMs: () => number | null
   /** Called to read the current user-configured interval hours. */
   getIntervalHours: () => number
+  /**
+   * True when electron-updater cannot perform an in-place install on this
+   * platform (unsigned macOS, non-AppImage Linux). In that mode we skip
+   * electron-updater entirely and do a direct GitHub API version check; the
+   * UI routes the user to the release page for manual install.
+   */
+  manualInstallOnly?: boolean
+  /**
+   * GitHub repo used for manual-install version checks. Required when
+   * `manualInstallOnly` is true. Ignored otherwise (electron-updater reads
+   * this from app-update.yml baked in by electron-builder).
+   */
+  githubRepo?: { owner: string; repo: string }
+  /** Test seam: override the HTTP fetcher used for manual-install checks. */
+  fetchJson?: (url: string) => Promise<unknown>
 }
 
 export interface UpdateBridge {
@@ -186,10 +202,132 @@ export function _resetUpdateBridgeForTests(): void {
 }
 
 /**
+ * Default JSON fetcher used by the manual-install path. Uses Node's https
+ * module so we avoid pulling electron into unit tests.
+ */
+function defaultFetchJson(url: string): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      url,
+      {
+        headers: {
+          'User-Agent': 'MatSlop-UpdateCheck',
+          Accept: 'application/vnd.github+json',
+        },
+        timeout: 15000,
+      },
+      (res) => {
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume()
+          defaultFetchJson(res.headers.location).then(resolve, reject)
+          return
+        }
+        if (!res.statusCode || res.statusCode >= 400) {
+          res.resume()
+          reject(new Error(`HTTP ${res.statusCode ?? '?'} fetching ${url}`))
+          return
+        }
+        const chunks: Buffer[] = []
+        res.on('data', (c: Buffer) => chunks.push(c))
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')))
+          } catch (e) {
+            reject(e instanceof Error ? e : new Error(String(e)))
+          }
+        })
+      },
+    )
+    req.on('timeout', () => {
+      req.destroy(new Error('Update check timed out'))
+    })
+    req.on('error', reject)
+  })
+}
+
+/**
+ * Bridge for platforms where electron-updater can't perform an in-place
+ * install (unsigned macOS, non-AppImage Linux). Uses the GitHub Releases
+ * API to detect a new version; the renderer then opens the release page
+ * in the user's browser for manual download.
+ */
+function createManualUpdateBridge(deps: UpdateBridgeDeps): UpdateBridge {
+  const fetchJson = deps.fetchJson ?? defaultFetchJson
+  const repo = deps.githubRepo
+
+  async function checkNow(): Promise<UpdateStatus> {
+    deps.setLastCheckMs(Date.now())
+    if (!repo) {
+      _latestState = { kind: 'error', message: 'No GitHub repo configured for update checks' }
+      deps.sendStatus(_latestState)
+      return _latestState
+    }
+    _latestState = { kind: 'checking' }
+    deps.sendStatus(_latestState)
+    try {
+      const url = `https://api.github.com/repos/${repo.owner}/${repo.repo}/releases/latest`
+      const data = (await fetchJson(url)) as {
+        tag_name?: unknown
+        name?: unknown
+        body?: unknown
+      }
+      const tag = typeof data.tag_name === 'string' ? data.tag_name : ''
+      const remoteVersion = tag.replace(/^v/, '')
+      const current = deps.getAppVersion()
+      if (remoteVersion && isUpdateAvailable(current, remoteVersion)) {
+        _latestState = {
+          kind: 'available',
+          version: remoteVersion,
+          releaseName: typeof data.name === 'string' ? data.name : undefined,
+          releaseNotes: typeof data.body === 'string' ? data.body : undefined,
+        }
+      } else {
+        _latestState = { kind: 'not-available', version: current }
+      }
+    } catch (e) {
+      _latestState = {
+        kind: 'error',
+        message: e instanceof Error ? e.message : 'Update check failed',
+      }
+    }
+    deps.sendStatus(_latestState)
+    return _latestState
+  }
+
+  async function checkIfDue(nowMs?: number): Promise<UpdateStatus> {
+    const now = typeof nowMs === 'number' ? nowMs : Date.now()
+    const last = deps.getLastCheckMs()
+    const interval = deps.getIntervalHours()
+    if (!shouldCheckForUpdateNow(last, interval, now)) {
+      return _latestState
+    }
+    return checkNow()
+  }
+
+  async function downloadUpdate(): Promise<void> {
+    // No-op: in manual-install mode the UI routes the user to the release
+    // page instead of calling this.
+  }
+
+  function quitAndInstall(): void {
+    // No-op: in-place install is not possible on this platform.
+  }
+
+  function getState(): UpdateStatus {
+    return _latestState
+  }
+
+  return { checkNow, checkIfDue, downloadUpdate, quitAndInstall, getState }
+}
+
+/**
  * Create an UpdateBridge. Lazily imports `electron-updater` on the first
  * check so environments without it (some test setups) don't crash.
  */
 export function createUpdateBridge(deps: UpdateBridgeDeps): UpdateBridge {
+  if (deps.manualInstallOnly) {
+    return createManualUpdateBridge(deps)
+  }
   type AutoUpdaterLike = {
     autoDownload: boolean
     autoInstallOnAppQuit: boolean
