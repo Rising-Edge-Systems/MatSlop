@@ -55,6 +55,15 @@ export class OctaveProcessManager extends EventEmitter {
       TERM: 'dumb',
       OCTAVE_HOME: octaveHome,
       OCTAVE_EXEC_HOME: octaveHome,
+      // When a user has Anaconda's cmd.exe AutoRun hook set
+      // (HKCU\Software\Microsoft\Command Processor\AutoRun pointing at
+      // conda_hook.bat), every cmd.exe descendant Octave spawns re-enters
+      // the hook and prints "'DOSKEY' is not recognized..." into our
+      // captured stdout. The hook's own guard exits early when CONDA_SHLVL
+      // is defined, so pre-setting it suppresses the noise without
+      // affecting anything else — MatSlop never needs conda aliases inside
+      // Octave's subprocesses.
+      CONDA_SHLVL: '0',
     }
     // Prepend Octave's bin dir and usr/bin to PATH
     const extraPaths = [
