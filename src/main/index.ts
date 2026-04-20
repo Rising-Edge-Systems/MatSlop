@@ -17,7 +17,7 @@ if (process.env.MATSLOP_USER_DATA_DIR) {
   app.setPath('userData', process.env.MATSLOP_USER_DATA_DIR)
 }
 
-import { autoDetectOctavePath, validateOctavePath, getStoredOctavePath, setOctavePath, getMatslopScriptsDir } from './octaveConfig'
+import { autoDetectOctavePath, validateOctavePath, getStoredOctavePath, setOctavePath, getMatslopScriptsDir, getGraphScriptsDir } from './octaveConfig'
 import { OctaveProcessManager } from './octaveProcess'
 import {
   setBreakpoint as applySetBreakpoint,
@@ -848,7 +848,11 @@ ipcMain.handle('octave:start', async (_event, binaryPath: string) => {
     if (octaveProcess) {
       octaveProcess.stop()
     }
-    octaveProcess = new OctaveProcessManager(binaryPath, getMatslopScriptsDir())
+    octaveProcess = new OctaveProcessManager(
+      binaryPath,
+      getMatslopScriptsDir(),
+      getGraphScriptsDir()
+    )
 
     octaveProcess.on('status', (status: string) => {
       mainWindow?.webContents.send('octave:statusChanged', status)

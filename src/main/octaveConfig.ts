@@ -212,6 +212,36 @@ export function getMatslopScriptsDir(): string | null {
   return null
 }
 
+/**
+ * Resolve the directory containing the work-in-progress `scripts/graph/`
+ * classdef files from the local Octave fork (the `digraph`/`graph`/
+ * `GraphPlot` classes). Returns `null` if neither candidate exists.
+ *
+ * - Packaged: `<resources>/octave-scripts/graph` (populated at build
+ *   time by electron-builder's `extraResources` copy of the fork's
+ *   `scripts/graph/` tree — see package.json).
+ * - Dev: the sibling-project path `../octave/scripts/graph`, resolved
+ *   relative to `app.getAppPath()` so live edits in the fork show up
+ *   in MatSlop on the next Octave restart without a rebuild.
+ */
+export function getGraphScriptsDir(): string | null {
+  const candidates = app.isPackaged
+    ? [path.join(process.resourcesPath, 'octave-scripts', 'graph')]
+    : [
+        path.join(app.getAppPath(), '..', 'octave', 'scripts', 'graph'),
+        path.join(__dirname, '..', '..', '..', 'octave', 'scripts', 'graph'),
+        path.join(app.getAppPath(), 'resources', 'octave-scripts', 'graph')
+      ]
+  for (const c of candidates) {
+    try {
+      if (fs.existsSync(c) && fs.statSync(c).isDirectory()) return c
+    } catch {
+      // ignore
+    }
+  }
+  return null
+}
+
 export function getStoredOctavePath(): string | null {
   return store.get('octavePath') ?? null
 }

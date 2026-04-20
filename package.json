@@ -55,6 +55,13 @@
         "filter": [
           "**/*.m"
         ]
+      },
+      {
+        "from": "../octave/scripts/graph",
+        "to": "octave-scripts/graph",
+        "filter": [
+          "**/*.m"
+        ]
       }
     ],
     "linux": {

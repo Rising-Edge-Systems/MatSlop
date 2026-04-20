@@ -18,15 +18,21 @@ export class OctaveProcessManager extends EventEmitter {
   private process: ChildProcess | null = null
   private octavePath: string
   private scriptsDir: string | null
+  private graphScriptsDir: string | null
   private pendingResolve: ((result: CommandResult) => void) | null = null
   private stdoutBuffer = ''
   private stderrBuffer = ''
   private status: OctaveEngineStatus = 'disconnected'
 
-  constructor(octavePath: string, scriptsDir: string | null = null) {
+  constructor(
+    octavePath: string,
+    scriptsDir: string | null = null,
+    graphScriptsDir: string | null = null
+  ) {
     super()
     this.octavePath = octavePath
     this.scriptsDir = scriptsDir
+    this.graphScriptsDir = graphScriptsDir
   }
 
   getStatus(): OctaveEngineStatus {
@@ -127,11 +133,18 @@ export class OctaveProcessManager extends EventEmitter {
     this.setStatus('busy')
     // Escape any single-quotes in the scripts dir for safe embedding in an
     // Octave single-quoted string. Forward slashes are fine on Windows too.
-    const scriptsDirForOctave = this.scriptsDir
-      ? this.scriptsDir.replace(/\\/g, '/').replace(/'/g, "''")
-      : null
-    const addpathStmt = scriptsDirForOctave
-      ? `try; addpath('${scriptsDirForOctave}'); catch; end;`
+    const toOctavePath = (d: string): string =>
+      d.replace(/\\/g, '/').replace(/'/g, "''")
+    const addpathStmt = this.scriptsDir
+      ? `try; addpath('${toOctavePath(this.scriptsDir)}'); catch; end;`
+      : ''
+    // The digraph/graph classdef files live in the Octave fork at
+    // ../octave/scripts/graph (dev) or resources/octave-scripts/graph
+    // (packaged). Adding them to the load path makes MATLAB-style graph
+    // code — `G = digraph(s,t); plot(G)` — resolve without the user
+    // having to install anything.
+    const addpathGraphStmt = this.graphScriptsDir
+      ? `try; addpath('${toOctavePath(this.graphScriptsDir)}'); catch; end;`
       : ''
     const initScript = [
       "warning('off', 'Octave:gnuplot-graphics');",
@@ -156,6 +169,9 @@ export class OctaveProcessManager extends EventEmitter {
       // US-009: put bundled matslop_export_fig on the Octave load path so
       // live-script cells can serialize figures to JSON for PlotRenderer.
       addpathStmt,
+      // US-I02: put the Octave fork's scripts/graph dir on the load path
+      // so digraph/graph/GraphPlot resolve.
+      addpathGraphStmt,
     ].filter(Boolean).join(' ')
     this.process.stdin?.write(initScript + '\n')
     this.process.stdin?.write(DELIMITER_COMMAND)
