@@ -116,8 +116,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": "There is already an UpdateBanner.tsx component — check its current implementation and update it to use the new IPC methods. The banner should be rendered in App.tsx or EditorPanel.tsx above the editor toolbar. Style it similar to the editor-run-warning banner. Use the UpdateStatus type from updateBridge.ts for type safety."
+      "passes": true,
+      "notes": "Already merged to main via commit 40d715b (feat: US-C06 - Update banner UI in renderer). This PRD was stale."
     },
     {
       "id": "US-C07",
@@ -132,8 +132,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": "The appMenu.ts already has a Help menu. Add the item there. Use dialog.showMessageBox for the 'up to date' confirmation. The checkNow() method returns an UpdateStatus — check status.kind to decide which dialog to show."
+      "passes": true,
+      "notes": "Already merged to main via commit 8158d47 (feat: US-C07 - Add Check for Updates menu item). This PRD was stale."
     },
     {
       "id": "US-C08",
@@ -147,8 +147,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": "npm version automatically updates package.json, creates a git commit, and creates a git tag. The scripts just add git push && git push --tags to push everything. The tag push triggers the release workflow from US-C01."
+      "passes": true,
+      "notes": "Already merged to main via commit 52c9b55 (feat: US-C08 - Version bump npm scripts). This PRD was stale."
     }
   ]
 }
