@@ -1,0 +1,28 @@
+To: assign@gnu.org
+Cc: maintainers@octave.org
+Subject: Copyright assignment for GNU Octave — request-assign.future form
+
+Hello,
+
+I would like to contribute to GNU Octave and would like to request the
+copyright assignment paperwork. Specifically, I plan to submit a
+substantial implementation of the `graph`, `digraph`, and `GraphPlot`
+classes (MATLAB-parity graph-theory primitives) which do not currently
+exist in Octave.
+
+Please send me the `request-assign.future` form (the one that covers
+all future contributions to GNU Octave), and any supplementary
+material I need to sign.
+
+Full legal name: Adam Kidwell
+Email:           bkidwell@oakland.edu
+GitHub account:  Ytuf
+Planned first contribution: new `scripts/graph/` directory containing
+  classdef implementations of `graph`, `digraph`, and `GraphPlot`.
+  Draft branch: https://github.com/Ytuf/octave/tree/digraph-graph-classes
+  (draft PR to be opened against gnu-octave/default once the paperwork
+  is in motion).
+
+Thank you.
+
+— Adam Kidwell
